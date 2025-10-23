@@ -1,5 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  login as loginService,
+  signup as signupService,
+} from "../services/authService";
 
 function Label({
   htmlFor,
@@ -58,6 +62,7 @@ function Header({
       {/* 탭 버튼 */}
       <div className="flex justify-center mb-6 gap-6">
         <button
+          type="button"
           onClick={() => setTab("login")}
           className={`pb-1 border-b-2 text-lg font-medium ${
             tab === "login"
@@ -68,6 +73,7 @@ function Header({
           로그인
         </button>
         <button
+          type="button"
           onClick={() => setTab("signup")}
           className={`pb-1 border-b-2 text-lg font-medium ${
             tab === "signup"
@@ -85,11 +91,9 @@ function Header({
 export default function AuthPage() {
   const [tab, setTab] = useState<"login" | "signup">("login");
 
-  // ✅ 로그인 전용 state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  // ✅ 회원가입 전용 state
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
@@ -99,35 +103,63 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ✅ 로그인 처리 함수
+  const handleLogin = async () => {
+    try {
+      const res = await loginService(loginEmail, loginPassword);
+      localStorage.setItem("token", res.data.token); // ✅ 토큰 저장
+      navigate("/");
+    } catch (err: any) {
+      setError(err.response?.data?.message || "서버 오류가 발생했습니다.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ✅ 회원가입 처리 함수
+  const handleSignup = async () => {
+    try {
+      await signupService(signupName, signupEmail, signupPassword);
+      alert("회원가입 성공! 로그인 해주세요.");
+      setTab("login");
+    } catch (err: any) {
+      setError(err.response?.data?.message || "서버 오류가 발생했습니다.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ✅ 폼 제출 핸들러
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
 
-    setTimeout(() => {
-      setIsLoading(false);
-      if (tab === "login") {
-        // 로그인 처리
-        if (loginEmail === "" || loginPassword === "") {
-          setError("이메일과 비밀번호를 입력하세요.");
-        } else {
-          setError("로그인 실패 예시");
-        }
-      } else {
-        // 회원가입 처리
-        if (
-          signupName === "" ||
-          signupEmail === "" ||
-          signupPassword === "" ||
-          signupConfirmPassword === ""
-        ) {
-          setError("모든 필드를 입력하세요.");
-        } else if (signupPassword !== signupConfirmPassword) {
-          setError("비밀번호가 일치하지 않습니다.");
-        } else {
-          setError("회원가입 실패 예시");
-        }
+    if (tab === "login") {
+      if (!loginEmail || !loginPassword) {
+        setError("이메일과 비밀번호를 입력하세요.");
+        setIsLoading(false);
+        return;
       }
-    }, 1000);
+      await handleLogin();
+    } else {
+      if (
+        !signupName ||
+        !signupEmail ||
+        !signupPassword ||
+        !signupConfirmPassword
+      ) {
+        setError("모든 필드를 입력하세요.");
+        setIsLoading(false);
+        return;
+      }
+      if (signupPassword !== signupConfirmPassword) {
+        setError("비밀번호가 일치하지 않습니다.");
+        setIsLoading(false);
+        return;
+      }
+      await handleSignup();
+    }
   };
 
   return (
