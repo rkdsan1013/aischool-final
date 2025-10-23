@@ -17,6 +17,7 @@ function Label({
     </label>
   );
 }
+
 function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
@@ -25,6 +26,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     />
   );
 }
+
 function Button({
   children,
   ...props
@@ -39,7 +41,6 @@ function Button({
   );
 }
 
-// ✅ AuthPage 안에서 헤더를 내부 컴포넌트로 정의
 function Header({
   tab,
   setTab,
@@ -48,17 +49,17 @@ function Header({
   setTab: (t: "login" | "signup") => void;
 }) {
   return (
-    <div className="flex flex-col mb-6 w-full padding-full">
-      {/* 로고/타이틀 */}
+    <div className="flex flex-col mb-6 w-full">
+      {/* 로고 */}
       <div className="mb-12">
         <h1 className="text-3xl font-bold text-rose-500 text-center">Blabla</h1>
       </div>
 
       {/* 탭 버튼 */}
-      <div className="flex justify-center  mb-6">
+      <div className="flex justify-center mb-6 gap-6">
         <button
           onClick={() => setTab("login")}
-          className={`w-full pb-1 border-b-2 text-center text-lg font-medium ${
+          className={`pb-1 border-b-2 text-lg font-medium ${
             tab === "login"
               ? "border-rose-500 text-rose-500"
               : "border-transparent text-gray-500"
@@ -68,7 +69,7 @@ function Header({
         </button>
         <button
           onClick={() => setTab("signup")}
-          className={`w-full pb-1 border-b-2 text-center text-lg font-medium ${
+          className={`pb-1 border-b-2 text-lg font-medium ${
             tab === "signup"
               ? "border-rose-500 text-rose-500"
               : "border-transparent text-gray-500"
@@ -83,12 +84,17 @@ function Header({
 
 export default function AuthPage() {
   const [tab, setTab] = useState<"login" | "signup">("login");
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
+
+  // ✅ 로그인 전용 state
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // ✅ 회원가입 전용 state
+  const [signupName, setSignupName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -96,9 +102,31 @@ export default function AuthPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
     setTimeout(() => {
       setIsLoading(false);
-      setError(tab === "login" ? "로그인 실패 예시" : "회원가입 실패 예시");
+      if (tab === "login") {
+        // 로그인 처리
+        if (loginEmail === "" || loginPassword === "") {
+          setError("이메일과 비밀번호를 입력하세요.");
+        } else {
+          setError("로그인 실패 예시");
+        }
+      } else {
+        // 회원가입 처리
+        if (
+          signupName === "" ||
+          signupEmail === "" ||
+          signupPassword === "" ||
+          signupConfirmPassword === ""
+        ) {
+          setError("모든 필드를 입력하세요.");
+        } else if (signupPassword !== signupConfirmPassword) {
+          setError("비밀번호가 일치하지 않습니다.");
+        } else {
+          setError("회원가입 실패 예시");
+        }
+      }
     }, 1000);
   };
 
@@ -112,7 +140,7 @@ export default function AuthPage() {
         ×
       </button>
 
-      {/* 헤더 (로고 + 탭) */}
+      {/* 헤더 */}
       <Header tab={tab} setTab={setTab} />
 
       {/* 폼 */}
@@ -120,64 +148,82 @@ export default function AuthPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-md space-y-4 min-h-[400px]"
       >
-        {tab === "signup" && (
-          <div className="space-y-2">
-            <Label htmlFor="name">이름</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="홍길동"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              disabled={isLoading}
-            />
-          </div>
-        )}
+        {tab === "login" ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="loginEmail">이메일</Label>
+              <Input
+                id="loginEmail"
+                type="email"
+                placeholder="example@email.com"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="email">이메일</Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="example@email.com"
-            value={formData.email}
-            onChange={(e) =>
-              setFormData({ ...formData, email: e.target.value })
-            }
-            disabled={isLoading}
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="loginPassword">비밀번호</Label>
+              <Input
+                id="loginPassword"
+                type="password"
+                placeholder="비밀번호"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="signupName">이름</Label>
+              <Input
+                id="signupName"
+                type="text"
+                placeholder="홍길동"
+                value={signupName}
+                onChange={(e) => setSignupName(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="password">비밀번호</Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="비밀번호"
-            value={formData.password}
-            onChange={(e) =>
-              setFormData({ ...formData, password: e.target.value })
-            }
-            disabled={isLoading}
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="signupEmail">이메일</Label>
+              <Input
+                id="signupEmail"
+                type="email"
+                placeholder="example@email.com"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
 
-        {tab === "signup" && (
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">비밀번호 확인</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              placeholder="비밀번호를 다시 입력하세요"
-              value={formData.confirmPassword}
-              onChange={(e) =>
-                setFormData({ ...formData, confirmPassword: e.target.value })
-              }
-              disabled={isLoading}
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="signupPassword">비밀번호</Label>
+              <Input
+                id="signupPassword"
+                type="password"
+                placeholder="비밀번호"
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="signupConfirmPassword">비밀번호 확인</Label>
+              <Input
+                id="signupConfirmPassword"
+                type="password"
+                placeholder="비밀번호를 다시 입력하세요"
+                value={signupConfirmPassword}
+                onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+          </>
         )}
 
         {error && (
