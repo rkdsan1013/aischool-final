@@ -6,6 +6,11 @@ import LayoutWithNav from "./layouts/LayoutWithNav";
 
 import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
+import MyPage from "./pages/MyPage";
+import AITalk from "./pages/AITalkPage";
+import { Home } from "lucide-react";
+import VoiceRoomPage from "./pages/VoiceRoomPage";
+import HomePage from "./pages/HomePage";
 
 const App: React.FC = () => {
   return (
@@ -21,10 +26,10 @@ const App: React.FC = () => {
         {/* 네비게이션 있는 레이아웃 */}
         <Route element={<LayoutWithNav />}>
           <Route path="/level-test" />
-          <Route path="/home" />
-          <Route path="/ai-talk" />
-          <Route path="/voiceroom" />
-          <Route path="/my" />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/ai-talk" element={<AITalk />} />
+          <Route path="/voiceroom" element={<VoiceRoomPage />} />
+          <Route path="/my" element={<MyPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

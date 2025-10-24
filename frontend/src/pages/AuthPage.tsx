@@ -111,7 +111,7 @@ export default function AuthPage() {
     try {
       const data = await loginService(loginEmail, loginPassword);
       localStorage.setItem("token", data.token);
-      navigate("/");
+      navigate("/home");
     } catch (err: unknown) {
       // ✅ instanceof로 ServiceError 타입 확인
       if (err instanceof ServiceError) {
