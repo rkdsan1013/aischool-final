@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import * as jose from "jose";
 import { createUser, findUserByEmail, User } from "../models/userModel";
 
 // 회원가입
@@ -20,11 +20,15 @@ export async function loginUser(email: string, password: string) {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("비밀번호가 올바르지 않습니다.");
 
-  const token = jwt.sign(
-    { id: user.user_id, email: user.email }, // ✅ user_id 사용
-    process.env.JWT_SECRET!,
-    { expiresIn: "1h" }
-  );
+  // jose는 Uint8Array 키를 사용해야 함
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+
+  // JWT 생성
+  const token = await new jose.SignJWT({ id: user.user_id, email: user.email })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(secret);
 
   return { message: "로그인 성공", token };
 }

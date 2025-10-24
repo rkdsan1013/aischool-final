@@ -4,6 +4,7 @@ import {
   login as loginService,
   signup as signupService,
 } from "../services/authService";
+import { AxiosError } from "axios";
 
 function Label({
   htmlFor,
@@ -106,11 +107,12 @@ export default function AuthPage() {
   // ✅ 로그인 처리 함수
   const handleLogin = async () => {
     try {
-      const res = await loginService(loginEmail, loginPassword);
-      localStorage.setItem("token", res.data.token); // ✅ 토큰 저장
+      const data = await loginService(loginEmail, loginPassword);
+      localStorage.setItem("token", data.token); // ✅ 토큰 저장
       navigate("/");
-    } catch (err: any) {
-      setError(err.response?.data?.message || "서버 오류가 발생했습니다.");
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message?: string }>;
+      setError(error.response?.data?.message || "서버 오류가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
@@ -122,8 +124,9 @@ export default function AuthPage() {
       await signupService(signupName, signupEmail, signupPassword);
       alert("회원가입 성공! 로그인 해주세요.");
       setTab("login");
-    } catch (err: any) {
-      setError(err.response?.data?.message || "서버 오류가 발생했습니다.");
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ message?: string }>;
+      setError(error.response?.data?.message || "서버 오류가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
