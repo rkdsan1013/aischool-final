@@ -1,6 +1,7 @@
-import axios from "axios";
+// src/services/authService.ts
+import { apiClient, handleApiError } from "../api";
 
-// ✅ 응답 타입 정의
+// 응답 타입 정의
 export interface LoginResponse {
   token: string;
   message: string;
@@ -10,21 +11,21 @@ export interface SignupResponse {
   message: string;
 }
 
-// ✅ axios 인스턴스 생성
-const api = axios.create({
-  baseURL: "http://localhost:3000/api/auth",
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
 // 로그인
 export async function login(
   email: string,
   password: string
 ): Promise<LoginResponse> {
-  const res = await api.post<LoginResponse>("/login", { email, password });
-  return res.data; // ✅ AxiosResponse 대신 data만 반환
+  try {
+    // apiClient의 baseURL이 '.../api'이므로, 엔드포인트는 '/auth/login'이 됩니다.
+    const res = await apiClient.post<LoginResponse>("/auth/login", {
+      email,
+      password,
+    });
+    return res.data;
+  } catch (error) {
+    handleApiError(error, "로그인");
+  }
 }
 
 // 회원가입
@@ -33,10 +34,14 @@ export async function signup(
   email: string,
   password: string
 ): Promise<SignupResponse> {
-  const res = await api.post<SignupResponse>("/register", {
-    name,
-    email,
-    password,
-  });
-  return res.data;
+  try {
+    const res = await apiClient.post<SignupResponse>("/auth/register", {
+      name,
+      email,
+      password,
+    });
+    return res.data;
+  } catch (error) {
+    handleApiError(error, "회원가입");
+  }
 }

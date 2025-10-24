@@ -1,11 +1,13 @@
-import { useState } from "react";
+// src/pages/AuthPage.tsx
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   login as loginService,
   signup as signupService,
-} from "../services/authService";
-import { AxiosError } from "axios";
+} from "../services/authService"; // ✅ 서비스 함수 import
+import { ServiceError } from "../api"; // ✅ ServiceError는 api에서 import
 
+/* UI primitives (Label, Input, Button, Tabs) - 변경 없음 */
 function Label({
   htmlFor,
   children,
@@ -16,7 +18,7 @@ function Label({
   return (
     <label
       htmlFor={htmlFor}
-      className="block text-sm font-medium text-gray-700"
+      className="block text-xs font-medium text-gray-600"
     >
       {children}
     </label>
@@ -27,26 +29,30 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500"
+      className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500 transition"
     />
   );
 }
 
 function Button({
   children,
+  className = "",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { className?: string }) {
   return (
     <button
       {...props}
-      className="w-full rounded-lg bg-rose-500 px-4 py-3 font-medium text-white hover:bg-rose-600 disabled:opacity-50"
+      className={
+        "w-full rounded-xl bg-rose-500 px-4 py-4 text-base font-semibold text-white shadow-sm hover:bg-rose-600 active:bg-rose-700 disabled:opacity-50 transition-colors " +
+        className
+      }
     >
       {children}
     </button>
   );
 }
 
-function Header({
+function Tabs({
   tab,
   setTab,
 }: {
@@ -54,40 +60,34 @@ function Header({
   setTab: (t: "login" | "signup") => void;
 }) {
   return (
-    <div className="flex flex-col mb-6 w-full">
-      {/* 로고 */}
-      <div className="mb-12">
-        <h1 className="text-3xl font-bold text-rose-500 text-center">Blabla</h1>
-      </div>
-
-      {/* 탭 버튼 */}
-      <div className="flex justify-center mb-6 gap-6">
-        <button
-          type="button"
-          onClick={() => setTab("login")}
-          className={`pb-1 border-b-2 text-lg font-medium ${
-            tab === "login"
-              ? "border-rose-500 text-rose-500"
-              : "border-transparent text-gray-500"
-          }`}
-        >
-          로그인
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("signup")}
-          className={`pb-1 border-b-2 text-lg font-medium ${
-            tab === "signup"
-              ? "border-rose-500 text-rose-500"
-              : "border-transparent text-gray-500"
-          }`}
-        >
-          회원가입
-        </button>
-      </div>
+    <div className="mt-2 flex items-center justify-center gap-6">
+      <button
+        type="button"
+        onClick={() => setTab("login")}
+        className={`pb-2 text-sm font-semibold ${
+          tab === "login"
+            ? "text-rose-600 border-b-2 border-rose-600"
+            : "text-gray-500 border-b-2 border-transparent"
+        }`}
+      >
+        로그인
+      </button>
+      <button
+        type="button"
+        onClick={() => setTab("signup")}
+        className={`pb-2 text-sm font-semibold ${
+          tab === "signup"
+            ? "text-rose-600 border-b-2 border-rose-600"
+            : "text-gray-500 border-b-2 border-transparent"
+        }`}
+      >
+        회원가입
+      </button>
     </div>
   );
 }
+
+// ❌ 로컬 타입 가드 삭제됨
 
 export default function AuthPage() {
   const [tab, setTab] = useState<"login" | "signup">("login");
@@ -104,37 +104,46 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  // ✅ 로그인 처리 함수
+  const loginFormRef = useRef<HTMLFormElement | null>(null);
+  const signupFormRef = useRef<HTMLFormElement | null>(null);
+
   const handleLogin = async () => {
     try {
       const data = await loginService(loginEmail, loginPassword);
-      localStorage.setItem("token", data.token); // ✅ 토큰 저장
+      localStorage.setItem("token", data.token);
       navigate("/");
     } catch (err: unknown) {
-      const error = err as AxiosError<{ message?: string }>;
-      setError(error.response?.data?.message || "서버 오류가 발생했습니다.");
+      // ✅ instanceof로 ServiceError 타입 확인
+      if (err instanceof ServiceError) {
+        setError(err.message);
+      } else {
+        setError("알 수 없는 오류가 발생했습니다.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ 회원가입 처리 함수
   const handleSignup = async () => {
     try {
       await signupService(signupName, signupEmail, signupPassword);
       alert("회원가입 성공! 로그인 해주세요.");
       setTab("login");
     } catch (err: unknown) {
-      const error = err as AxiosError<{ message?: string }>;
-      setError(error.response?.data?.message || "서버 오류가 발생했습니다.");
+      // ✅ instanceof로 ServiceError 타입 확인
+      if (err instanceof ServiceError) {
+        setError(err.message);
+      } else {
+        setError("알 수 없는 오류가 발생했습니다.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ 폼 제출 핸들러
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     setError("");
 
@@ -165,118 +174,267 @@ export default function AuthPage() {
     }
   };
 
+  const submitActiveForm = () => {
+    const form = tab === "login" ? loginFormRef.current : signupFormRef.current;
+    if (!form) return;
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      );
+    }
+  };
+
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-white p-6">
-      {/* 우측 상단 X 버튼 */}
-      <button
-        onClick={() => navigate("/")}
-        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold"
-      >
-        ×
-      </button>
-
-      {/* 헤더 */}
-      <Header tab={tab} setTab={setTab} />
-
-      {/* 폼 */}
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-md space-y-4 min-h-[400px]"
-      >
-        {tab === "login" ? (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="loginEmail">이메일</Label>
-              <Input
-                id="loginEmail"
-                type="email"
-                placeholder="example@email.com"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="loginPassword">비밀번호</Label>
-              <Input
-                id="loginPassword"
-                type="password"
-                placeholder="비밀번호"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="signupName">이름</Label>
-              <Input
-                id="signupName"
-                type="text"
-                placeholder="홍길동"
-                value={signupName}
-                onChange={(e) => setSignupName(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="signupEmail">이메일</Label>
-              <Input
-                id="signupEmail"
-                type="email"
-                placeholder="example@email.com"
-                value={signupEmail}
-                onChange={(e) => setSignupEmail(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="signupPassword">비밀번호</Label>
-              <Input
-                id="signupPassword"
-                type="password"
-                placeholder="비밀번호"
-                value={signupPassword}
-                onChange={(e) => setSignupPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="signupConfirmPassword">비밀번호 확인</Label>
-              <Input
-                id="signupConfirmPassword"
-                type="password"
-                placeholder="비밀번호를 다시 입력하세요"
-                value={signupConfirmPassword}
-                onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-          </>
-        )}
-
-        {error && (
-          <div className="text-sm text-red-600 bg-red-100 p-3 rounded-lg">
-            {error}
+    <div className="min-h-screen w-full bg-white lg:flex">
+      {/* 데스크톱 좌측: 단색 브랜드 컬러 (rose-500) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-rose-500 text-white">
+        <div className="w-full flex items-center justify-center p-16">
+          <div className="max-w-lg space-y-6">
+            <h1 className="text-5xl font-extrabold">Blabla</h1>
+            <p className="text-2xl font-semibold">Stop typing, Start talking</p>
           </div>
-        )}
+        </div>
+      </div>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading
-            ? tab === "login"
-              ? "로그인 중..."
-              : "가입 중..."
-            : tab === "login"
-            ? "로그인"
-            : "회원가입"}
-        </Button>
-      </form>
+      {/* 오른쪽/모바일: 폼 영역 */}
+      <div className="flex w-full lg:w-1/2 items-start lg:items-center justify-center bg-white">
+        <div className="w-full max-w-md lg:max-w-lg flex flex-col">
+          {/* 모바일 헤더 (텍스트 로고, 배경 없음) */}
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-100 lg:hidden">
+            <div className="px-4 py-4 flex items-center justify-between">
+              <button
+                onClick={() => navigate("/")}
+                className="text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="닫기"
+              >
+                ×
+              </button>
+              <h1 className="text-lg font-extrabold text-rose-600">Blabla</h1>
+              <div className="w-6" />
+            </div>
+            <Tabs tab={tab} setTab={setTab} />
+          </div>
+
+          {/* 데스크톱: 탭 상단 배치 */}
+          <div className="hidden lg:block px-8 pt-12">
+            <Tabs tab={tab} setTab={setTab} />
+          </div>
+
+          {/* 설명 텍스트 */}
+          <div className="px-4 lg:px-8 pt-6 pb-2">
+            <p className="text-sm text-gray-600">
+              {tab === "login"
+                ? "계정에 로그인하여 계속 진행하세요."
+                : "몇 가지 정보만 입력하면 바로 시작할 수 있어요."}
+            </p>
+          </div>
+
+          {/* 폼 컨테이너: 안정적 전환을 위해 겹쳐 렌더링 + 고정 최소 높이 */}
+          <div className="relative px-4 lg:px-8 flex-1">
+            <div className="relative min-h-[480px]">
+              {/* 로그인 폼 */}
+              <form
+                ref={loginFormRef}
+                onSubmit={handleSubmit}
+                className={`absolute inset-0 transition-opacity duration-200 ${
+                  tab === "login"
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none"
+                }`}
+                aria-hidden={tab !== "login"}
+              >
+                <div className="space-y-6">
+                  <section className="space-y-3">
+                    <Label htmlFor="loginEmail">이메일</Label>
+                    <Input
+                      id="loginEmail"
+                      type="email"
+                      placeholder="example@email.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      disabled={isLoading}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          loginFormRef.current?.requestSubmit?.();
+                        }
+                      }}
+                    />
+                  </section>
+                  <section className="space-y-3">
+                    <Label htmlFor="loginPassword">비밀번호</Label>
+                    <Input
+                      id="loginPassword"
+                      type="password"
+                      placeholder="비밀번호"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      disabled={isLoading}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          loginFormRef.current?.requestSubmit?.();
+                        }
+                      }}
+                    />
+                  </section>
+
+                  {error && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded-lg">
+                      {error}
+                    </div>
+                  )}
+                </div>
+
+                <button type="submit" className="sr-only" aria-hidden />
+              </form>
+
+              {/* 회원가입 폼 */}
+              <form
+                ref={signupFormRef}
+                onSubmit={handleSubmit}
+                className={`absolute inset-0 transition-opacity duration-200 ${
+                  tab === "signup"
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none"
+                }`}
+                aria-hidden={tab !== "signup"}
+              >
+                <div className="space-y-6">
+                  <section className="space-y-3">
+                    <Label htmlFor="signupName">이름</Label>
+                    <Input
+                      id="signupName"
+                      type="text"
+                      placeholder="홍길동"
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      disabled={isLoading}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          signupFormRef.current?.requestSubmit?.();
+                        }
+                      }}
+                    />
+                  </section>
+                  <section className="space-y-3">
+                    <Label htmlFor="signupEmail">이메일</Label>
+                    <Input
+                      id="signupEmail"
+                      type="email"
+                      placeholder="example@email.com"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      disabled={isLoading}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          signupFormRef.current?.requestSubmit?.();
+                        }
+                      }}
+                    />
+                  </section>
+                  <section className="space-y-3">
+                    <Label htmlFor="signupPassword">비밀번호</Label>
+                    <Input
+                      id="signupPassword"
+                      type="password"
+                      placeholder="비밀번호"
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      disabled={isLoading}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          signupFormRef.current?.requestSubmit?.();
+                        }
+                      }}
+                    />
+                  </section>
+                  <section className="space-y-3">
+                    <Label htmlFor="signupConfirmPassword">비밀번호 확인</Label>
+                    <Input
+                      id="signupConfirmPassword"
+                      type="password"
+                      placeholder="비밀번호를 다시 입력하세요"
+                      value={signupConfirmPassword}
+                      onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                      disabled={isLoading}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          signupFormRef.current?.requestSubmit?.();
+                        }
+                      }}
+                    />
+                  </section>
+
+                  {error && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded-lg">
+                      {error}
+                    </div>
+                  )}
+                </div>
+
+                <button type="submit" className="sr-only" aria-hidden />
+              </form>
+            </div>
+          </div>
+
+          {/* 데스크톱: 폼 영역 내부 하단에 고정된 CTA (lg 이상에서 보임) */}
+          <div className="hidden lg:block sticky bottom-0 lg:mt-4 lg:px-8">
+            <div className="w-full max-w-lg mx-auto py-4 bg-white border-t border-gray-100">
+              <Button
+                type="button"
+                disabled={isLoading}
+                onClick={() => {
+                  submitActiveForm();
+                }}
+              >
+                {isLoading
+                  ? tab === "login"
+                    ? "로그인 중..."
+                    : "가입 중..."
+                  : tab === "login"
+                  ? "로그인"
+                  : "회원가입"}
+              </Button>
+            </div>
+          </div>
+
+          {/* 모바일: 하단 고정 CTA는 lg:hidden 영역으로 따로 렌더됨 */}
+          <div className="lg:hidden" />
+        </div>
+      </div>
+
+      {/* 모바일 전용 고정 하단 CTA (lg:hidden) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 lg:hidden">
+        <div
+          className="mx-auto w-full max-w-md px-4 py-3"
+          style={{
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+          }}
+        >
+          <Button
+            type="button"
+            disabled={isLoading}
+            onClick={() => {
+              submitActiveForm();
+            }}
+          >
+            {isLoading
+              ? tab === "login"
+                ? "로그인 중..."
+                : "가입 중..."
+              : tab === "login"
+              ? "로그인"
+              : "회원가입"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
