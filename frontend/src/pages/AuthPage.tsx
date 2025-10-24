@@ -109,7 +109,7 @@ export default function AuthPage() {
     try {
       const data = await loginService(loginEmail, loginPassword);
       localStorage.setItem("token", data.token); // ✅ 토큰 저장
-      navigate("/");
+      navigate("/my");
     } catch (err: unknown) {
       const error = err as AxiosError<{ message?: string }>;
       setError(error.response?.data?.message || "서버 오류가 발생했습니다.");
