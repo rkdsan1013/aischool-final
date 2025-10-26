@@ -8,7 +8,6 @@ import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
 import MyPage from "./pages/MyPage";
 import AITalk from "./pages/AITalkPage";
-import { Home } from "lucide-react";
 import VoiceRoomPage from "./pages/VoiceRoomPage";
 import HomePage from "./pages/HomePage";
 
