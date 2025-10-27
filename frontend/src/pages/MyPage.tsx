@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { logout } from "../services/authService";
 
 export default function MyPage() {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ export default function MyPage() {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      navigate("/login");
+      navigate("/");
     }
   }, [user, isLoading, navigate]);
 
@@ -37,9 +38,15 @@ export default function MyPage() {
     return null;
   }
 
-  const handleLogout = () => {
-    setUser(null);
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout(); // 백엔드 로그아웃 API 호출
+      setUser(null); // 상태 초기화
+      navigate("/"); // 홈으로 이동
+    } catch (error) {
+      console.error("❌ 로그아웃 실패:", error);
+      alert("로그아웃 중 오류가 발생했습니다.");
+    }
   };
 
   const handleRetakeTest = () => {

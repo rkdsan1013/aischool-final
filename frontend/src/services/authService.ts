@@ -11,6 +11,10 @@ export interface SignupResponse {
   message: string;
 }
 
+export interface LogoutResponse {
+  message: string;
+}
+
 // 로그인
 export async function login(
   email: string,
@@ -43,5 +47,14 @@ export async function signup(
     return res.data;
   } catch (error) {
     handleApiError(error, "회원가입");
+  }
+}
+// 로그아웃
+export async function logout(): Promise<LogoutResponse> {
+  try {
+    const res = await apiClient.post<LogoutResponse>("/auth/logout", {});
+    return res.data;
+  } catch (error) {
+    handleApiError(error, "로그아웃");
   }
 }

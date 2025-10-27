@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { registerUser, loginUser } from "../services/authService";
+import { registerUser, loginUser, logoutUser } from "../services/authService";
 
 export async function register(req: Request, res: Response) {
   const { email, password } = req.body;
@@ -26,6 +26,15 @@ export async function login(req: Request, res: Response) {
     res.json(result);
   } catch (err: any) {
     console.error("❌ [LOGIN 에러]", err.message);
+    res.status(400).json({ message: err.message });
+  }
+}
+
+export async function logout(req: Request, res: Response) {
+  try {
+    const result = await logoutUser(res);
+    res.status(200).json(result);
+  } catch (err: any) {
     res.status(400).json({ message: err.message });
   }
 }
