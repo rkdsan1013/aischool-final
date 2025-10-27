@@ -110,10 +110,10 @@ export default function AuthPage() {
   const handleLogin = async () => {
     try {
       const data = await loginService(loginEmail, loginPassword);
-      localStorage.setItem("token", data.token);
+      // ✅ HttpOnly 쿠키 기반이므로 localStorage에 token 저장 불필요
+      console.log("로그인 성공:", data.message);
       navigate("/home");
     } catch (err: unknown) {
-      // ✅ instanceof로 ServiceError 타입 확인
       if (err instanceof ServiceError) {
         setError(err.message);
       } else {

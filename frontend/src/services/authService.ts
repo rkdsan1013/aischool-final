@@ -1,9 +1,7 @@
-// src/services/authService.ts
 import { apiClient, handleApiError } from "../api";
 
 // 응답 타입 정의
 export interface LoginResponse {
-  token: string;
   message: string;
 }
 
@@ -17,7 +15,6 @@ export async function login(
   password: string
 ): Promise<LoginResponse> {
   try {
-    // apiClient의 baseURL이 '.../api'이므로, 엔드포인트는 '/auth/login'이 됩니다.
     const res = await apiClient.post<LoginResponse>("/auth/login", {
       email,
       password,

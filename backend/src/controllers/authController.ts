@@ -1,5 +1,9 @@
 import { Request, Response } from "express";
-import { registerUser, loginUser } from "../services/authService";
+import {
+  registerUser,
+  loginUser,
+  refreshUserToken,
+} from "../services/authService";
 
 export async function register(req: Request, res: Response) {
   const { email, password } = req.body;
@@ -20,12 +24,23 @@ export async function login(req: Request, res: Response) {
   console.log("📥 [LOGIN 요청 바디]", req.body);
 
   try {
-    // ✅ res를 함께 전달해야 함
     const result = await loginUser(email, password, res);
     console.log("✅ [LOGIN 성공]", result);
     res.json(result);
   } catch (err: any) {
     console.error("❌ [LOGIN 에러]", err.message);
     res.status(400).json({ message: err.message });
+  }
+}
+
+export async function refresh(req: Request, res: Response) {
+  console.log("♻️ [REFRESH 요청]");
+  try {
+    const result = await refreshUserToken(req, res);
+    console.log("✅ [REFRESH 성공]", result);
+    res.json(result);
+  } catch (err: any) {
+    console.error("❌ [REFRESH 에러]", err.message);
+    res.status(401).json({ message: err.message });
   }
 }

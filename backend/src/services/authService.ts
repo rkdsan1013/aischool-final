@@ -1,7 +1,11 @@
 import bcrypt from "bcrypt";
 import { createUser, findUserByEmail } from "../models/userModel";
-import { generateAccessToken, generateRefreshToken } from "../utils/token";
-import { Response } from "express";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} from "../utils/token";
+import { Response, Request } from "express";
 
 // 회원가입
 export async function registerUser(email: string, password: string) {
@@ -48,4 +52,32 @@ export async function loginUser(
   });
 
   return { message: "로그인 성공" };
+}
+
+// 토큰 재발급
+export async function refreshUserToken(req: Request, res: Response) {
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken) throw new Error("리프레시 토큰이 없습니다.");
+
+  try {
+    const { payload } = await verifyRefreshToken(refreshToken);
+
+    const userId = payload.id as number;
+
+    // 새 Access Token 발급 (id만 포함)
+    const newAccessToken = await generateAccessToken({
+      id: userId,
+    });
+
+    res.cookie("accessToken", newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000, // 15분
+    });
+
+    return { message: "토큰 재발급 성공" };
+  } catch (err) {
+    throw new Error("리프레시 토큰이 유효하지 않습니다.");
+  }
 }
