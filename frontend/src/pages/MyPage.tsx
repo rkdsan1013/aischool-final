@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { logout } from "../services/authService";
 
 export default function MyPage() {
   const navigate = useNavigate();
@@ -7,9 +8,9 @@ export default function MyPage() {
     name: "홍길동",
     email: "test@test.com",
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false); // setter 제거
 
-  const [stats, setStats] = useState({
+  const [stats] = useState({
     totalStudyTime: 245,
     streak: 7,
     completedLessons: 42,
@@ -17,11 +18,11 @@ export default function MyPage() {
     nextLevelProgress: 65,
     weeklyGoal: 5,
     weeklyProgress: 3,
-  });
+  }); // setter 제거
 
   useEffect(() => {
     if (!isLoading && !user) {
-      navigate("/login");
+      navigate("/");
     }
   }, [user, isLoading, navigate]);
 
@@ -37,9 +38,15 @@ export default function MyPage() {
     return null;
   }
 
-  const handleLogout = () => {
-    setUser(null);
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout(); // 백엔드 로그아웃 API 호출
+      setUser(null); // 상태 초기화
+      navigate("/"); // 홈으로 이동
+    } catch (error) {
+      console.error("❌ 로그아웃 실패:", error);
+      alert("로그아웃 중 오류가 발생했습니다.");
+    }
   };
 
   const handleRetakeTest = () => {
@@ -198,9 +205,6 @@ export default function MyPage() {
             <div className="flex items-center gap-3">
               <span className="text-rose-500">👤</span>
               <div>
-                <p className="font-semibold">프로필 관리</p>
-                <p className="text-sm text-gray-500">개</p>
-
                 <p className="font-semibold">프로필 관리</p>
                 <p className="text-sm text-gray-500">개인정보 수정</p>
               </div>
