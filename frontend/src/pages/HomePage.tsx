@@ -113,7 +113,7 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24 font-sans">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
       <header className="bg-rose-500 text-white p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">

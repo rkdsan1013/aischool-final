@@ -108,7 +108,7 @@ export default function VoiceRoomPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white pb-24 font-sans">
+    <div className="min-h-screen bg-white pb-24">
       {/* Header */}
       <div className="bg-gradient-to-br from-rose-400 via-rose-500 to-rose-600 text-white p-6 shadow-md">
         <div className="max-w-4xl mx-auto">
