@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
-import * as jose from "jose";
-import { createUser, findUserByEmail, User } from "../models/userModel";
+import { createUser, findUserByEmail } from "../models/userModel";
+import { generateAccessToken, generateRefreshToken } from "../utils/token";
+import { Response } from "express";
 
 // 회원가입
 export async function registerUser(email: string, password: string) {
@@ -13,22 +14,38 @@ export async function registerUser(email: string, password: string) {
 }
 
 // 로그인
-export async function loginUser(email: string, password: string) {
+export async function loginUser(
+  email: string,
+  password: string,
+  res: Response
+) {
   const user = await findUserByEmail(email);
   if (!user) throw new Error("존재하지 않는 이메일입니다.");
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("비밀번호가 올바르지 않습니다.");
 
-  // jose는 Uint8Array 키를 사용해야 함
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+  // Access / Refresh Token 발급
+  const accessToken = await generateAccessToken({
+    id: user.user_id,
+    email: user.email,
+  });
+  const refreshToken = await generateRefreshToken({ id: user.user_id });
 
-  // JWT 생성
-  const token = await new jose.SignJWT({ id: user.user_id, email: user.email })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("1h")
-    .sign(secret);
+  // HttpOnly 쿠키 저장
+  res.cookie("accessToken", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 15 * 60 * 1000, // 15분
+  });
 
-  return { message: "로그인 성공", token };
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
+  });
+
+  return { message: "로그인 성공" };
 }

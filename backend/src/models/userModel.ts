@@ -1,9 +1,9 @@
 import { pool } from "../config/db";
 import { RowDataPacket } from "mysql2";
 
-// User 타입 정의 (name 제거)
+// User 타입 정의
 export type User = {
-  user_id?: number; // PK
+  user_id: number; // PK는 항상 존재
   email: string;
   password: string;
 };
@@ -19,7 +19,10 @@ export async function findUserByEmail(email: string): Promise<User | null> {
 }
 
 // 유저 생성 (email, password만 처리)
-export async function createUser(user: User): Promise<void> {
+export async function createUser(user: {
+  email: string;
+  password: string;
+}): Promise<void> {
   await pool.execute("INSERT INTO users (email, password) VALUES (?, ?)", [
     user.email,
     user.password,

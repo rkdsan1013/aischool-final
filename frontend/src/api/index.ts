@@ -1,5 +1,6 @@
 // src/api/index.ts
-import axios from "axios";
+import axios, { AxiosError } from "axios";
+import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
 
 // 1. 표준화된 서비스 오류
 export class ServiceError extends Error {
@@ -13,24 +14,65 @@ export class ServiceError extends Error {
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
-// 3. Axios 인스턴스 생성 및 export
+// 3. Axios 인스턴스 생성 (쿠키 기반 인증)
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // ✅ HttpOnly 쿠키 자동 포함
 });
 
-// 4. API 요청 인터셉터 (모든 요청에 인증 토큰 자동 추가)
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+// 4. 응답 인터셉터 (401 → refresh 재시도)
+let isRefreshing = false;
+let refreshSubscribers: Array<(success: boolean) => void> = [];
+
+function subscribeTokenRefresh(cb: (success: boolean) => void) {
+  refreshSubscribers.push(cb);
+}
+
+function onRefreshed(success: boolean) {
+  refreshSubscribers.forEach((cb) => cb(success));
+  refreshSubscribers = [];
+}
+
+apiClient.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          subscribeTokenRefresh((success) => {
+            if (success) {
+              resolve(apiClient(originalRequest));
+            } else {
+              reject(error);
+            }
+          });
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // ✅ refresh API 호출 (쿠키 기반)
+        await apiClient.post("/auth/refresh");
+
+        onRefreshed(true);
+        return apiClient(originalRequest);
+      } catch (err) {
+        onRefreshed(false);
+        return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
+      }
     }
-    return config;
-  },
-  (error) => {
+
     return Promise.reject(error);
   }
 );
