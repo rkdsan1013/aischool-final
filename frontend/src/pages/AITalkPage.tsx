@@ -153,7 +153,7 @@ const ScenarioForm: React.FC<ScenarioFormProps> = (props) => {
   );
 };
 
-const AITalkApp: React.FC = () => {
+const AITalkPage: React.FC = () => {
   const [user] = useState<{ name: string; email: string } | null>({
     name: "홍길동",
     email: "test@test.com",
@@ -558,4 +558,4 @@ const AITalkApp: React.FC = () => {
   );
 };
 
-export default AITalkApp;
+export default AITalkPage;
