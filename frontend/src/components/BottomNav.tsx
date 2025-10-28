@@ -14,18 +14,23 @@ export default function BottomNav() {
       active: pathname === "/home" || pathname === "/",
     },
     {
-      name: "AI Talk",
+      name: "블라블라",
       icon: MessageCircle,
       path: "/ai-talk",
       active: pathname.startsWith("/ai-talk"),
     },
     {
-      name: "VoiceRoom",
+      name: "보이스룸",
       icon: Radio,
       path: "/voiceroom",
       active: pathname.startsWith("/voiceroom"),
     },
-    { name: "My", icon: User, path: "/my", active: pathname.startsWith("/my") },
+    {
+      name: "내 정보",
+      icon: User,
+      path: "/my",
+      active: pathname.startsWith("/my"),
+    },
   ];
 
   return (

@@ -209,6 +209,8 @@ const Home: React.FC = () => {
 
             // Connector between this bubble and the next bubble:
             // color rose if BOTH current and next are completed, else gray.
+            const prevCompleted =
+              idx > 0 ? steps[idx - 1].progress === 100 : false;
             const nextCompleted =
               idx < steps.length - 1 ? steps[idx + 1].progress === 100 : false;
             const connectorColor =
@@ -216,13 +218,23 @@ const Home: React.FC = () => {
                 ? "bg-rose-500"
                 : "bg-gray-200";
 
+            const topConnectorColor =
+              prevCompleted && completed ? "bg-rose-500" : "bg-gray-200";
+
             return (
               <li key={step.id}>
-                <div className="grid grid-cols-[56px_1fr] sm:grid-cols-[72px_1fr] gap-3 sm:gap-4">
+                <div className="grid grid-cols-[56px_1fr] sm:grid-cols-[72px_1fr] gap-3 sm:gap-4 items-center">
                   {/* Rail + bubble column (centered) */}
-                  <div className="relative flex flex-col items-center">
+                  <div className="relative h-full">
+                    {/* Continuous connector line (TOP) */}
+                    {idx > 0 && (
+                      <div
+                        className={`absolute left-1/2 -translate-x-1/2 w-[2px] sm:w-[3px] ${topConnectorColor} rounded-full top-[-1rem] sm:top-[-1.5rem] bottom-1/2 mb-5 sm:mb-6`}
+                      />
+                    )}
+
                     {/* Bubble */}
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-sm border border-white/60 flex items-center justify-center">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-sm border border-white/60 flex items-center justify-center z-10 absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2">
                       <div
                         className={`relative ${bubble.bubble} ${bubble.ring} w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center`}
                       >
@@ -232,12 +244,10 @@ const Home: React.FC = () => {
 
                     {/* Continuous connector down to next bubble (no cut in middle) */}
                     {idx < steps.length - 1 && (
-                      <div className="flex items-center justify-center">
-                        <div
-                          className={`mt-1 sm:mt-1.5 w-[2px] sm:w-[3px] ${connectorColor} rounded-full`}
-                          style={{ height: "44px" }}
-                        />
-                      </div>
+                      // MODIFIED: This is now an absolute div stretching *outside* its container
+                      <div
+                        className={`absolute left-1/2 -translate-x-1/2 w-[2px] sm:w-[3px] ${connectorColor} rounded-full top-1/2 mt-5 sm:mt-6 bottom-[-1rem] sm:bottom-[-1.5rem]`} // space-y-4 -> 1rem, sm:space-y-6 -> 1.5rem
+                      />
                     )}
                   </div>
 
