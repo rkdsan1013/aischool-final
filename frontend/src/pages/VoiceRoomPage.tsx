@@ -102,7 +102,7 @@ export default function VoiceRoomPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white pb-20 font-sans">
+    <div className="min-h-screen bg-white pb-20">
       {/* Hero Section */}
       <div className="bg-gradient-to-b from-rose-50 to-white border-b border-rose-100">
         <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
