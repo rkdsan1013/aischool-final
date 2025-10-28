@@ -376,7 +376,7 @@ const AITalkPage: React.FC = () => {
                       <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">
                         {s.title}
                       </h3>
-                      <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded-md">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">
                         {s.difficulty}
                       </span>
                     </div>
