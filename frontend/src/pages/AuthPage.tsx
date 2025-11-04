@@ -126,9 +126,18 @@ export default function AuthPage() {
 
   const handleSignup = async () => {
     try {
+      // ✅ signupService는 (name, email, password) 순서로 호출
       await signupService(signupName, signupEmail, signupPassword);
       alert("회원가입 성공! 로그인 해주세요.");
       setTab("login");
+      // ✅ 로그인 폼 필드 초기화 (선택 사항)
+      setLoginEmail(signupEmail);
+      setLoginPassword("");
+      // ✅ 회원가입 폼 필드 초기화 (선택 사항)
+      setSignupName("");
+      setSignupEmail("");
+      setSignupPassword("");
+      setSignupConfirmPassword("");
     } catch (err: unknown) {
       // ✅ instanceof로 ServiceError 타입 확인
       if (err instanceof ServiceError) {

@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
-import { createUser, findUserByEmail } from "../models/userModel";
+// ✅ createUser -> createUserAndProfile로 변경
+import { createUserAndProfile, findUserByEmail } from "../models/userModel";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -8,14 +9,21 @@ import {
 import { Response, Request } from "express";
 
 // 회원가입
-export async function registerUser(email: string, password: string) {
+// ✅ name 파라미터 추가
+export async function registerUser(
+  name: string,
+  email: string,
+  password: string
+) {
   const existingUser = await findUserByEmail(email);
   if (existingUser) {
     throw new Error("이미 존재하는 이메일입니다.");
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
-  await createUser({ email, password: hashedPassword });
+
+  // ✅ createUserAndProfile 함수 호출 (name, email, password 전달)
+  await createUserAndProfile({ name, email, password: hashedPassword });
 
   return { message: "회원가입 성공" };
 }
