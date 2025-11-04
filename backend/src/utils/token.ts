@@ -2,13 +2,15 @@ import * as jose from "jose";
 
 export interface TokenPayload extends jose.JWTPayload {
   id: number;
-  email?: string;
 }
+
+export type AccessTokenPayload = Pick<TokenPayload, "id">;
+export type RefreshTokenPayload = Pick<TokenPayload, "id">;
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 const refreshSecret = new TextEncoder().encode(process.env.JWT_REFRESH_SECRET);
 
-export async function generateAccessToken(payload: TokenPayload) {
+export async function generateAccessToken(payload: AccessTokenPayload) {
   return await new jose.SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -16,7 +18,7 @@ export async function generateAccessToken(payload: TokenPayload) {
     .sign(secret);
 }
 
-export async function generateRefreshToken(payload: Pick<TokenPayload, "id">) {
+export async function generateRefreshToken(payload: RefreshTokenPayload) {
   return await new jose.SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()

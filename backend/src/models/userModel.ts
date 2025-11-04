@@ -3,7 +3,7 @@ import { RowDataPacket } from "mysql2";
 
 // User 타입 정의
 export type User = {
-  user_id: number; // PK는 항상 존재
+  user_id: number;
   email: string;
   password: string;
 };

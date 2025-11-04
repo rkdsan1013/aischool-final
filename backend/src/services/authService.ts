@@ -7,9 +7,7 @@ import {
 } from "../utils/token";
 import { Response, Request } from "express";
 
-/**
- * 회원가입
- */
+// 회원가입
 export async function registerUser(email: string, password: string) {
   const existingUser = await findUserByEmail(email);
   if (existingUser) {
@@ -22,9 +20,7 @@ export async function registerUser(email: string, password: string) {
   return { message: "회원가입 성공" };
 }
 
-/**
- * 로그인
- */
+// 로그인
 export async function loginUser(
   email: string,
   password: string,
@@ -41,10 +37,7 @@ export async function loginUser(
   }
 
   // Access / Refresh Token 발급
-  const accessToken = await generateAccessToken({
-    id: user.user_id,
-    email: user.email,
-  });
+  const accessToken = await generateAccessToken({ id: user.user_id });
   const refreshToken = await generateRefreshToken({ id: user.user_id });
 
   // HttpOnly 쿠키 저장
@@ -65,9 +58,7 @@ export async function loginUser(
   return { message: "로그인 성공" };
 }
 
-/**
- * 토큰 재발급
- */
+// 토큰 재발급
 export async function refreshUserToken(req: Request, res: Response) {
   const refreshToken = req.cookies.refreshToken;
   if (!refreshToken) throw new Error("리프레시 토큰이 없습니다.");
@@ -77,7 +68,7 @@ export async function refreshUserToken(req: Request, res: Response) {
 
     const userId = payload.id as number;
 
-    // 새 Access Token 발급 (id만 포함)
+    // 새 Access Token 발급
     const newAccessToken = await generateAccessToken({
       id: userId,
     });
@@ -95,9 +86,7 @@ export async function refreshUserToken(req: Request, res: Response) {
   }
 }
 
-/**
- * 로그아웃 (Access / Refresh 토큰 삭제)
- */
+// 로그아웃
 export async function logoutUser(res: Response) {
   res.clearCookie("accessToken", {
     httpOnly: true,
