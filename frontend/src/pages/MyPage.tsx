@@ -6,11 +6,9 @@ import {
   Flame,
   Clock,
   Award,
-  Target,
   BarChart3,
   Trophy,
   User,
-  LogOut,
   ChevronRight,
 } from "lucide-react";
 

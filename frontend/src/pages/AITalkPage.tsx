@@ -12,7 +12,6 @@ import {
   Pencil,
   Trash2,
   ChevronRight,
-  Zap,
 } from "lucide-react";
 
 interface Scenario {
