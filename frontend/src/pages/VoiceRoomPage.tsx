@@ -153,7 +153,7 @@ export default function VoiceRoomPage() {
           {rooms.map((room, index) => (
             <div
               key={room.id}
-              className="group bg-white rounded-xl sm:rounded-2xl border-2 border-gray-100 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1"
+              className="group bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1"
               style={{ animationDelay: `${index * 100}ms` }}
             >
               {/* Room Header */}
