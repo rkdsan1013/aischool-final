@@ -135,12 +135,12 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-white pb-20">
       {/* Header (preserved) */}
       <header className="bg-rose-500 text-white p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
           {/* 상단 행: 좌측 인사 + 우측 배지 (항상 가로 배치) */}
-          <div className="flex flex-row items-center justify-between mb-4 sm:mb-6">
+          <div className="flex flex-row items-center justify-between mb-5 sm:mb-6">
             {/* 좌측: 인사 멘트 (가변 폭) */}
             <div className="min-w-0 mr-3 sm:mr-4">
               <h1 className="text-base sm:text-2xl font-bold mb-0.5 tracking-tight leading-snug truncate">
@@ -170,7 +170,7 @@ const Home: React.FC = () => {
 
           {/* 진행도 박스는 기존 그대로 */}
           <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3.5">
               <span className="text-xs sm:text-sm font-medium tracking-tight">
                 오늘의 학습 진행도
               </span>
@@ -180,7 +180,7 @@ const Home: React.FC = () => {
             </div>
             <div className="w-full bg-white/20 h-2 rounded overflow-hidden">
               <div
-                className="h-2 bg-gradient-to-r from-rose-400 to-rose-600 rounded"
+                className="h-2 bg-gradient-to-r from-gray-00 to-white rounded"
                 style={{ width: `${todayProgress}%` }}
               />
             </div>

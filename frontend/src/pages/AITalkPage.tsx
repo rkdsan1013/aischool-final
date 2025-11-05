@@ -307,41 +307,6 @@ const AITalkPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Hero Section */}
-      <header className="relative bg-gradient-to-br from-rose-500 via-rose-600 to-pink-600 text-white overflow-hidden">
-        <div className="absolute inset-0 bg-[url('/abstract-geometric-pattern.png')] opacity-10" />
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-          <div className="flex items-center gap-2 mb-3 sm:mb-4">
-            <div className="bg-white/20 backdrop-blur-sm rounded-full p-2">
-              <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
-            </div>
-            <span className="text-xs sm:text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-              AI 기반 영어 학습
-            </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 sm:mb-3 text-balance">
-            AI Talk
-          </h1>
-          <p className="text-base sm:text-lg text-white/90 max-w-2xl text-pretty">
-            실전 상황을 시뮬레이션하며 AI와 함께 영어 회화를 연습하세요
-          </p>
-          <div className="mt-6 flex flex-wrap gap-4 sm:gap-6 text-xs sm:text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              <span>실시간 피드백</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              <span>맞춤형 시나리오</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              <span>난이도별 학습</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Scenarios Section */}
@@ -351,7 +316,7 @@ const AITalkPage: React.FC = () => {
               대화 시나리오
             </h2>
             <p className="text-sm sm:text-base text-muted-foreground text-pretty">
-              상황에 맞는 시나리오를 선택하여 실전 대화를 시작하세요
+              상황에 맞는 시나리오를 선택하여 AI와 대화를 시작하세요
             </p>
           </div>
 
@@ -360,9 +325,9 @@ const AITalkPage: React.FC = () => {
               <button
                 key={s.id}
                 onClick={() => handleScenarioClick(s.id)}
-                className="group relative bg-card rounded-2xl p-4 sm:p-5 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+                className="border-2 border-gray-200 group relative bg-card rounded-2xl p-4 sm:p-5 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                 type="button"
-                style={{ border: `1px solid ${s.colorHex}` }}
+                // style={{ border: `1px solid ${s.colorHex}` }}
               >
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div
@@ -414,7 +379,7 @@ const AITalkPage: React.FC = () => {
           </div>
 
           {customScenarios.length === 0 ? (
-            <div className="border-2 border-dashed border-border rounded-2xl p-8 sm:p-12 text-center bg-card">
+            <div className="border-3 border-gray-200 border-dashed rounded-2xl p-8 sm:p-12 text-center bg-card">
               <div className="bg-gradient-to-br from-rose-100 to-pink-100 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
                 <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-rose-500" />
               </div>
@@ -424,13 +389,6 @@ const AITalkPage: React.FC = () => {
               <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6 max-w-md mx-auto text-pretty">
                 나만의 대화 상황을 만들어 더욱 효과적으로 학습해보세요
               </p>
-              <button
-                onClick={openCreate}
-                className="inline-flex items-center bg-rose-500 text-white px-4 py-2 rounded-xl shadow-md hover:bg-rose-600 transition-all"
-                type="button"
-              >
-                <Plus className="w-4 h-4 mr-2" />첫 시나리오 만들기
-              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

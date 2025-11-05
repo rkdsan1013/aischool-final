@@ -10,10 +10,12 @@ import MyPage from "./pages/MyPage";
 import AITalk from "./pages/AITalkPage";
 import VoiceRoomPage from "./pages/VoiceRoomPage";
 import HomePage from "./pages/HomePage";
+import ScrollToTop from "./pages/ScrollToTop";
 
 const App: React.FC = () => {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* 네비게이션 없는 레이아웃 */}
         <Route element={<LayoutWithoutNav />}>

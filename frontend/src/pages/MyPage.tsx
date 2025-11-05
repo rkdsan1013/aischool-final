@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../services/authService";
+import {
+  TrendingUp,
+  Flame,
+  Clock,
+  Award,
+  Target,
+  BarChart3,
+  Trophy,
+  User,
+  LogOut,
+  ChevronRight,
+} from "lucide-react";
 
 export default function MyPage() {
   const navigate = useNavigate();
@@ -54,39 +66,42 @@ export default function MyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-white pb-20">
       {/* Header */}
-      <div className="bg-rose-500 text-white p-6 shadow-md">
+      <div className="bg-rose-500 text-white p-4 sm:p-6 shadow-md">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
+          <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/20 flex items-center justify-center text-2xl sm:text-3xl font-bold">
               {user.name.charAt(0)}
             </div>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold mb-1 tracking-tight">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold mb-0.5 sm:mb-1 tracking-tight truncate">
                 {user.name}
               </h1>
-              <p className="text-white/80 text-sm">{user.email}</p>
+              <p className="text-white/80 text-xs sm:text-sm">{user.email}</p>
             </div>
           </div>
 
           {/* Level Card */}
-          <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
               <div className="flex items-center gap-2">
-                🏆 <span className="font-semibold">현재 레벨</span>
+                🏆{" "}
+                <span className="font-semibold text-sm sm:text-base">
+                  현재 레벨
+                </span>
               </div>
-              <span className="px-2 py-1 rounded bg-white/20 text-white text-sm">
+              <span className="px-2 py-1 rounded bg-white/20 text-white text-xs sm:text-sm">
                 {stats.currentLevel}
               </span>
             </div>
             <div className="w-full bg-white/20 h-2 rounded mb-2">
               <div
-                className="bg-white h-2 rounded transition-all"
+                className="h-2 bg-gradient-to-r from-gray-00 to-white rounded"
                 style={{ width: `${stats.nextLevelProgress}%` }}
               ></div>
             </div>
-            <div className="flex items-center justify-between text-xs text-white/80">
+            <div className="flex items-center justify-between text-[11px] sm:text-xs text-white/80">
               <span>다음 레벨까지</span>
               <span className="font-semibold">{stats.nextLevelProgress}%</span>
             </div>
@@ -94,132 +109,186 @@ export default function MyPage() {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white shadow rounded-xl p-4 text-center hover:shadow-lg transition">
-            <div className="text-rose-500 text-2xl mb-1">🔥</div>
-            <p className="text-2xl font-bold">{stats.streak}</p>
-            <p className="text-sm text-gray-500">연속 학습</p>
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 py-6 sm:py-12">
+        {/* Section Header */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+            학습 현황
+          </h2>
+          <p className="text-sm sm:text-base text-gray-600">
+            나의 학습 통계와 진행 상황을 확인하세요
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
+                <Flame className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
+                {stats.streak}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 font-medium">
+                연속 학습일
+              </p>
+            </div>
           </div>
-          <div className="bg-white shadow rounded-xl p-4 text-center hover:shadow-lg transition">
-            <div className="text-rose-400 text-2xl mb-1">⏰</div>
-            <p className="text-2xl font-bold">{stats.totalStudyTime}</p>
-            <p className="text-sm text-gray-500">총 학습 시간</p>
+
+          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
+                <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
+                {stats.totalStudyTime}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 font-medium">
+                총 학습 시간
+              </p>
+            </div>
           </div>
-          <div className="bg-white shadow rounded-xl p-4 text-center hover:shadow-lg transition">
-            <div className="text-rose-600 text-2xl mb-1">🏅</div>
-            <p className="text-2xl font-bold">{stats.completedLessons}</p>
-            <p className="text-sm text-gray-500">완료한 레슨</p>
-          </div>
-          <div className="bg-white shadow rounded-xl p-4 text-center hover:shadow-lg transition">
-            <div className="text-rose-500 text-2xl mb-1">🎯</div>
-            <p className="text-2xl font-bold">
-              {stats.weeklyProgress}/{stats.weeklyGoal}
-            </p>
-            <p className="text-sm text-gray-500">주간 목표</p>
+
+          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
+                <Award className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
+                {stats.completedLessons}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 font-medium">
+                완료한 레슨
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Weekly Goal */}
-        <div className="bg-white shadow rounded-xl p-4">
-          <h2 className="text-lg font-bold mb-1 text-rose-600">
-            📅 이번 주 학습 목표
-          </h2>
-          <p className="text-sm text-gray-500 mb-3">
-            주 {stats.weeklyGoal}일 학습 목표
-          </p>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span>진행도</span>
-              <span className="font-semibold text-rose-600">
-                {stats.weeklyProgress}/{stats.weeklyGoal}일
-              </span>
+        <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-5 sm:p-6 mb-6 sm:mb-8 hover:border-rose-200 hover:shadow-xl transition-all duration-300">
+          <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-5">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md">
+              <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
             </div>
-            <div className="w-full bg-gray-200 h-2 rounded">
-              <div
-                className="bg-rose-500 h-2 rounded transition-all"
-                style={{
-                  width: `${(stats.weeklyProgress / stats.weeklyGoal) * 100}%`,
-                }}
-              ></div>
+            <div className="flex-1">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
+                이번 주 학습 목표
+              </h3>
+              <p className="text-sm sm:text-base text-gray-600">
+                주 {stats.weeklyGoal}일 학습 목표
+              </p>
             </div>
-            <p className="text-xs text-gray-500">
+            <div className="text-right">
+              <p className="text-2xl sm:text-3xl font-bold text-rose-500">
+                {stats.weeklyProgress}/{stats.weeklyGoal}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-500">일</p>
+            </div>
+          </div>
+
+          <div className="relative w-full h-3 sm:h-4 bg-gray-100 rounded-full overflow-hidden mb-3">
+            <div
+              className="absolute inset-y-0 left-0 bg-rose-500 rounded-full transition-all duration-500"
+              style={{
+                width: `${(stats.weeklyProgress / stats.weeklyGoal) * 100}%`,
+              }}
+            ></div>
+          </div>
+
+          <div className="flex items-center justify-between text-sm sm:text-base">
+            <p className="text-gray-600">
               {stats.weeklyGoal - stats.weeklyProgress}일 더 학습하면 목표 달성!
             </p>
+            <p className="font-semibold text-rose-500">
+              {Math.round((stats.weeklyProgress / stats.weeklyGoal) * 100)}%
+            </p>
           </div>
         </div>
 
-        {/* Menu Items */}
+        {/* Account Management Section */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+            계정 관리
+          </h2>
+          <p className="text-sm sm:text-base text-gray-600">
+            프로필 설정과 학습 데이터를 관리하세요
+          </p>
+        </div>
+
         <div className="space-y-2">
+          {/* 학습 통계 */}
           <div
-            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition"
+            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group"
             onClick={() => navigate("/my/statistics")}
           >
-            <div className="flex items-center gap-3">
-              <span className="text-rose-500">📊</span>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              </div>
               <div>
-                <p className="font-semibold">학습 통계</p>
-                <p className="text-sm text-gray-500">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
+                  학습 통계
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600">
                   상세한 학습 기록을 확인하세요
                 </p>
               </div>
             </div>
-            ➡️
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all duration-300" />
           </div>
 
+          {/* 레벨 테스트 */}
           <div
-            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition"
+            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group"
             onClick={handleRetakeTest}
           >
-            <div className="flex items-center gap-3">
-              <span className="text-rose-400">🏆</span>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                <Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              </div>
               <div>
-                <p className="font-semibold">레벨 테스트 다시하기</p>
-                <p className="text-sm text-gray-500">
-                  실력 향상을 확인해보세요
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
+                  레벨 테스트
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  레벨을 다시 측정해보세요
                 </p>
               </div>
             </div>
-            ➡️
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all duration-300" />
           </div>
 
+          {/* 프로필 관리 */}
           <div
-            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition"
-            onClick={() => navigate("/my/settings")}
+            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group mb-2"
+            onClick={() => navigate("/profile")}
           >
-            <div className="flex items-center gap-3">
-              <span className="text-rose-600">⚙️</span>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                <User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              </div>
               <div>
-                <p className="font-semibold">설정</p>
-                <p className="text-sm text-gray-500">알림, 목표 설정 등</p>
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
+                  프로필 관리
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  개인정보를 수정하세요
+                </p>
               </div>
             </div>
-            ➡️
-          </div>
-
-          <div
-            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition"
-            onClick={() => navigate("/my/profile")}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-rose-500">👤</span>
-              <div>
-                <p className="font-semibold">프로필 관리</p>
-                <p className="text-sm text-gray-500">개인정보 수정</p>
-              </div>
-            </div>
-            ➡️
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all duration-300" />
           </div>
         </div>
 
         {/* Logout Button */}
-        <button
-          className="w-full h-12 border border-rose-500 text-rose-500 rounded-xl font-semibold hover:bg-rose-50 transition"
-          onClick={handleLogout}
-        >
-          로그아웃
-        </button>
+        <div className="mt-3">
+          <button
+            className=" w-full h-12 border s border-rose-500 text-rose-500 rounded-xl font-semibold hover:bg-rose-50 transition"
+            onClick={handleLogout}
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
     </div>
   );
