@@ -70,11 +70,11 @@ const Home: React.FC = () => {
     },
     {
       id: "matching",
-      title: "의미 매칭",
+      title: "빈칸 채우기",
       description: "단어와 뜻을 연결하세요",
       icon: <Link2 className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-pink-500",
-      progress: 60,
+      progress: 100,
     },
     {
       id: "writing",
@@ -82,15 +82,15 @@ const Home: React.FC = () => {
       description: "문장을 직접 작성해보세요",
       icon: <PenTool className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-rose-300",
-      progress: 0,
+      progress: 100,
     },
     {
-      id: "pronunciation",
-      title: "발음",
+      id: "speaking-listening",
+      title: "말하기 연습",
       description: "AI가 발음을 교정해드립니다",
       icon: <Mic className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-indigo-500",
-      progress: 0,
+      progress: 100,
     },
   ];
 
@@ -102,7 +102,7 @@ const Home: React.FC = () => {
 
   const handleStepClick = (stepId: string, unlocked: boolean) => {
     if (!unlocked) return;
-    navigate(`/home/training/${stepId}`);
+    navigate(`/training/${stepId}`);
   };
 
   // Bubble style by state
@@ -314,7 +314,7 @@ const Home: React.FC = () => {
           <button
             type="button"
             className="h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-rose-500 text-white text-sm font-medium tracking-tight hover:bg-rose-600 transition"
-            onClick={() => navigate("/home/training/mission")}
+            onClick={() => navigate("/training/mission")}
           >
             시작하기
           </button>

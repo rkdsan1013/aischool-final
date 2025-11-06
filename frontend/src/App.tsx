@@ -11,6 +11,9 @@ import MyPage from "./pages/MyPage";
 import AITalk from "./pages/AITalkPage";
 import VoiceRoomPage from "./pages/VoiceRoomPage";
 import HomePage from "./pages/HomePage";
+import TrainingPage from "./pages/Training";
+import ScrollToTop from "./pages/ScrollToTop";
+
 import AuthProvider from "./providers/AuthProvider";
 
 // 라우트 래퍼
@@ -21,6 +24,7 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           {/* 네비게이션 없는 레이아웃 */}
           <Route element={<LayoutWithoutNav />}>
@@ -40,6 +44,8 @@ const App: React.FC = () => {
                 </PublicOnlyRoute>
               }
             />
+            <Route path="/training/:section" element={<TrainingPage />} />
+            {/* <Route path="/level-test" /> */}
           </Route>
 
           {/* 네비게이션 있는 레이아웃 */}
