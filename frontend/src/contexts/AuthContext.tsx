@@ -1,3 +1,4 @@
+// src/context/AuthContext.tsx
 import {
   createContext,
   useContext,
@@ -5,25 +6,24 @@ import {
   useEffect,
   useCallback,
 } from "react";
-// ✅ 'ReactNode'는 type-only import로 분리
 import type { ReactNode } from "react";
 import {
   getMyProfile,
   type UserProfileResponse,
-} from "../services/userService";
-import { logout as logoutService } from "../services/authService";
-import { ServiceError } from "../api";
+} from "../services/userService"; // ✅ 경로 수정
+import { logout as logoutService } from "../services/authService"; // ✅ 경로 수정
+import { ServiceError } from "../api"; // ✅ 경로 수정
 
 // 1. Context 상태 타입 정의
 interface AuthContextState {
   isLoggedIn: boolean;
   profile: UserProfileResponse | null;
-  isLoading: boolean; // 초기 인증 상태 로딩
+  isLoading: boolean;
   logout: () => Promise<void>;
-  // TODO: login 함수 추가 (로그인 시 프로필 새로고침 또는 상태 업데이트)
+  refreshProfile: () => Promise<void>; // ✅ 로그인/회원가입 후 프로필 갱신 함수
 }
 
-// 2. Context 생성 (undefined로 초기화)
+// 2. Context 생성
 const AuthContext = createContext<AuthContextState | undefined>(undefined);
 
 // 3. Provider 컴포넌트 생성
@@ -31,56 +31,55 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// ✅ React Fast Refresh(ESLint) 규칙을 위해 default export로 변경
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // 앱 시작 시 로딩 중 상태
+  const [isLoading, setIsLoading] = useState(true); // 앱 시작 시 초기 로딩 상태 // ✅ 프로필을 가져오는 로직을 useCallback으로 분리
 
-  // 앱 로드 시, 쿠키(토큰) 기반으로 사용자 정보 가져오기
+  const refreshProfile = useCallback(async () => {
+    try {
+      const userProfile = await getMyProfile();
+      setProfile(userProfile);
+    } catch (err: unknown) {
+      if (err instanceof ServiceError) {
+        console.warn("로그인 상태 아님:", err.message);
+      }
+      setProfile(null);
+    }
+  }, []); // 앱 로드 시, 쿠키(토큰) 기반으로 사용자 정보 가져오기
+
   useEffect(() => {
     const checkUserStatus = async () => {
-      try {
-        // /users/me API 호출 (apiClient가 쿠키 알아서 첨부)
-        const userProfile = await getMyProfile();
-        setProfile(userProfile);
-      } catch (err: unknown) {
-        // ServiceError (401, 403 등) 발생 시 로그인 안된 상태로 간주
-        if (err instanceof ServiceError) {
-          console.warn("로그인 상태 아님:", err.message);
-        }
-        setProfile(null);
-      } finally {
-        setIsLoading(false); // 인증 상태 확인 완료
-      }
+      setIsLoading(true); // ✅ 초기 인증 시작
+      await refreshProfile();
+      setIsLoading(false); // ✅ 초기 인증 완료
     };
 
     checkUserStatus();
-  }, []); // [] : 앱이 처음 마운트될 때 한 번만 실행
+  }, [refreshProfile]); // ✅ refreshProfile은 useCallback으로 보장됨 // 로그아웃 함수
 
-  // 로그아웃 함수
   const logout = useCallback(async () => {
     try {
       await logoutService();
     } catch (err) {
       console.error("로그아웃 API 실패:", err);
     } finally {
-      // API 성공/실패와 관계없이 프론트엔드 상태는 로그아웃 처리
       setProfile(null);
     }
-  }, []);
+  }, []); // Context 값
 
-  // Context 값
   const value = {
-    isLoggedIn: !!profile, // profile이 있으면 true
+    isLoggedIn: !!profile,
     profile,
     isLoading,
     logout,
+    refreshProfile, // ✅ refreshProfile 함수를 context 값으로 제공
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// 4. Custom Hook 생성
+// 4. Custom Hook 생성 (변경 없음)
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

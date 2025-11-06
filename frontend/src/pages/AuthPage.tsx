@@ -1,11 +1,12 @@
 // src/pages/AuthPage.tsx
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react"; // ✅ useEffect 추가
 import { useNavigate } from "react-router-dom";
 import {
   login as loginService,
   signup as signupService,
-} from "../services/authService"; // ✅ 서비스 함수 import
-import { ServiceError } from "../api"; // ✅ ServiceError는 api에서 import
+} from "../services/authService";
+import { ServiceError } from "../api";
+import { useAuth } from "../contexts/AuthContext"; // ✅ AuthContext hook import
 
 /* UI primitives (Label, Input, Button, Tabs) - 변경 없음 */
 function Label({
@@ -87,8 +88,6 @@ function Tabs({
   );
 }
 
-// ❌ 로컬 타입 가드 삭제됨
-
 export default function AuthPage() {
   const [tab, setTab] = useState<"login" | "signup">("login");
 
@@ -100,19 +99,37 @@ export default function AuthPage() {
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
 
-  const [isLoading, setIsLoading] = useState(false);
+  // ✅ 로컬 폼 제출 상태
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  // ✅ AuthContext에서 상태 및 함수 가져오기
+  const { refreshProfile, isLoggedIn, isLoading: isAuthLoading } = useAuth();
 
   const loginFormRef = useRef<HTMLFormElement | null>(null);
   const signupFormRef = useRef<HTMLFormElement | null>(null);
 
+  // ✅ 이미 로그인된 상태인지 확인 (페이지 로드 시)
+  useEffect(() => {
+    // 컨텍스트 로딩이 끝났고, 로그인된 상태라면 /home으로 리디렉션
+    if (!isAuthLoading && isLoggedIn) {
+      console.log("Already logged in. Redirecting to /home");
+      navigate("/home", { replace: true });
+    }
+  }, [isLoggedIn, isAuthLoading, navigate]);
+
   const handleLogin = async () => {
     try {
       const data = await loginService(loginEmail, loginPassword);
-      // ✅ HttpOnly 쿠키 기반이므로 localStorage에 token 저장 불필요
       console.log("로그인 성공:", data.message);
-      navigate("/home");
+
+      // ✅ 로그인 성공 후, 컨텍스트의 프로필 정보 갱신
+      await refreshProfile();
+
+      // ✅ 프로필 갱신이 완료되면, useEffect가 isLoggedIn 상태를 감지하여
+      // 자동으로 /home으로 리디렉션할 것입니다.
+      // navigate("/home"); // <- 이 코드는 useEffect가 대체함
     } catch (err: unknown) {
       if (err instanceof ServiceError) {
         setError(err.message);
@@ -120,46 +137,44 @@ export default function AuthPage() {
         setError("알 수 없는 오류가 발생했습니다.");
       }
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false); // ✅ isSubmitting으로 변경
     }
   };
 
   const handleSignup = async () => {
     try {
-      // ✅ signupService는 (name, email, password) 순서로 호출
       await signupService(signupName, signupEmail, signupPassword);
+      // ✅ alert 대신 커스텀 모달을 사용하는 것이 좋지만, 기존 로직 유지
       alert("회원가입 성공! 로그인 해주세요.");
       setTab("login");
-      // ✅ 로그인 폼 필드 초기화 (선택 사항)
       setLoginEmail(signupEmail);
       setLoginPassword("");
-      // ✅ 회원가입 폼 필드 초기화 (선택 사항)
       setSignupName("");
       setSignupEmail("");
       setSignupPassword("");
       setSignupConfirmPassword("");
     } catch (err: unknown) {
-      // ✅ instanceof로 ServiceError 타입 확인
       if (err instanceof ServiceError) {
         setError(err.message);
       } else {
         setError("알 수 없는 오류가 발생했습니다.");
       }
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false); // ✅ isSubmitting으로 변경
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading) return;
-    setIsLoading(true);
+    // ✅ 컨텍스트가 로딩 중이거나, 폼이 이미 제출 중이면 중복 실행 방지
+    if (isSubmitting || isAuthLoading) return;
+    setIsSubmitting(true); // ✅ isSubmitting으로 변경
     setError("");
 
     if (tab === "login") {
       if (!loginEmail || !loginPassword) {
         setError("이메일과 비밀번호를 입력하세요.");
-        setIsLoading(false);
+        setIsSubmitting(false); // ✅ isSubmitting으로 변경
         return;
       }
       await handleLogin();
@@ -171,12 +186,12 @@ export default function AuthPage() {
         !signupConfirmPassword
       ) {
         setError("모든 필드를 입력하세요.");
-        setIsLoading(false);
+        setIsSubmitting(false); // ✅ isSubmitting으로 변경
         return;
       }
       if (signupPassword !== signupConfirmPassword) {
         setError("비밀번호가 일치하지 않습니다.");
-        setIsLoading(false);
+        setIsSubmitting(false); // ✅ isSubmitting으로 변경
         return;
       }
       await handleSignup();
@@ -195,9 +210,18 @@ export default function AuthPage() {
     }
   };
 
+  // ✅ 컨텍스트 로딩 중일 때 폼 숨기기 (선택 사항이지만, 리디렉션 전 깜빡임 방지)
+  // if (isAuthLoading) {
+  //   return (
+  //     <div className="min-h-screen w-full bg-white flex items-center justify-center">
+  //       {/* 로딩 스피너 등을 여기에 배치 */}
+  //     </div>
+  //   );
+  // }
+
   return (
     <div className="min-h-screen w-full bg-white lg:flex">
-      {/* 데스크톱 좌측: 단색 브랜드 컬러 (rose-500) */}
+      {/* 데스크톱 좌측 */}
       <div className="hidden lg:flex lg:w-1/2 bg-rose-500 text-white">
         <div className="w-full flex items-center justify-center p-16">
           <div className="max-w-lg space-y-6">
@@ -210,7 +234,7 @@ export default function AuthPage() {
       {/* 오른쪽/모바일: 폼 영역 */}
       <div className="flex w-full lg:w-1/2 items-start lg:items-center justify-center bg-white">
         <div className="w-full max-w-md lg:max-w-lg flex flex-col">
-          {/* 모바일 헤더 (텍스트 로고, 배경 없음) */}
+          {/* 모바일 헤더 */}
           <div className="sticky top-0 z-10 bg-white border-b border-gray-100 lg:hidden">
             <div className="px-4 py-4 flex items-center justify-between">
               <button
@@ -240,7 +264,7 @@ export default function AuthPage() {
             </p>
           </div>
 
-          {/* 폼 컨테이너: 안정적 전환을 위해 겹쳐 렌더링 + 고정 최소 높이 */}
+          {/* 폼 컨테이너 */}
           <div className="relative px-4 lg:px-8 flex-1">
             <div className="relative min-h-[480px]">
               {/* 로그인 폼 */}
@@ -263,7 +287,8 @@ export default function AuthPage() {
                       placeholder="example@email.com"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      disabled={isLoading}
+                      // ✅ disabled 상태에 isAuthLoading 추가
+                      disabled={isSubmitting || isAuthLoading}
                       onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -280,7 +305,8 @@ export default function AuthPage() {
                       placeholder="비밀번호"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      disabled={isLoading}
+                      // ✅ disabled 상태에 isAuthLoading 추가
+                      disabled={isSubmitting || isAuthLoading}
                       onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -320,7 +346,8 @@ export default function AuthPage() {
                       placeholder="홍길동"
                       value={signupName}
                       onChange={(e) => setSignupName(e.target.value)}
-                      disabled={isLoading}
+                      // ✅ disabled 상태에 isAuthLoading 추가
+                      disabled={isSubmitting || isAuthLoading}
                       onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -337,7 +364,8 @@ export default function AuthPage() {
                       placeholder="example@email.com"
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
-                      disabled={isLoading}
+                      // ✅ disabled 상태에 isAuthLoading 추가
+                      disabled={isSubmitting || isAuthLoading}
                       onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -354,7 +382,8 @@ export default function AuthPage() {
                       placeholder="비밀번호"
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
-                      disabled={isLoading}
+                      // ✅ disabled 상태에 isAuthLoading 추가
+                      disabled={isSubmitting || isAuthLoading}
                       onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -371,7 +400,8 @@ export default function AuthPage() {
                       placeholder="비밀번호를 다시 입력하세요"
                       value={signupConfirmPassword}
                       onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                      disabled={isLoading}
+                      // ✅ disabled 상태에 isAuthLoading 추가
+                      disabled={isSubmitting || isAuthLoading}
                       onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -398,12 +428,14 @@ export default function AuthPage() {
             <div className="w-full max-w-lg mx-auto py-4 bg-white border-t border-gray-100">
               <Button
                 type="button"
-                disabled={isLoading}
+                // ✅ disabled 상태에 isAuthLoading 추가
+                disabled={isSubmitting || isAuthLoading}
                 onClick={() => {
                   submitActiveForm();
                 }}
               >
-                {isLoading
+                {/* ✅ 버튼 텍스트는 isSubmitting 기준 */}
+                {isSubmitting
                   ? tab === "login"
                     ? "로그인 중..."
                     : "가입 중..."
@@ -429,12 +461,14 @@ export default function AuthPage() {
         >
           <Button
             type="button"
-            disabled={isLoading}
+            // ✅ disabled 상태에 isAuthLoading 추가
+            disabled={isSubmitting || isAuthLoading}
             onClick={() => {
               submitActiveForm();
             }}
           >
-            {isLoading
+            {/* ✅ 버튼 텍스트는 isSubmitting 기준 */}
+            {isSubmitting
               ? tab === "login"
                 ? "로그인 중..."
                 : "가입 중..."
