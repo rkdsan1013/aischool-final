@@ -48,6 +48,7 @@ export default function SideNav() {
             }`}
           >
             <Icon className="w-6 h-6" />
+            {/* SideNav는 lg 이상에서만 보이므로 텍스트를 항상 표시합니다. */}
             <span>{item.name}</span>
           </button>
         );

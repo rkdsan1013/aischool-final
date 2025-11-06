@@ -7,34 +7,37 @@ export default function LayoutWithNav() {
 
   return (
     <div className="min-h-screen">
-      {/* 웹/태블릿 환경: 좌측 사이드바 (fixed) */}
-      <div className="hidden sm:flex">
+      {/* 웹(lg) 환경: 좌측 사이드바 (fixed) */}
+      <div className="hidden lg:flex">
         <aside
           className="fixed top-0 left-0 h-full 
-                          bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 
-                          flex flex-col 
-                          w-64 md:w-20 lg:w-64"
+                      bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 
+                      flex flex-col 
+                      w-64" // lg 이상에서 항상 w-64
         >
           {/* 상단 브랜드 영역 (로고 크기 키움) */}
           <div
             className="h-20 flex items-center px-4 text-3xl lg:text-4xl font-extrabold text-rose-500 cursor-pointer"
             onClick={() => navigate("/home")}
           >
-            {/* 데스크탑에서는 전체 로고, 태블릿에서는 축약 */}
-            <span className="hidden lg:block">Blabla</span>
-            <span className="block lg:hidden">B</span>
+            {/* 이 블록 자체가 lg 이상에서만 보이므로 단순화 */}
+            <span>Blabla</span>
           </div>
           <SideNav />
         </aside>
       </div>
 
-      {/* 메인 콘텐츠 (사이드바 폭만큼 padding-left) */}
-      <main className="sm:ml-64 md:ml-20 lg:ml-64">
+      {/* 메인 콘텐츠 (웹 환경에서만 padding-left) */}
+      <main className="lg:ml-64">
+        {" "}
+        {/* lg 이상에서만 사이드바 너비만큼 여백 */}
         <Outlet />
       </main>
 
-      {/* 모바일 환경: 하단 네비게이션 */}
-      <div className="sm:hidden">
+      {/* 모바일/태블릿(lg 미만) 환경: 하단 네비게이션 */}
+      <div className="lg:hidden">
+        {" "}
+        {/* lg 이상에서 숨김 */}
         <BottomNav />
       </div>
     </div>
