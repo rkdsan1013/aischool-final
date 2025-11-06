@@ -7,7 +7,7 @@ import {
   Clock,
   Award,
   BarChart3,
-  Trophy,
+  Trophy, // ✅ 레벨 카드에 사용
   User,
   ChevronRight,
 } from "lucide-react";
@@ -83,8 +83,9 @@ export default function MyPage() {
           {/* Level Card */}
           <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
+              {/* ✅ 이모지(🏆)를 Lucide 아이콘으로 변경 */}
               <div className="flex items-center gap-2">
-                🏆{" "}
+                <Trophy className="w-4 h-4 text-white/90" />
                 <span className="font-semibold text-sm sm:text-base">
                   현재 레벨
                 </span>
@@ -119,8 +120,9 @@ export default function MyPage() {
           </p>
         </div>
 
+        {/* ✅ hover: shadow: active: sm:hover: 등 호버/전환 효과 제거 */}
         <div className="grid grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1">
+          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6">
             <div className="flex flex-col items-center text-center">
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
                 <Flame className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
@@ -134,7 +136,7 @@ export default function MyPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1">
+          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6">
             <div className="flex flex-col items-center text-center">
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
                 <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
@@ -148,7 +150,7 @@ export default function MyPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1">
+          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6">
             <div className="flex flex-col items-center text-center">
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
                 <Award className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
@@ -163,7 +165,8 @@ export default function MyPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-5 sm:p-6 mb-6 sm:mb-8 hover:border-rose-200 hover:shadow-xl transition-all duration-300">
+        {/* ✅ '이번 주 학습 목표' 카드 호버 효과 제거 */}
+        <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-5 sm:p-6 mb-6 sm:mb-8">
           <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-5">
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md">
               <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
@@ -195,7 +198,11 @@ export default function MyPage() {
 
           <div className="flex items-center justify-between text-sm sm:text-base">
             <p className="text-gray-600">
-              {stats.weeklyGoal - stats.weeklyProgress}일 더 학습하면 목표 달성!
+              {stats.weeklyGoal - stats.weeklyProgress > 0
+                ? `${
+                    stats.weeklyGoal - stats.weeklyProgress
+                  }일 더 학습하면 목표 달성!`
+                : "🎉 이번 주 목표 달성! 대단해요!"}
             </p>
             <p className="font-semibold text-rose-500">
               {Math.round((stats.weeklyProgress / stats.weeklyGoal) * 100)}%
@@ -281,7 +288,7 @@ export default function MyPage() {
         {/* Logout Button */}
         <div className="mt-3">
           <button
-            className=" w-full h-12 border s border-rose-500 text-rose-500 rounded-xl font-semibold hover:bg-rose-50 transition"
+            className=" w-full h-12 border border-rose-500 text-rose-500 rounded-xl font-semibold hover:bg-rose-50 transition"
             onClick={handleLogout}
           >
             로그아웃
