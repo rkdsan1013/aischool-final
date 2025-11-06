@@ -11,6 +11,7 @@ import AITalk from "./pages/AITalkPage";
 import VoiceRoomPage from "./pages/VoiceRoomPage";
 import HomePage from "./pages/HomePage";
 import ScrollToTop from "./pages/ScrollToTop";
+import TrainingPage from "./pages/Training";
 
 const App: React.FC = () => {
   return (
@@ -21,6 +22,8 @@ const App: React.FC = () => {
         <Route element={<LayoutWithoutNav />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/training/:section" element={<TrainingPage />} />
+
           {/* <Route path="/level-test" /> */}
         </Route>
 
