@@ -1,7 +1,7 @@
 // src/components/PublicOnlyRoute.tsx
 import React, { type ReactElement } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 
 interface PublicOnlyRouteProps {
   children: ReactElement;
@@ -15,6 +15,13 @@ const PublicOnlyRoute: React.FC<PublicOnlyRouteProps> = ({
   loadingFallback = <div className="p-6 text-center">Loading...</div>,
 }) => {
   const { isLoggedIn, isLoading } = useAuth();
+  console.log(
+    "[PublicOnlyRoute] isLoading:",
+    isLoading,
+    "isLoggedIn:",
+    isLoggedIn
+  );
+
   if (isLoading) return loadingFallback;
   if (isLoggedIn) return <Navigate to={redirectTo} replace />;
   return children;

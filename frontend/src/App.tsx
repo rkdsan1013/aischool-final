@@ -11,7 +11,7 @@ import MyPage from "./pages/MyPage";
 import AITalk from "./pages/AITalkPage";
 import VoiceRoomPage from "./pages/VoiceRoomPage";
 import HomePage from "./pages/HomePage";
-import AuthProvider from "./contexts/AuthContext";
+import AuthProvider from "./providers/AuthProvider";
 
 // 라우트 래퍼
 import PublicOnlyRoute from "./components/PublicOnlyRoute";

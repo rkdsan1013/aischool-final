@@ -6,7 +6,7 @@ import {
   signup as signupService,
 } from "../services/authService";
 import { ServiceError } from "../api";
-import { useAuth } from "../contexts/AuthContext"; // ✅ AuthContext hook import
+import { useAuth } from "../hooks/useAuth";
 
 /* UI primitives (Label, Input, Button, Tabs) - 변경 없음 */
 function Label({
