@@ -1,5 +1,11 @@
 // src/providers/AuthProvider.tsx
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
 import { AuthContext } from "../contexts/authContext";
 import {
   getMyProfile,
@@ -14,6 +20,7 @@ interface AuthProviderProps {
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const initializedRef = useRef(false);
 
   const refreshProfile =
     useCallback(async (): Promise<UserProfileResponse | null> => {
@@ -31,6 +38,9 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     }, []);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     const checkUserStatus = async () => {
       // UX 우선: 화면을 바로 보여주고 프로필은 백그라운드로 불러옵니다.
       setIsLoading(false);
