@@ -44,8 +44,12 @@ const App: React.FC = () => {
                 </PublicOnlyRoute>
               }
             />
-            <Route path="/training/:section" element={<TrainingPage />} />
-            {/* <Route path="/level-test" /> */}
+
+            {/* Training 라우트 변경: section param 대신 단일 진입점 /training 사용.
+                내부에서 question JSON의 type 필드로 컴포넌트를 결정합니다. */}
+            <Route path="/training" element={<TrainingPage />} />
+            {/* 기존 /training/:section이 필요하면 아래처럼 보조 라우트 유지 가능 */}
+            {/* <Route path="/training/:section" element={<TrainingPage />} /> */}
           </Route>
 
           {/* 네비게이션 있는 레이아웃 */}

@@ -1,3 +1,4 @@
+// src/components/Vocabulary.tsx
 import React from "react";
 
 interface Props {
@@ -15,6 +16,13 @@ const Vocabulary: React.FC<Props> = ({
 }) => {
   return (
     <div className="space-y-3">
+      {/* 컴포넌트가 문제 제목을 직접 렌더링 */}
+      <div className="text-left">
+        <h1 className="text-lg font-bold text-gray-800">
+          이 단어의 영어 뜻은?
+        </h1>
+      </div>
+
       <div className="w-full">
         <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-gray-100">
           <span className="text-2xl font-bold text-gray-800">{question}</span>
