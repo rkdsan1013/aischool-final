@@ -5,7 +5,7 @@ import {
   Outlet,
   useNavigate,
 } from "react-router-dom";
-import { routes } from "./routes/Routes"; // ✅ 라우트 정의 가져오기
+import { routes } from "./routes/routes"; // ✅ 라우트 정의 가져오기
 
 import ScrollToTop from "./pages/ScrollToTop";
 import AuthProvider from "./providers/AuthProvider";
