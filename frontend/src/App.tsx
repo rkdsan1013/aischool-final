@@ -1,95 +1,40 @@
-// src/App.tsx
-import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import React, { useEffect } from "react";
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Outlet,
+  useNavigate,
+} from "react-router-dom";
+import { routes } from "./routes/routes"; // ✅ 라우트 정의 가져오기
 
-import LayoutWithoutNav from "./layouts/LayoutWithoutNav";
-import LayoutWithNav from "./layouts/LayoutWithNav";
-
-import LandingPage from "./pages/LandingPage";
-import AuthPage from "./pages/AuthPage";
-import MyPage from "./pages/MyPage";
-import AITalk from "./pages/AITalkPage";
-import VoiceRoomPage from "./pages/VoiceRoomPage";
-import HomePage from "./pages/HomePage";
-import TrainingPage from "./pages/Training";
 import ScrollToTop from "./pages/ScrollToTop";
-
 import AuthProvider from "./providers/AuthProvider";
+import { setNavigator } from "./routes/navigate";
 
-// 라우트 래퍼
-import PublicOnlyRoute from "./components/PublicOnlyRoute";
-import ProtectedRoute from "./components/ProtectedRoute";
+// ✅ NavigatorSetter: useNavigate를 전역 navigate 헬퍼에 연결
+function NavigatorSetter() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    setNavigator(navigate);
+  }, [navigate]);
+  return null;
+}
+
+const router = createBrowserRouter([
+  {
+    element: (
+      <AuthProvider>
+        <ScrollToTop />
+        <NavigatorSetter />
+        <Outlet />
+      </AuthProvider>
+    ),
+    children: routes,
+  },
+]);
 
 const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        <ScrollToTop />
-        <Routes>
-          {/* 네비게이션 없는 레이아웃 */}
-          <Route element={<LayoutWithoutNav />}>
-            <Route
-              path="/"
-              element={
-                <PublicOnlyRoute redirectTo="/home">
-                  <LandingPage />
-                </PublicOnlyRoute>
-              }
-            />
-            <Route
-              path="/auth"
-              element={
-                <PublicOnlyRoute redirectTo="/home">
-                  <AuthPage />
-                </PublicOnlyRoute>
-              }
-            />
-            <Route path="/training/:section" element={<TrainingPage />} />
-            {/* <Route path="/level-test" /> */}
-          </Route>
-
-          {/* 네비게이션 있는 레이아웃 */}
-          <Route element={<LayoutWithNav />}>
-            {/* 레벨 테스트가 인증 필요라면 ProtectedRoute로 감싸세요 */}
-            <Route path="/level-test" element={<div>레벨 테스트</div>} />
-
-            <Route
-              path="/home"
-              element={
-                <ProtectedRoute redirectTo="/auth">
-                  <HomePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/ai-talk"
-              element={
-                <ProtectedRoute redirectTo="/auth">
-                  <AITalk />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/voiceroom"
-              element={
-                <ProtectedRoute redirectTo="/auth">
-                  <VoiceRoomPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/my"
-              element={
-                <ProtectedRoute redirectTo="/auth">
-                  <MyPage />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  );
+  return <RouterProvider router={router} />;
 };
 
 export default App;

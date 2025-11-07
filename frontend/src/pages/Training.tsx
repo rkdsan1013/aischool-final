@@ -1,10 +1,7 @@
-import React, { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+// src/pages/Training.tsx
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Vocabulary from "../components/Vocabulary";
-import BlankQuiz from "../components/BlankQuiz";
-// import SentenceArrange from "../components/SentenceArrange";
-// import SpeakingListening from "../components/SpeakingListening";
-// import Writing from "../components/Writing";
 
 type TrainingType =
   | "vocabulary"
@@ -13,155 +10,162 @@ type TrainingType =
   | "writing"
   | "speakingListening";
 
-const trainingSequence: TrainingType[] = [
-  "vocabulary",
-  "sentence",
-  "blank",
-  "writing",
-  "speakingListening",
-];
+interface Media {
+  audio?: string;
+  image?: string;
+}
 
-// 예시 데이터 (각 세션은 자체 데이터/props로 바꿀 수 있음)
-const blankQuestions = [
-  {
-    sentence: "I love eating ____",
-    options: ["pizza", "shoes", "hair", "book"],
-    correctAnswer: 0,
-  },
-  {
-    sentence: "She is ____ a book",
-    options: ["eating", "reading", "drinking", "running"],
-    correctAnswer: 1,
-  },
-  {
-    sentence: "The cat is ____ on the sofa",
-    options: ["flying", "swimming", "sleeping", "cooking"],
-    correctAnswer: 2,
-  },
-];
+interface QuestionItem {
+  id: string;
+  type: TrainingType;
+  question: string;
+  options?: string[];
+  correct?: string | string[];
+  media?: Media;
+  meta?: Record<string, unknown>;
+}
 
-const vocabularyQuestions = [
+/* 예시 문제 목록 */
+const questionList: QuestionItem[] = [
   {
-    korean: "사과",
+    id: "q1",
+    type: "vocabulary",
+    question: "사과",
     options: ["Apple", "Banana", "Orange", "Grape"],
     correct: "Apple",
   },
-  { korean: "고양이", options: ["Dog", "Cat", "Bird", "Fish"], correct: "Cat" },
-  { korean: "책", options: ["Pen", "Paper", "Book", "Desk"], correct: "Book" },
+  {
+    id: "q2",
+    type: "vocabulary",
+    question: "고양이",
+    options: ["Dog", "Cat", "Bird", "Fish"],
+    correct: "Cat",
+  },
+  {
+    id: "q3",
+    type: "vocabulary",
+    question: "책",
+    options: ["Pen", "Paper", "Book", "Desk"],
+    correct: "Book",
+  },
 ];
 
-const FOOTER_BASE_HEIGHT = 64;
-const SAFE_BOTTOM = 12;
-const FEEDBACK_EXTRA_HEIGHT = 140;
-const FOOTER_TOTAL_PADDING = FOOTER_BASE_HEIGHT + SAFE_BOTTOM;
+/* Layout 상수 (푸터/피드백 높이 및 안전 여백) */
+const FOOTER_BASE_HEIGHT = 64; // 버튼 포함 기본 푸터 높이(px)
+const SAFE_BOTTOM = 12; // 바텀 안전 여백(px)
+const FEEDBACK_EXTRA_HEIGHT = 140; // 피드백 확장시 추가 높이(px)
+const FOOTER_TOTAL_PADDING =
+  FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_EXTRA_HEIGHT;
 
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { section } = useParams<{ section?: string }>();
 
-  const initialType = useMemo(() => {
-    if (!section) return "vocabulary";
-    return trainingSequence.includes(section as TrainingType)
-      ? (section as TrainingType)
-      : "vocabulary";
-  }, [section]);
+  const [index, setIndex] = useState<number>(0);
+  const currentQuestion = questionList[index];
 
-  const [currentType, setCurrentType] = useState<TrainingType>(initialType);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [showFeedback, setShowFeedback] = useState<boolean>(false);
+  const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
-  // --- Vocabulary shared state (example) ---
-  const [vocabIndex, setVocabIndex] = useState(0);
-  const [vocabSelected, setVocabSelected] = useState<string | null>(null);
+  const totalSteps = questionList.length;
+  // progress: 정답 확인을 눌러 피드백이 보일 때에만 해당 문제를 '완료'로 간주
+  const overallProgress =
+    ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
+  const isLastQuestion = index === questionList.length - 1;
 
-  // --- BlankQuiz controlled state (Training이 관리) ---
-  const [blankIndex, setBlankIndex] = useState(0);
-  const [blankSelected, setBlankSelected] = useState<number | null>(null);
+  const handleClose = () => navigate("/home");
 
-  // 공통 피드백 플래그 (현재 예시는 vocabulary와 blank만 footer 피드백 사용)
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
-
-  const currentIndex = trainingSequence.indexOf(currentType);
-  const overallProgress = ((currentIndex + 1) / trainingSequence.length) * 100;
-
-  const handleTrainingComplete = () => {
-    const nextIndex = currentIndex + 1;
-    if (nextIndex < trainingSequence.length) {
-      const nextType = trainingSequence[nextIndex];
-      setCurrentType(nextType);
-      navigate(`/home/training/${nextType}`);
-      resetAllSessionState();
-    } else {
-      alert("모든 훈련을 완료했습니다!");
-      navigate("/home");
-    }
-  };
-
-  const resetAllSessionState = () => {
-    setVocabIndex(0);
-    setVocabSelected(null);
-    setBlankIndex(0);
-    setBlankSelected(null);
+  const resetQuestionState = () => {
+    setSelectedAnswer(null);
     setShowFeedback(false);
     setIsCorrect(false);
   };
 
-  const handleClose = () => navigate("/home");
-
-  // --- Handlers for BlankQuiz selection + footer actions ---
-  const handleBlankSelect = (index: number) => {
+  const handleSelect = (option: string) => {
     if (showFeedback) return;
-    setBlankSelected(index);
+    setSelectedAnswer(option);
   };
 
   const handleCheckAnswer = () => {
-    // route-specific check: decide which session is being checked
-    if (currentType === "vocabulary") {
-      if (!vocabSelected) return;
-      const correct = vocabSelected === vocabularyQuestions[vocabIndex].correct;
-      setIsCorrect(!!correct);
-      setShowFeedback(true);
-    } else if (currentType === "blank") {
-      if (blankSelected === null) return;
-      const correct =
-        blankSelected === blankQuestions[blankIndex].correctAnswer;
-      setIsCorrect(correct);
-      setShowFeedback(true);
+    if (!selectedAnswer) return;
+    // correct 필드가 문자열 또는 문자열 배열일 수 있으므로 검사 처리
+    const correctField = currentQuestion.correct;
+    const correct =
+      typeof correctField === "string"
+        ? correctField === selectedAnswer
+        : Array.isArray(correctField)
+        ? correctField.includes(selectedAnswer)
+        : false;
+
+    setIsCorrect(Boolean(correct));
+    setShowFeedback(true);
+  };
+
+  const handleNext = () => {
+    if (index < questionList.length - 1) {
+      setIndex((i) => i + 1);
+      resetQuestionState();
     } else {
-      // 다른 세션의 경우 footer 버튼이 필요 없다면 무시하거나 onComplete 호출
+      handleTrainingComplete();
     }
   };
 
-  const handleNextQuestionOrComplete = () => {
-    if (currentType === "vocabulary") {
-      if (vocabIndex < vocabularyQuestions.length - 1) {
-        setVocabIndex((i) => i + 1);
-        setVocabSelected(null);
-        setShowFeedback(false);
-        setIsCorrect(false);
-      } else {
-        handleTrainingComplete();
-      }
-    } else if (currentType === "blank") {
-      if (blankIndex < blankQuestions.length - 1) {
-        setBlankIndex((i) => i + 1);
-        setBlankSelected(null);
-        setShowFeedback(false);
-        setIsCorrect(false);
-      } else {
-        handleTrainingComplete();
-      }
+  const handleTrainingComplete = () => {
+    alert("학습을 종료합니다.");
+    navigate("/home");
+  };
+
+  const renderQuestionComponent = (item: QuestionItem) => {
+    switch (item.type) {
+      case "vocabulary":
+        return (
+          <Vocabulary
+            question={item.question}
+            options={item.options ?? []}
+            selected={selectedAnswer}
+            onSelect={handleSelect}
+          />
+        );
+      case "sentence":
+        return (
+          <div className="py-6 text-center text-gray-500">
+            Sentence component not implemented yet
+          </div>
+        );
+      case "blank":
+        return (
+          <div className="py-6 text-center text-gray-500">
+            Blank component not implemented yet
+          </div>
+        );
+      case "writing":
+        return (
+          <div className="py-6 text-center text-gray-500">
+            Writing component not implemented yet
+          </div>
+        );
+      case "speakingListening":
+        return (
+          <div className="py-6 text-center text-gray-500">
+            Speaking & Listening not implemented yet
+          </div>
+        );
+      default:
+        return (
+          <div className="py-6 text-center text-gray-500">Unknown type</div>
+        );
     }
   };
 
-  const footerHeight = showFeedback
-    ? FOOTER_BASE_HEIGHT + FEEDBACK_EXTRA_HEIGHT + SAFE_BOTTOM
+  const footerVisualHeight = showFeedback
+    ? FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_EXTRA_HEIGHT
     : FOOTER_BASE_HEIGHT + SAFE_BOTTOM;
 
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
-      {/* Header */}
+      {/* Header: progress bar only */}
       <header className="flex-none border-b border-gray-200 bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
           <button
             onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100"
@@ -184,12 +188,6 @@ const TrainingPage: React.FC = () => {
           </button>
 
           <div className="flex-1 px-3">
-            <div className="flex items-center justify-center">
-              <div className="text-sm text-gray-600 font-medium">
-                {currentIndex + 1} / {trainingSequence.length}
-              </div>
-            </div>
-
             <div className="mt-2">
               <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
                 <div
@@ -204,46 +202,19 @@ const TrainingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main: session components only */}
+      {/* Main */}
       <main
         className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4"
-        style={{
-          paddingBottom: `${FOOTER_TOTAL_PADDING + FEEDBACK_EXTRA_HEIGHT}px`,
-        }}
+        style={{ paddingBottom: `${FOOTER_TOTAL_PADDING}px` }}
       >
         <div className="w-full flex flex-col gap-4 h-full">
-          {currentType === "vocabulary" && (
-            <Vocabulary
-              question={vocabularyQuestions[vocabIndex].korean}
-              options={vocabularyQuestions[vocabIndex].options}
-              selected={vocabSelected}
-              onSelect={(ans) => setVocabSelected(ans)}
-            />
-          )}
-
-          {currentType === "blank" && (
-            <BlankQuiz
-              questionIndex={blankIndex}
-              question={blankQuestions[blankIndex]}
-              selectedIndex={blankSelected}
-              disabled={showFeedback}
-              onSelect={handleBlankSelect}
-            />
-          )}
-
-          {/* {currentType === "sentence" && (
-            <SentenceArrange onComplete={handleTrainingComplete} />
-          )}
-          {currentType === "writing" && (
-            <Writing onComplete={handleTrainingComplete} />
-          )}
-          {currentType === "speakingListening" && (
-            <SpeakingListening onComplete={handleTrainingComplete} />
-          )} */}
+          {/* 문제 컴포넌트가 자체적으로 제목/메타를 렌더링 */}
+          {renderQuestionComponent(currentQuestion)}
+          <div className="flex-1" />
         </div>
       </main>
 
-      {/* Footer */}
+      {/* Fixed footer */}
       <div
         className="fixed left-0 right-0 bottom-0 z-50 flex justify-center"
         style={{ pointerEvents: "none" }}
@@ -251,17 +222,18 @@ const TrainingPage: React.FC = () => {
         <div
           className="max-w-4xl w-full px-4"
           style={{
-            height: `${footerHeight}px`,
+            height: `${footerVisualHeight}px`,
             transition: "height 260ms ease",
             paddingBottom: `${SAFE_BOTTOM}px`,
             pointerEvents: "auto",
           }}
         >
           <div className="relative h-full flex flex-col justify-end">
+            {/* 확장 영역: 피드백 내용 */}
             <div
               className="absolute left-4 right-4 top-0 flex justify-center"
               style={{
-                transform: showFeedback ? "translateY(0)" : `translateY(20px)`,
+                transform: showFeedback ? "translateY(0)" : "translateY(20px)",
                 opacity: showFeedback ? 1 : 0,
                 transition: "transform 260ms ease, opacity 200ms ease",
                 pointerEvents: showFeedback ? "auto" : "none",
@@ -311,6 +283,7 @@ const TrainingPage: React.FC = () => {
                         </svg>
                       )}
                     </div>
+
                     <div className="flex-1">
                       <div
                         className={`text-sm font-semibold ${
@@ -323,11 +296,7 @@ const TrainingPage: React.FC = () => {
                         <div className="mt-1">
                           <div className="text-xs text-gray-500">정답은</div>
                           <div className="text-sm font-bold text-gray-900 mt-1">
-                            {currentType === "vocabulary"
-                              ? vocabularyQuestions[vocabIndex].correct
-                              : blankQuestions[blankIndex].options[
-                                  blankQuestions[blankIndex].correctAnswer
-                                ]}
+                            {currentQuestion.correct}
                           </div>
                         </div>
                       )}
@@ -337,7 +306,7 @@ const TrainingPage: React.FC = () => {
               )}
             </div>
 
-            {/* Footer button */}
+            {/* 항상 보이는 버튼 */}
             <div className="w-full">
               <div
                 style={{
@@ -347,45 +316,39 @@ const TrainingPage: React.FC = () => {
                 }}
               >
                 <div className="w-full px-0">
-                  {/* Show check/next only for sessions that use this footer flow (vocabulary, blank) */}
-                  {(currentType === "vocabulary" ||
-                    currentType === "blank") && (
-                    <>
-                      {!showFeedback ? (
-                        <button
-                          onClick={handleCheckAnswer}
-                          disabled={
-                            currentType === "vocabulary"
-                              ? !vocabSelected
-                              : blankSelected === null
-                          }
-                          className={`w-full h-12 rounded-lg font-semibold text-base transition ${
-                            (
-                              currentType === "vocabulary"
-                                ? vocabSelected
-                                : blankSelected !== null
-                            )
-                              ? "bg-rose-500 text-white shadow"
-                              : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                          }`}
-                          style={{ pointerEvents: "auto" }}
-                        >
-                          정답 확인
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleNextQuestionOrComplete}
-                          className={`w-full h-12 rounded-lg font-semibold text-base transition ${
-                            isCorrect
-                              ? "bg-green-600 text-white shadow"
-                              : "bg-rose-600 text-white shadow"
-                          }`}
-                          style={{ pointerEvents: "auto" }}
-                        >
-                          다음 문제
-                        </button>
-                      )}
-                    </>
+                  {!showFeedback ? (
+                    <button
+                      onClick={handleCheckAnswer}
+                      disabled={!selectedAnswer}
+                      className={`w-full h-12 rounded-lg font-semibold text-base transition ${
+                        selectedAnswer
+                          ? "bg-rose-500 text-white shadow"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      }`}
+                      style={{ pointerEvents: "auto" }}
+                    >
+                      정답 확인
+                    </button>
+                  ) : isLastQuestion ? (
+                    <button
+                      onClick={handleTrainingComplete}
+                      className="w-full h-12 rounded-lg font-semibold text-base transition bg-indigo-600 text-white shadow"
+                      style={{ pointerEvents: "auto" }}
+                    >
+                      학습 종료
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleNext}
+                      className={`w-full h-12 rounded-lg font-semibold text-base transition ${
+                        isCorrect
+                          ? "bg-green-600 text-white shadow"
+                          : "bg-rose-600 text-white shadow"
+                      }`}
+                      style={{ pointerEvents: "auto" }}
+                    >
+                      다음 문제
+                    </button>
                   )}
                 </div>
               </div>

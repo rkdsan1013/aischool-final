@@ -13,7 +13,7 @@ export type UserRow = {
 
   // profile fields (joined)
   name?: string | null;
-  level?: string | null;
+  level?: "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | null;
   level_progress?: number | null;
   profile_img?: string | null;
 
@@ -21,8 +21,6 @@ export type UserRow = {
   streak_count?: number | null;
   total_study_time?: number | null;
   completed_lessons?: number | null;
-  weekly_goal?: number | null;
-  weekly_progress?: number | null;
 };
 
 /**
@@ -39,7 +37,8 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
 
 /**
  * getUserById
- * - 현재 DB 스키마(user_profiles에 통계 컬럼 포함)에 맞춰 JOIN 쿼리 수정
+ * - user_profiles와 조인하여 프로필/통계 필드까지 반환
+ * - MyPage에서 바로 사용할 수 있게 필드명을 DB 스키마에 맞춰 선택
  */
 export async function getUserById(userId: number): Promise<UserRow | null> {
   const [rows] = await pool.execute<RowDataPacket[]>(
@@ -62,7 +61,28 @@ export async function getUserById(userId: number): Promise<UserRow | null> {
   );
 
   const r = rows as RowDataPacket[] & UserRow[];
-  return (r[0] as UserRow) ?? null;
+  if (!r[0]) return null;
+
+  // 명시적 타입 정리 및 null 처리
+  const row = r[0] as UserRow;
+  return {
+    user_id: Number(row.user_id),
+    email: String(row.email),
+    created_at: row.created_at ?? undefined,
+    updated_at: row.updated_at ?? undefined,
+    name: row.name ?? null,
+    level:
+      (row.level as "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | null) ?? null,
+    level_progress:
+      typeof row.level_progress === "number" ? row.level_progress : null,
+    profile_img: row.profile_img ?? null,
+    streak_count:
+      typeof row.streak_count === "number" ? row.streak_count : null,
+    total_study_time:
+      typeof row.total_study_time === "number" ? row.total_study_time : null,
+    completed_lessons:
+      typeof row.completed_lessons === "number" ? row.completed_lessons : null,
+  } as UserRow;
 }
 
 /**
@@ -87,8 +107,7 @@ export async function createUserAndProfile(user: {
       throw new Error("Failed to create user");
     }
 
-    // user_profiles 테이블의 기본값(DEFAULT)은 DB 스키마에서 처리되므로
-    // 최소 필드만 삽입
+    // user_profiles 테이블의 기본값(DEFAULT)은 DB 스키마에서 처리되므로 최소 필드만 삽입
     await connection.execute(
       "INSERT INTO user_profiles (user_id, name) VALUES (?, ?)",
       [newUserId, user.name]
@@ -112,14 +131,11 @@ export async function updateUserProfile(
   payload: Partial<{
     name: string | null;
     profile_img: string | null;
-    level: string | null;
+    level: "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | null;
     level_progress: number | null;
-    // stats can also be updated here if needed
     streak_count: number | null;
     total_study_time: number | null;
     completed_lessons: number | null;
-    weekly_goal: number | null;
-    weekly_progress: number | null;
   }>
 ): Promise<void> {
   const fields: string[] = [];
@@ -142,7 +158,6 @@ export async function updateUserProfile(
     values.push(payload.level_progress);
   }
 
-  // stats fields (optional)
   if ("streak_count" in payload) {
     fields.push("streak_count = ?");
     values.push(payload.streak_count);
@@ -155,14 +170,6 @@ export async function updateUserProfile(
     fields.push("completed_lessons = ?");
     values.push(payload.completed_lessons);
   }
-  if ("weekly_goal" in payload) {
-    fields.push("weekly_goal = ?");
-    values.push(payload.weekly_goal);
-  }
-  if ("weekly_progress" in payload) {
-    fields.push("weekly_progress = ?");
-    values.push(payload.weekly_progress);
-  }
 
   if (fields.length === 0) return;
 
@@ -173,7 +180,6 @@ export async function updateUserProfile(
 
 /**
  * deleteUser
- * - 현재 스키마에 맞춰 user_profiles / users만 삭제
  */
 export async function deleteUser(userId: number): Promise<void> {
   const connection = await pool.getConnection();
