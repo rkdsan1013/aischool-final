@@ -1,6 +1,6 @@
 import axios, { AxiosError } from "axios";
 import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
-import { navigate } from "../router/navigate"; // ✅ 전역 navigate 헬퍼 사용
+import { navigate } from "../routes/navigate"; // ✅ 전역 navigate 헬퍼 사용
 
 // 1. 표준화된 서비스 오류
 export class ServiceError extends Error {
