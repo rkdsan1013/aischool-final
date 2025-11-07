@@ -1,3 +1,4 @@
+// src/pages/AITalkPage.tsx
 import React, { useEffect, useState } from "react";
 import {
   Coffee,
@@ -9,10 +10,9 @@ import {
   MessageCircle,
   Sparkles,
   Plus,
-  Pencil,
-  Trash2,
   ChevronRight,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Scenario {
   id: string;
@@ -32,140 +32,10 @@ interface CustomScenario {
   context: string;
 }
 
-/* ScenarioForm props: 초기값이 null인지 아닌지에 따라 onSave 타입이 달라지는 분기형 유니언 */
-type ScenarioFormProps =
-  | {
-      initial: null;
-      onCancel: () => void;
-      onSave: (payload: Omit<CustomScenario, "id">) => void;
-    }
-  | {
-      initial: CustomScenario;
-      onCancel: () => void;
-      onSave: (payload: CustomScenario) => void;
-    };
-
-const ScenarioForm: React.FC<ScenarioFormProps> = (props) => {
-  const initial = props.initial;
-  const [title, setTitle] = useState(initial?.title ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [difficulty, setDifficulty] = useState(initial?.difficulty ?? "중급");
-  const [context, setContext] = useState(initial?.context ?? "");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    if (initial) {
-      const payload: CustomScenario = {
-        id: initial.id,
-        title: title.trim(),
-        description: description.trim(),
-        difficulty,
-        context: context.trim(),
-      };
-      props.onSave(payload);
-    } else {
-      const payload: Omit<CustomScenario, "id"> = {
-        title: title.trim(),
-        description: description.trim(),
-        difficulty,
-        context: context.trim(),
-      };
-      props.onSave(payload);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={props.onCancel} />
-      <form
-        onSubmit={handleSubmit}
-        className="relative bg-card w-full max-w-lg rounded-2xl p-6 z-50 shadow-xl"
-      >
-        <h3 className="text-lg font-semibold mb-4">
-          {initial ? "시나리오 편집" : "새 시나리오 만들기"}
-        </h3>
-
-        <div className="grid gap-3">
-          <label className="text-sm">
-            제목
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full bg-input border border-border rounded-md px-3 py-2 text-sm"
-              required
-            />
-          </label>
-
-          <label className="text-sm">
-            설명
-            <input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full bg-input border border-border rounded-md px-3 py-2 text-sm"
-            />
-          </label>
-
-          <label className="text-sm">
-            난이도
-            <select
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value)}
-              className="mt-1 w-full bg-input border border-border rounded-md px-3 py-2 text-sm"
-            >
-              <option value="초급">초급</option>
-              <option value="중급">중급</option>
-              <option value="고급">고급</option>
-              <option value="전체">전체</option>
-            </select>
-          </label>
-
-          <label className="text-sm">
-            상황 맥락
-            <textarea
-              value={context}
-              onChange={(e) => setContext(e.target.value)}
-              rows={4}
-              className="mt-1 w-full bg-input border border-border rounded-md px-3 py-2 text-sm"
-            />
-          </label>
-
-          <div className="flex justify-end gap-2 mt-2">
-            <button
-              type="button"
-              onClick={props.onCancel}
-              className="px-3 py-2 rounded-md hover:bg-muted"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              className="bg-rose-500 text-white px-4 py-2 rounded-md hover:bg-rose-600"
-            >
-              저장
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  );
-};
-
 const AITalkPage: React.FC = () => {
-  const [user] = useState<{ name: string; email: string } | null>({
-    name: "홍길동",
-    email: "test@test.com",
-  });
-  const [isLoading] = useState(false);
+  const navigate = useNavigate();
 
   const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
-  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editingScenario, setEditingScenario] = useState<CustomScenario | null>(
-    null
-  );
 
   useEffect(() => {
     const saved = localStorage.getItem("customScenarios");
@@ -252,61 +122,22 @@ const AITalkPage: React.FC = () => {
       description: "AI와 자유롭게 대화하며 실력을 향상시키세요",
       icon: <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />,
       colorClass: "bg-gradient-to-br from-rose-500 to-pink-500",
-      colorHex: "#fb7185", // 대표 색을 rose-500로 지정
+      colorHex: "#fb7185",
       difficulty: "전체",
     },
   ];
 
   const handleScenarioClick = (id: string) => {
-    setActiveScenarioId(id);
+    navigate(`/ai-talk/${id}`);
   };
 
-  const handleCreateCustom = (payload: Omit<CustomScenario, "id">) => {
-    const newItem: CustomScenario = {
-      id: Date.now().toString(),
-      ...payload,
-    };
-    setCustomScenarios((prev) => [newItem, ...prev]);
-    setIsCreateOpen(false);
+  // 만들기 버튼 전용 함수 (커스텀 페이지로 이동)
+  const handleCreateNavigate = () => {
+    navigate("/ai-talk/custom-scenario");
   };
-
-  const handleStartEdit = (s: CustomScenario, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setEditingScenario(s);
-    setIsEditOpen(true);
-  };
-
-  const handleSaveEdit = (payload: CustomScenario) => {
-    setCustomScenarios((prev) =>
-      prev.map((p) => (p.id === payload.id ? payload : p))
-    );
-    setIsEditOpen(false);
-    setEditingScenario(null);
-  };
-
-  const handleDeleteCustomScenario = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const updated = customScenarios.filter((s) => s.id !== id);
-    setCustomScenarios(updated);
-  };
-
-  const closeScenario = () => setActiveScenarioId(null);
-  const openCreate = () => setIsCreateOpen(true);
-  const closeCreate = () => setIsCreateOpen(false);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
-      </div>
-    );
-  }
-
-  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Scenarios Section */}
         <section className="mb-8 sm:mb-12">
@@ -326,7 +157,6 @@ const AITalkPage: React.FC = () => {
                 onClick={() => handleScenarioClick(s.id)}
                 className="border-2 border-gray-200 group relative bg-card rounded-2xl p-4 sm:p-5 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                 type="button"
-                // style={{ border: `1px solid ${s.colorHex}` }}
               >
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div
@@ -344,7 +174,7 @@ const AITalkPage: React.FC = () => {
                         {s.difficulty}
                       </span>
                     </div>
-                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 text-pretty">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate whitespace-nowrap overflow-hidden">
                       {s.description}
                     </p>
                   </div>
@@ -367,7 +197,7 @@ const AITalkPage: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={openCreate}
+              onClick={handleCreateNavigate}
               className="flex items-center bg-rose-500 text-white px-3 py-2 rounded-xl shadow-md hover:bg-rose-600 transition-all"
               type="button"
             >
@@ -377,6 +207,7 @@ const AITalkPage: React.FC = () => {
             </button>
           </div>
 
+          {/* 커스텀 카드 목록은 로컬스토리지에서 읽지만 생성/편집은 별도 페이지에서 처리 */}
           {customScenarios.length === 0 ? (
             <div className="border-3 border-gray-200 border-dashed rounded-2xl p-8 sm:p-12 text-center bg-card">
               <div className="bg-gradient-to-br from-rose-100 to-pink-100 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
@@ -394,9 +225,9 @@ const AITalkPage: React.FC = () => {
               {customScenarios.map((s) => (
                 <div
                   key={s.id}
-                  onClick={() => handleScenarioClick(s.id)}
+                  onClick={() => navigate(`/ai-talk/${s.id}`)}
                   className="group relative bg-card rounded-2xl p-4 sm:p-5 cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
-                  style={{ border: `1px solid #e11d48` }} // custom 시나리오는 대표 로즈 색 사용
+                  style={{ border: `1px solid #e11d48` }}
                 >
                   <div className="flex items-start gap-3 sm:gap-4">
                     <div
@@ -405,7 +236,6 @@ const AITalkPage: React.FC = () => {
                     >
                       <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
-
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
                         <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">
@@ -419,26 +249,6 @@ const AITalkPage: React.FC = () => {
                         {s.description}
                       </p>
                     </div>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => handleStartEdit(s, e)}
-                        className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-                        aria-label="edit"
-                        type="button"
-                      >
-                        <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteCustomScenario(s.id, e)}
-                        className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full hover:bg-red-50 transition-colors"
-                        aria-label="delete"
-                        type="button"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500" />
-                      </button>
-                    </div>
-
                     <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
                   </div>
                 </div>
@@ -447,70 +257,6 @@ const AITalkPage: React.FC = () => {
           )}
         </section>
       </main>
-
-      {/* Scenario Modal */}
-      {activeScenarioId && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={closeScenario}
-          />
-          <div className="relative bg-card max-w-2xl w-full rounded-2xl p-6 z-50 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold">
-                  {scenarios.find((s) => s.id === activeScenarioId)?.title ||
-                    customScenarios.find((c) => c.id === activeScenarioId)
-                      ?.title}
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {scenarios.find((s) => s.id === activeScenarioId)
-                    ?.description ||
-                    customScenarios.find((c) => c.id === activeScenarioId)
-                      ?.description}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={closeScenario}
-                  className="text-sm text-muted-foreground px-3 py-1 rounded-md hover:bg-muted"
-                >
-                  닫기
-                </button>
-                <button className="bg-rose-500 text-white px-3 py-1 rounded-md hover:bg-rose-600">
-                  대화 시작
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 border-t pt-4 text-sm text-muted-foreground">
-              이 화면은 데모용으로 한 페이지 내에서 시나리오를 시작하는
-              인터페이스입니다.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Modal */}
-      {isCreateOpen && (
-        <ScenarioForm
-          initial={null}
-          onCancel={closeCreate}
-          onSave={(payload) => handleCreateCustom(payload)}
-        />
-      )}
-
-      {/* Edit Modal */}
-      {isEditOpen && editingScenario && (
-        <ScenarioForm
-          initial={editingScenario}
-          onCancel={() => {
-            setIsEditOpen(false);
-            setEditingScenario(null);
-          }}
-          onSave={(payload) => handleSaveEdit(payload)}
-        />
-      )}
     </div>
   );
 };
