@@ -1,3 +1,4 @@
+// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -6,26 +7,26 @@ import {
   PenTool,
   Mic,
   Link2,
-  Zap,
   Trophy,
   Flame,
   Lock,
   CheckCircle2,
 } from "lucide-react";
+import type { TrainingType } from "../services/trainingService";
 
 interface TrainingStep {
   id: string;
   title: string;
   description: string;
   icon: React.ReactNode;
-  color: string; // bubble color when current/completed
-  progress: number; // 0~100
+  color: string;
+  progress: number;
+  startType: TrainingType;
 }
 
-const Home: React.FC = () => {
+const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
-  // Header/user info
   const [user] = useState<{ name: string; level: string } | null>({
     name: "홍길동",
     level: "B1",
@@ -33,12 +34,13 @@ const Home: React.FC = () => {
   const [_isLoading] = useState(false);
   const [streak] = useState<number>(7);
   const [todayProgress] = useState<number>(45);
+  const [prefetchingType, setPrefetchingType] = useState<TrainingType | null>(
+    null
+  );
 
   useEffect(() => {
-    if (!_isLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, _isLoading, navigate]);
+    if (!_isLoading && !user) navigate("/auth");
+  }, [_isLoading, user, navigate]);
 
   if (_isLoading) {
     return (
@@ -47,10 +49,8 @@ const Home: React.FC = () => {
       </div>
     );
   }
-
   if (!user) return null;
 
-  // Order: 단어 훈련 → 문장 배열 → 의미 매칭 → 작문 → 발음
   const steps: TrainingStep[] = [
     {
       id: "vocabulary",
@@ -59,6 +59,7 @@ const Home: React.FC = () => {
       icon: <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-rose-500",
       progress: 100,
+      startType: "vocabulary",
     },
     {
       id: "sentence",
@@ -67,6 +68,7 @@ const Home: React.FC = () => {
       icon: <ListOrdered className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-rose-400",
       progress: 100,
+      startType: "sentence",
     },
     {
       id: "matching",
@@ -75,6 +77,7 @@ const Home: React.FC = () => {
       icon: <Link2 className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-pink-500",
       progress: 100,
+      startType: "blank",
     },
     {
       id: "writing",
@@ -83,6 +86,7 @@ const Home: React.FC = () => {
       icon: <PenTool className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-rose-300",
       progress: 100,
+      startType: "writing",
     },
     {
       id: "speaking-listening",
@@ -91,21 +95,37 @@ const Home: React.FC = () => {
       icon: <Mic className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-indigo-500",
       progress: 100,
+      startType: "speakingListening",
     },
   ];
 
-  // Unlock rule: previous step must be completed
-  const isUnlocked = (index: number) => {
-    if (index === 0) return true;
-    return steps[index - 1].progress === 100;
-  };
+  const isUnlocked = (index: number) =>
+    index === 0 ? true : steps[index - 1].progress === 100;
 
-  const handleStepClick = (stepId: string, unlocked: boolean) => {
+  const handleNavigateToTraining = (
+    startType: TrainingType,
+    unlocked: boolean
+  ) => {
     if (!unlocked) return;
-    navigate(`/training/${stepId}`);
+    // 주소는 항상 /training, startType 전달은 location.state 로만
+    navigate("/training", { state: { startType } });
   };
 
-  // Bubble style by state
+  // Optional lightweight prefetch (no caching integration here)
+  const prefetchQuestions = async (type: TrainingType) => {
+    try {
+      setPrefetchingType(type);
+      await fetch(`/api/training?type=${encodeURIComponent(type)}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch {
+      // ignore
+    } finally {
+      setPrefetchingType(null);
+    }
+  };
+
   const getBubbleClasses = (
     progress: number,
     unlocked: boolean,
@@ -113,35 +133,28 @@ const Home: React.FC = () => {
   ) => {
     const completed = progress === 100;
     const current = unlocked && progress > 0 && progress < 100;
-
-    if (!unlocked || progress === 0) {
+    if (!unlocked || progress === 0)
       return {
         bubble: "bg-gray-300",
         ring: "",
         iconTint: "text-white opacity-90",
       };
-    }
-    if (completed) {
+    if (completed)
       return { bubble: baseColor, ring: "", iconTint: "text-white" };
-    }
-    if (current) {
+    if (current)
       return {
         bubble: baseColor,
         ring: "ring-4 ring-rose-200",
         iconTint: "text-white",
       };
-    }
     return { bubble: baseColor, ring: "", iconTint: "text-white" };
   };
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      {/* Header (preserved) */}
       <header className="bg-rose-500 text-white p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
-          {/* 상단 행: 좌측 인사 + 우측 배지 (항상 가로 배치) */}
           <div className="flex flex-row items-center justify-between mb-5 sm:mb-6">
-            {/* 좌측: 인사 멘트 (가변 폭) */}
             <div className="min-w-0 mr-3 sm:mr-4">
               <h1 className="text-base sm:text-2xl font-bold mb-0.5 tracking-tight leading-snug truncate">
                 안녕하세요, {user.name}님!
@@ -151,7 +164,6 @@ const Home: React.FC = () => {
               </p>
             </div>
 
-            {/* 우측: streak/level 배지 (고정, 줄바꿈 방지) */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <div className="flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1.5 sm:px-4 sm:py-2">
                 <Flame className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -168,7 +180,6 @@ const Home: React.FC = () => {
             </div>
           </div>
 
-          {/* 진행도 박스는 기존 그대로 */}
           <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4">
             <div className="flex items-center justify-between mb-3.5">
               <span className="text-xs sm:text-sm font-medium tracking-tight">
@@ -191,7 +202,6 @@ const Home: React.FC = () => {
         </div>
       </header>
 
-      {/* Unit vertical path: centered continuous connectors */}
       <main className="max-w-4xl mx-auto p-4 sm:p-6">
         <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 tracking-tight">
           오늘의 유닛
@@ -206,9 +216,6 @@ const Home: React.FC = () => {
               unlocked,
               step.color
             );
-
-            // Connector between this bubble and the next bubble:
-            // color rose if BOTH current and next are completed, else gray.
             const prevCompleted =
               idx > 0 ? steps[idx - 1].progress === 100 : false;
             const nextCompleted =
@@ -217,23 +224,19 @@ const Home: React.FC = () => {
               idx < steps.length - 1 && completed && nextCompleted
                 ? "bg-rose-500"
                 : "bg-gray-200";
-
             const topConnectorColor =
               prevCompleted && completed ? "bg-rose-500" : "bg-gray-200";
 
             return (
               <li key={step.id}>
                 <div className="grid grid-cols-[56px_1fr] sm:grid-cols-[72px_1fr] gap-3 sm:gap-4 items-center">
-                  {/* Rail + bubble column (centered) */}
                   <div className="relative h-full">
-                    {/* Continuous connector line (TOP) */}
                     {idx > 0 && (
                       <div
                         className={`absolute left-1/2 -translate-x-1/2 w-[2px] sm:w-[3px] ${topConnectorColor} rounded-full top-[-1rem] sm:top-[-1.5rem] bottom-1/2 mb-5 sm:mb-6`}
                       />
                     )}
 
-                    {/* Bubble */}
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-sm border border-white/60 flex items-center justify-center z-10 absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2">
                       <div
                         className={`relative ${bubble.bubble} ${bubble.ring} w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center`}
@@ -242,19 +245,19 @@ const Home: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Continuous connector down to next bubble (no cut in middle) */}
                     {idx < steps.length - 1 && (
-                      // MODIFIED: This is now an absolute div stretching *outside* its container
                       <div
-                        className={`absolute left-1/2 -translate-x-1/2 w-[2px] sm:w-[3px] ${connectorColor} rounded-full top-1/2 mt-5 sm:mt-6 bottom-[-1rem] sm:bottom-[-1.5rem]`} // space-y-4 -> 1rem, sm:space-y-6 -> 1.5rem
+                        className={`absolute left-1/2 -translate-x-1/2 w-[2px] sm:w-[3px] ${connectorColor} rounded-full top-1/2 mt-5 sm:mt-6 bottom-[-1rem] sm:bottom-[-1.5rem]`}
                       />
                     )}
                   </div>
 
-                  {/* Card (no progress bar inside, simpler content) */}
                   <button
                     type="button"
-                    onClick={() => handleStepClick(step.id, unlocked)}
+                    onClick={() =>
+                      handleNavigateToTraining(step.startType, unlocked)
+                    }
+                    onMouseEnter={() => prefetchQuestions(step.startType)}
                     disabled={!unlocked}
                     className={`w-full text-left bg-white rounded-xl border p-3 sm:p-4 shadow-sm transition transform active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-md ${
                       unlocked
@@ -267,13 +270,16 @@ const Home: React.FC = () => {
                         <h3 className="text-sm sm:text-lg font-semibold text-gray-900 tracking-tight leading-snug truncate">
                           {step.title}
                         </h3>
-                        <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 sm:mt-1 tracking-tight leading-snug">
+                        <p className="text-sm text-gray-500 mt-0.5 sm:mt-1 tracking-tight leading-snug">
                           {step.description}
                         </p>
                       </div>
 
-                      {/* Status pill */}
-                      {completed ? (
+                      {prefetchingType === step.startType ? (
+                        <div className="text-sm text-rose-500 font-medium">
+                          로딩...
+                        </div>
+                      ) : completed ? (
                         <span className="inline-flex items-center gap-1 text-[11px] sm:text-sm text-emerald-600 bg-emerald-50 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
                           <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           완료
@@ -284,8 +290,7 @@ const Home: React.FC = () => {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] sm:text-sm text-gray-600 bg-gray-100 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
-                          <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          잠김
+                          <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 잠김
                         </span>
                       )}
                     </div>
@@ -295,33 +300,9 @@ const Home: React.FC = () => {
             );
           })}
         </ul>
-
-        {/* Unit CTA */}
-        <div className="mt-6 sm:mt-8 flex items-center justify-between bg-white rounded-xl border border-rose-100 p-3 sm:p-4">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="bg-rose-500 text-white w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div>
-              <p className="text-sm sm:text-base font-semibold text-gray-900 tracking-tight leading-snug">
-                즉시 피드백 미션
-              </p>
-              <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 tracking-tight leading-snug">
-                방금 학습한 내용을 실전처럼 테스트해보세요
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-rose-500 text-white text-sm font-medium tracking-tight hover:bg-rose-600 transition"
-            onClick={() => navigate("/training/mission")}
-          >
-            시작하기
-          </button>
-        </div>
       </main>
     </div>
   );
 };
 
-export default Home;
+export default HomePage;

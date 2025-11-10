@@ -1,82 +1,113 @@
 // src/pages/Training.tsx
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Vocabulary from "../components/Vocabulary";
+import Sentence from "../components/Sentence";
+import Blank from "../components/Blank";
+import Writing from "../components/Writing";
+import SpeakingListening from "../components/SpeakingListening";
+import type { QuestionItem, TrainingType } from "../services/trainingService";
+import { fetchTrainingQuestions } from "../services/trainingService";
 
-type TrainingType =
-  | "vocabulary"
-  | "sentence"
-  | "blank"
-  | "writing"
-  | "speakingListening";
-
-interface Media {
-  audio?: string;
-  image?: string;
+/* location.state 타입가드 */
+function isLocState(
+  obj: unknown
+): obj is { startType?: TrainingType; questions?: QuestionItem[] } {
+  if (!obj || typeof obj !== "object") return false;
+  const o = obj as Record<string, unknown>;
+  if ("startType" in o && typeof o.startType !== "undefined")
+    return typeof o.startType === "string";
+  if ("questions" in o && typeof o.questions !== "undefined")
+    return Array.isArray(o.questions);
+  return false;
 }
 
-interface QuestionItem {
-  id: string;
-  type: TrainingType;
-  question: string;
-  options?: string[];
-  correct?: string | string[];
-  media?: Media;
-  meta?: Record<string, unknown>;
-}
-
-/* 예시 문제 목록 */
-const questionList: QuestionItem[] = [
-  {
-    id: "q1",
-    type: "vocabulary",
-    question: "사과",
-    options: ["Apple", "Banana", "Orange", "Grape"],
-    correct: "Apple",
-  },
-  {
-    id: "q2",
-    type: "vocabulary",
-    question: "고양이",
-    options: ["Dog", "Cat", "Bird", "Fish"],
-    correct: "Cat",
-  },
-  {
-    id: "q3",
-    type: "vocabulary",
-    question: "책",
-    options: ["Pen", "Paper", "Book", "Desk"],
-    correct: "Book",
-  },
-];
-
-/* Layout 상수 (푸터/피드백 높이 및 안전 여백) */
-const FOOTER_BASE_HEIGHT = 64; // 버튼 포함 기본 푸터 높이(px)
-const SAFE_BOTTOM = 12; // 바텀 안전 여백(px)
-const FEEDBACK_EXTRA_HEIGHT = 140; // 피드백 확장시 추가 높이(px)
+const FOOTER_BASE_HEIGHT = 64;
+const SAFE_BOTTOM = 12;
+const FEEDBACK_EXTRA_HEIGHT = 140;
 const FOOTER_TOTAL_PADDING =
   FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_EXTRA_HEIGHT;
 
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
+  const locState = isLocState(location.state)
+    ? (location.state as {
+        startType?: TrainingType;
+        questions?: QuestionItem[];
+      })
+    : undefined;
+  const startType = locState?.startType as TrainingType | undefined;
+
+  const [questions, setQuestions] = useState<QuestionItem[] | null>(
+    locState?.questions ?? null
+  );
+  const [loading, setLoading] = useState<boolean>(
+    !locState?.questions && Boolean(startType)
+  );
   const [index, setIndex] = useState<number>(0);
-  const currentQuestion = questionList[index];
 
+  // UI 상태
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
+  const [writingValue, setWritingValue] = useState<string>("");
+  const [isRecording, setIsRecording] = useState<boolean>(false);
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
-  const totalSteps = questionList.length;
-  // progress: 정답 확인을 눌러 피드백이 보일 때에만 해당 문제를 '완료'로 간주
+  useEffect(() => {
+    if (!startType) {
+      window.alert("잘못된 접근입니다. 훈련은 홈에서 시작해주세요.");
+      navigate("/home");
+      return;
+    }
+
+    if (!questions && startType) {
+      const load = async () => {
+        try {
+          setLoading(true);
+          const data = await fetchTrainingQuestions(startType);
+          setQuestions(data);
+          setIndex(0);
+        } catch (err) {
+          console.error(err);
+          window.alert("문제를 불러오지 못했습니다.");
+          navigate("/home");
+        } finally {
+          setLoading(false);
+        }
+      };
+      void load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const currentQuestion = useMemo(
+    () => (questions && questions[index] ? questions[index] : null),
+    [questions, index]
+  );
+
+  // stable options: 참조 안정화를 위해 복사 전달
+  const stableOptions = useMemo(
+    () => (currentQuestion?.options ? [...currentQuestion.options] : []),
+    [currentQuestion?.options]
+  );
+
+  const totalSteps = questions?.length ?? 0;
   const overallProgress =
-    ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
-  const isLastQuestion = index === questionList.length - 1;
+    totalSteps === 0
+      ? 0
+      : ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
+  const isLastQuestion = index === (questions?.length ?? 1) - 1;
 
   const handleClose = () => navigate("/home");
 
   const resetQuestionState = () => {
     setSelectedAnswer(null);
+    setSelectedOrder([]);
+    setWritingValue("");
+    setIsRecording(false);
     setShowFeedback(false);
     setIsCorrect(false);
   };
@@ -86,23 +117,86 @@ const TrainingPage: React.FC = () => {
     setSelectedAnswer(option);
   };
 
+  // onPick: 풀에서 단어 하나를 추가했을 때
+  const handlePickPart = (part: string) => {
+    if (showFeedback) return;
+    setSelectedOrder((s) => (s.includes(part) ? s : [...s, part]));
+  };
+
+  // onRemove: 선택된 항목을 제거했을 때
+  const handleRemovePart = (part: string) => {
+    if (showFeedback) return;
+    setSelectedOrder((s) => s.filter((x) => x !== part));
+  };
+
+  // onReorder: 전체 재배열 결과를 받았을 때 (Sentence에서 호출)
+  const handleReorder = (next: string[]) => {
+    if (showFeedback) return;
+    setSelectedOrder(next);
+  };
+
+  const handleResetOrder = () => {
+    if (showFeedback) return;
+    setSelectedOrder([]);
+  };
+
+  const handleWritingChange = (v: string) => {
+    setWritingValue(v);
+  };
+
+  const handleRecordToggle = (recording: boolean) => {
+    setIsRecording(recording);
+  };
+
+  const handleRecordReceived = (blob: Blob) => {
+    setIsRecording(false);
+    console.debug("received recording blob (demo)", blob);
+  };
+
   const handleCheckAnswer = () => {
-    if (!selectedAnswer) return;
-    // correct 필드가 문자열 또는 문자열 배열일 수 있으므로 검사 처리
-    const correctField = currentQuestion.correct;
-    const correct =
-      typeof correctField === "string"
-        ? correctField === selectedAnswer
-        : Array.isArray(correctField)
-        ? correctField.includes(selectedAnswer)
-        : false;
+    if (!currentQuestion) return;
+    let correct = false;
+
+    switch (currentQuestion.type) {
+      case "vocabulary":
+      case "blank":
+      case "speakingListening": {
+        const correctField = currentQuestion.correct;
+        correct =
+          typeof correctField === "string"
+            ? correctField === selectedAnswer
+            : Array.isArray(correctField)
+            ? !!selectedAnswer && correctField.includes(selectedAnswer)
+            : false;
+        break;
+      }
+      case "sentence": {
+        if (Array.isArray(currentQuestion.correct)) {
+          correct =
+            JSON.stringify(currentQuestion.correct) ===
+            JSON.stringify(selectedOrder);
+        } else if (typeof currentQuestion.correct === "string") {
+          correct = currentQuestion.correct === selectedOrder.join(" ");
+        } else {
+          correct = false;
+        }
+        break;
+      }
+      case "writing": {
+        correct = writingValue.trim().length > 0;
+        break;
+      }
+      default:
+        correct = false;
+    }
 
     setIsCorrect(Boolean(correct));
     setShowFeedback(true);
   };
 
   const handleNext = () => {
-    if (index < questionList.length - 1) {
+    if (!questions) return;
+    if (index < questions.length - 1) {
       setIndex((i) => i + 1);
       resetQuestionState();
     } else {
@@ -111,9 +205,29 @@ const TrainingPage: React.FC = () => {
   };
 
   const handleTrainingComplete = () => {
-    alert("학습을 종료합니다.");
+    window.alert("학습을 종료합니다.");
     navigate("/home");
   };
+
+  const footerVisualHeight = showFeedback
+    ? FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_EXTRA_HEIGHT
+    : FOOTER_BASE_HEIGHT + SAFE_BOTTOM;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
+      </div>
+    );
+  }
+
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="text-gray-500">문제가 없습니다.</div>
+      </div>
+    );
+  }
 
   const renderQuestionComponent = (item: QuestionItem) => {
     switch (item.type) {
@@ -121,49 +235,61 @@ const TrainingPage: React.FC = () => {
         return (
           <Vocabulary
             question={item.question}
-            options={item.options ?? []}
+            options={stableOptions}
             selected={selectedAnswer}
             onSelect={handleSelect}
           />
         );
       case "sentence":
         return (
-          <div className="py-6 text-center text-gray-500">
-            Sentence component not implemented yet
-          </div>
+          <Sentence
+            question={item.question}
+            options={stableOptions}
+            selectedOrder={selectedOrder}
+            onPick={handlePickPart}
+            onRemove={handleRemovePart}
+            onReorder={handleReorder}
+            onReset={handleResetOrder}
+          />
         );
       case "blank":
         return (
-          <div className="py-6 text-center text-gray-500">
-            Blank component not implemented yet
-          </div>
+          <Blank
+            question={item.question}
+            options={stableOptions}
+            selected={selectedAnswer}
+            onSelect={handleSelect}
+          />
         );
       case "writing":
         return (
-          <div className="py-6 text-center text-gray-500">
-            Writing component not implemented yet
-          </div>
+          <Writing
+            prompt={item.question}
+            initialValue={writingValue}
+            onChange={handleWritingChange}
+          />
         );
       case "speakingListening":
         return (
-          <div className="py-6 text-center text-gray-500">
-            Speaking & Listening not implemented yet
-          </div>
+          <SpeakingListening
+            prompt={item.question}
+            options={stableOptions}
+            onSelect={handleSelect}
+            onRecord={handleRecordReceived}
+            onToggleRecord={handleRecordToggle}
+          />
         );
       default:
         return (
-          <div className="py-6 text-center text-gray-500">Unknown type</div>
+          <div className="py-6 text-center text-gray-500">
+            지원하지 않는 문제 유형입니다.
+          </div>
         );
     }
   };
 
-  const footerVisualHeight = showFeedback
-    ? FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_EXTRA_HEIGHT
-    : FOOTER_BASE_HEIGHT + SAFE_BOTTOM;
-
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
-      {/* Header: progress bar only */}
       <header className="flex-none border-b border-gray-200 bg-white">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
           <button
@@ -202,19 +328,16 @@ const TrainingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main */}
       <main
         className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4"
         style={{ paddingBottom: `${FOOTER_TOTAL_PADDING}px` }}
       >
         <div className="w-full flex flex-col gap-4 h-full">
-          {/* 문제 컴포넌트가 자체적으로 제목/메타를 렌더링 */}
           {renderQuestionComponent(currentQuestion)}
           <div className="flex-1" />
         </div>
       </main>
 
-      {/* Fixed footer */}
       <div
         className="fixed left-0 right-0 bottom-0 z-50 flex justify-center"
         style={{ pointerEvents: "none" }}
@@ -229,7 +352,6 @@ const TrainingPage: React.FC = () => {
           }}
         >
           <div className="relative h-full flex flex-col justify-end">
-            {/* 확장 영역: 피드백 내용 */}
             <div
               className="absolute left-4 right-4 top-0 flex justify-center"
               style={{
@@ -296,7 +418,7 @@ const TrainingPage: React.FC = () => {
                         <div className="mt-1">
                           <div className="text-xs text-gray-500">정답은</div>
                           <div className="text-sm font-bold text-gray-900 mt-1">
-                            {currentQuestion.correct}
+                            {String(currentQuestion.correct ?? "")}
                           </div>
                         </div>
                       )}
@@ -306,7 +428,6 @@ const TrainingPage: React.FC = () => {
               )}
             </div>
 
-            {/* 항상 보이는 버튼 */}
             <div className="w-full">
               <div
                 style={{
@@ -319,9 +440,23 @@ const TrainingPage: React.FC = () => {
                   {!showFeedback ? (
                     <button
                       onClick={handleCheckAnswer}
-                      disabled={!selectedAnswer}
+                      disabled={
+                        currentQuestion?.type === "sentence"
+                          ? selectedOrder.length === 0
+                          : currentQuestion?.type === "writing"
+                          ? writingValue.trim().length === 0
+                          : currentQuestion?.type === "speakingListening"
+                          ? isRecording
+                          : selectedAnswer == null
+                      }
                       className={`w-full h-12 rounded-lg font-semibold text-base transition ${
-                        selectedAnswer
+                        (
+                          currentQuestion?.type === "writing"
+                            ? writingValue.trim().length > 0
+                            : currentQuestion?.type === "sentence"
+                            ? selectedOrder.length > 0
+                            : selectedAnswer
+                        )
                           ? "bg-rose-500 text-white shadow"
                           : "bg-gray-200 text-gray-400 cursor-not-allowed"
                       }`}
