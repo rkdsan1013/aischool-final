@@ -11,6 +11,10 @@ import MyPage from "../pages/MyPage";
 import AITalk from "../pages/AITalkPage";
 import VoiceRoomPage from "../pages/VoiceRoomPage";
 import TrainingPage from "../pages/Training";
+import VoiceRoomDetail from "../pages/VoiceRoomDetail";
+import VoiceRoomCreate from "../pages/VoiceRoomCreate"; // [ADDED]
+import AITalkPageDetail from "../pages/AITalkPageDetail"; // [ADDED]
+import AITalkCustomScenario from "../pages/AITalkCustomScenario"; // [ADDED]
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -39,6 +43,41 @@ export const routes: RouteObject[] = [
       {
         path: "/training",
         element: <TrainingPage />,
+      },
+      {
+        path: "/voiceroom/room/:roomId",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <VoiceRoomDetail />
+          </ProtectedRoute>
+        ),
+      },
+      // [ADDED] VoiceRoom 생성 페이지
+      {
+        path: "/voiceroom/create",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <VoiceRoomCreate />
+          </ProtectedRoute>
+        ),
+      },
+      // [ADDED] AITalk 커스텀 시나리오 생성/수정 페이지
+      {
+        path: "/ai-talk/custom-scenario",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <AITalkCustomScenario />
+          </ProtectedRoute>
+        ),
+      },
+      // [ADDED] AITalk 상세 (채팅) 페이지 - :id가 custom-scenario보다 뒤에 와야 함
+      {
+        path: "/ai-talk/:id",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <AITalkPageDetail />
+          </ProtectedRoute>
+        ),
       },
     ],
   },

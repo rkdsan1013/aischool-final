@@ -19,6 +19,7 @@ function useAuth() {
   return { user, isLoading };
 }
 
+// [STYLE] CustomDropdown 스타일 수정: rounded-lg, bg-gray-50
 const CustomDropdown: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -114,7 +115,8 @@ const CustomDropdown: React.FC<{
         type="button"
         onClick={toggleOpen}
         onKeyDown={onKeyDown}
-        className="w-full flex items-center justify-between rounded-md px-3 py-3 bg-slate-50 text-sm transition duration-200 hover:-translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-rose-200"
+        // [STYLE] 폼 스타일 일관성 (rounded-lg, bg-gray-50)
+        className="w-full flex items-center justify-between rounded-lg px-3 py-3 bg-gray-50 text-sm transition focus:outline-none focus:ring-2 focus:ring-rose-300"
       >
         <span className="truncate">
           {options.find((o) => o.value === value)?.label}
@@ -158,7 +160,7 @@ const CustomDropdown: React.FC<{
                   selected
                     ? "bg-rose-50 text-rose-700"
                     : isActive
-                    ? "bg-slate-50"
+                    ? "bg-gray-100"
                     : "bg-white"
                 }`}
               >
@@ -189,7 +191,8 @@ const VoiceRoomCreate: React.FC = () => {
 
   if (isLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      // [STYLE] 로딩창 배경 제거
+      <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
       </div>
     );
@@ -197,6 +200,8 @@ const VoiceRoomCreate: React.FC = () => {
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    // 폼 제출 로직 (현재는 네비게이션만)
+    console.log("Form Data:", formData);
     navigate("/voiceroom");
   };
 
@@ -218,9 +223,12 @@ const VoiceRoomCreate: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="w-full bg-rose-500 text-white">
-        <div className="max-w-4xl mx-auto flex items-center gap-4 px-4 py-4">
+    // [FIX] min-h-screen -> h-[100dvh], pb-20 제거
+    <div className="h-[100dvh] bg-gray-50 flex flex-col">
+      {/* [FIX] flex-shrink-0 추가 */}
+      <header className="w-full bg-rose-500 text-white flex-shrink-0">
+        {/* [STYLE] max-w-5xl, px-4 sm:px-6 */}
+        <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-4">
           <button
             type="button"
             onClick={() => navigate("/voiceroom")}
@@ -234,106 +242,113 @@ const VoiceRoomCreate: React.FC = () => {
         </div>
       </header>
 
-      <main className="w-full flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto px-4 pt-6 pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-12">
+      {/* [FIX] flex-1 overflow-y-auto (내부 스크롤) */}
+      <main className="w-full flex-1 overflow-y-auto">
+        {/* [FIX] 잘못된 주석 제거, 래퍼 div 추가 */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24">
           <section className="w-full p-0">
-            <div>
-              <h2 className="text-xl font-bold mb-2 text-gray-900">방 설정</h2>
-              <p className="text-sm text-gray-600 mb-6">
+            {/* [STYLE] 섹션 제목 스타일 통일 */}
+            <div className="mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
+                방 설정
+              </h2>
+              <p className="text-sm sm:text-base text-gray-600 text-pretty">
                 다른 학습자들과 함께할 방을 만들어보세요
               </p>
-
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-900"
-                  >
-                    방 이름
-                  </label>
-                  <input
-                    id="name"
-                    name="name"
-                    placeholder="예: 초보자 환영방"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    required
-                    className="w-full rounded-md border border-transparent px-3 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="topic"
-                    className="block text-sm font-medium text-gray-900"
-                  >
-                    주제
-                  </label>
-                  <input
-                    id="topic"
-                    name="topic"
-                    placeholder="예: 일상 대화 연습"
-                    value={formData.topic}
-                    onChange={(e) =>
-                      setFormData({ ...formData, topic: e.target.value })
-                    }
-                    required
-                    className="w-full rounded-md border border-transparent px-3 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-900">
-                    최대 참여 인원
-                  </label>
-                  <CustomDropdown
-                    value={formData.maxParticipants}
-                    onChange={(v) =>
-                      setFormData((p) => ({ ...p, maxParticipants: v }))
-                    }
-                    options={maxOptions}
-                    label={null}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-900">
-                    권장 레벨
-                  </label>
-                  <CustomDropdown
-                    value={formData.level}
-                    onChange={(v) => setFormData((p) => ({ ...p, level: v }))}
-                    options={levelOptions}
-                    label={null}
-                  />
-                </div>
-              </form>
             </div>
+
+            {/* [FIX] form에 id 추가 */}
+            <form
+              id="room-create-form"
+              onSubmit={handleSubmit}
+              className="space-y-6"
+            >
+              <div className="space-y-2">
+                <label
+                  htmlFor="name"
+                  className="block text-sm font-medium text-gray-900"
+                >
+                  방 이름
+                </label>
+                <input
+                  id="name"
+                  name="name"
+                  placeholder="예: 초보자 환영방"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  required
+                  // [STYLE] 폼 스타일 일관성 (rounded-lg, bg-gray-50)
+                  className="w-full rounded-lg border border-transparent px-3 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="topic"
+                  className="block text-sm font-medium text-gray-900"
+                >
+                  주제
+                </label>
+                <input
+                  id="topic"
+                  name="topic"
+                  placeholder="예: 일상 대화 연습"
+                  value={formData.topic}
+                  onChange={(e) =>
+                    setFormData({ ...formData, topic: e.target.value })
+                  }
+                  required
+                  // [STYLE] 폼 스타일 일관성 (rounded-lg, bg-gray-50)
+                  className="w-full rounded-lg border border-transparent px-3 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
+                  최대 참여 인원
+                </label>
+                <CustomDropdown
+                  value={formData.maxParticipants}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, maxParticipants: v }))
+                  }
+                  options={maxOptions}
+                  label={null}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900">
+                  권장 레벨
+                </label>
+                <CustomDropdown
+                  value={formData.level}
+                  onChange={(v) => setFormData((p) => ({ ...p, level: v }))}
+                  options={levelOptions}
+                  label={null}
+                />
+              </div>
+
+              {/* [FIX] 버튼 폼에서 제거 (푸터로 이동) */}
+            </form>
           </section>
         </div>
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 z-50 bg-white/95 backdrop-blur-sm md:relative md:bottom-auto">
-        <div className="max-w-4xl mx-auto px-4 py-safe">
-          <div className="py-3">
-            <button
-              type="button"
-              onClick={() => handleSubmit()}
-              className="w-full h-12 rounded-lg bg-rose-500 text-white text-lg font-semibold shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300"
-            >
-              방 만들기
-            </button>
-          </div>
+      {/* [FIX] 고정 푸터 추가 */}
+      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
+          <button
+            type="submit"
+            form="room-create-form" // 폼 ID 연결
+            className="w-full h-12 rounded-lg bg-rose-500 text-white text-lg font-semibold shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300"
+          >
+            방 만들기
+          </button>
         </div>
       </footer>
-
-      <style>{`
-        .duration-250 { transition-duration: 250ms; }
-        .duration-350 { transition-duration: 350ms; }
-        .py-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 12px); padding-top: 12px; }
-      `}</style>
     </div>
   );
 };
