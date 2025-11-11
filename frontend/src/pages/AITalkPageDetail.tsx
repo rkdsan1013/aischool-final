@@ -135,7 +135,7 @@ const AITalkPageDetail: React.FC = () => {
 
   return (
     // [STYLE] h-[100dvh] (모바일 스크롤 버그 방지)
-    <div className="h-[100dvh] flex flex-col bg-gray-50">
+    <div className="h-[100dvh] flex flex-col bg-white">
       {/* Header [STYLE] flex-shrink-0 추가 */}
       <header className="w-full bg-white border-b border-gray-200 flex-shrink-0">
         {/* [STYLE] max-w-5xl로 변경 */}

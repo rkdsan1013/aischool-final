@@ -224,7 +224,7 @@ const VoiceRoomCreate: React.FC = () => {
 
   return (
     // [FIX] min-h-screen -> h-[100dvh], pb-20 제거
-    <div className="h-[100dvh] bg-gray-50 flex flex-col">
+    <div className="h-[100dvh] bg-white flex flex-col">
       {/* [FIX] flex-shrink-0 추가 */}
       <header className="w-full bg-rose-500 text-white flex-shrink-0">
         {/* [STYLE] max-w-5xl, px-4 sm:px-6 */}

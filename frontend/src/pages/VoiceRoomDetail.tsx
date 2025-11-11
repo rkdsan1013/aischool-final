@@ -238,7 +238,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
   return (
     // [STYLE] 전체 레이아웃: h-screen, flex-col, bg-gray-50 (일관성)
-    <div className="h-screen flex flex-col bg-gray-50 text-gray-900 font-sans overflow-hidden">
+    <div className="h-screen flex flex-col bg-white text-gray-900 font-sans overflow-hidden">
       {/* Header: 방 정보 및 컨트롤 버튼 */}
       <header className="border-b border-gray-200 bg-white shadow-sm flex-shrink-0">
         {/* [STYLE] max-w-5xl, mx-auto, px-4 sm:px-6 (일관성) */}
