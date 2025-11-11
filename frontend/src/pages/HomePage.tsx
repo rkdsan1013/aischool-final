@@ -19,56 +19,53 @@ interface TrainingStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  color: string; // Tailwind bg-색상-500 형태
-  progress: number; // 0-100
+  color: string;
+  progress: number;
   startType: TrainingType;
 }
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
-  // 유저 정보 (예시)
   const [user] = useState<{ name: string; level: string } | null>({
     name: "홍길동",
     level: "B1",
   });
-  const [_isLoading] = useState(false); // 로딩 상태
-  const [streak] = useState<number>(7); // 연속 학습일
-  const [todayProgress] = useState<number>(45); // 오늘 진행도
+  const [_isLoading] = useState(false);
+  const [streak] = useState<number>(7);
+  const [todayProgress] = useState<number>(45);
   const [prefetchingType, setPrefetchingType] = useState<TrainingType | null>(
     null
   );
 
   useEffect(() => {
-    // 유저 정보 없으면 로그인 페이지로 (예시)
     if (!_isLoading && !user) navigate("/auth");
   }, [_isLoading, user, navigate]);
 
   if (_isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
       </div>
     );
   }
   if (!user) return null;
 
-  // 학습 단계 데이터
   const steps: TrainingStep[] = [
     {
       id: "vocabulary",
       title: "단어 훈련",
       description: "새로운 단어를 배우고 복습하세요",
-      icon: <BookOpen className="w-6 h-6 sm:w-7 sm:h-7" />, // 아이콘 크기 키움
+      icon: <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-rose-500",
-      progress: 100, // 예시 진행도
+      progress: 100,
       startType: "vocabulary",
     },
     {
       id: "sentence",
       title: "문장 배열",
       description: "단어를 올바른 순서로 배열하세요",
-      icon: <ListOrdered className="w-6 h-6 sm:w-7 sm:h-7" />,
+      icon: <ListOrdered className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-rose-400",
       progress: 100,
       startType: "sentence",
@@ -77,60 +74,58 @@ const HomePage: React.FC = () => {
       id: "matching",
       title: "빈칸 채우기",
       description: "단어와 뜻을 연결하세요",
-      icon: <Link2 className="w-6 h-6 sm:w-7 sm:h-7" />,
+      icon: <Link2 className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-pink-500",
-      progress: 100, // 예시 진행도 (진행중)
+      progress: 100,
       startType: "blank",
     },
     {
       id: "writing",
       title: "작문",
       description: "문장을 직접 작성해보세요",
-      icon: <PenTool className="w-6 h-6 sm:w-7 sm:h-7" />,
+      icon: <PenTool className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-rose-300",
-      progress: 100, // 예시 진행도 (잠김)
+      progress: 100,
       startType: "writing",
     },
     {
       id: "speaking-listening",
       title: "말하기 연습",
       description: "AI가 발음을 교정해드립니다",
-      icon: <Mic className="w-6 h-6 sm:w-7 sm:h-7" />,
+      icon: <Mic className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-indigo-500",
       progress: 100,
       startType: "speakingListening",
     },
   ];
 
-  // 이전 단계가 완료되었는지 확인
   const isUnlocked = (index: number) =>
     index === 0 ? true : steps[index - 1].progress === 100;
 
-  // 트레이닝 페이지로 이동
   const handleNavigateToTraining = (
     startType: TrainingType,
     unlocked: boolean
   ) => {
     if (!unlocked) return;
+    // 주소는 항상 /training, startType 전달은 location.state 로만
     navigate("/training", { state: { startType } });
   };
 
-  // 데이터 프리페칭 (옵션)
+  // Optional lightweight prefetch (no caching integration here)
   const prefetchQuestions = async (type: TrainingType) => {
-    if (!type || prefetchingType === type) return;
     try {
       setPrefetchingType(type);
-      // 실제 API 호출 로직 (예시)
-      // await trainingService.prefetchQuestions(type);
-      await new Promise((resolve) => setTimeout(resolve, 300)); // 임시 지연
+      await fetch(`/api/training?type=${encodeURIComponent(type)}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
     } catch {
-      // 에러 무시
+      // ignore
     } finally {
       setPrefetchingType(null);
     }
   };
 
-  // 아이콘 버블 스타일 결정
   const getBubbleClasses = (
     progress: number,
     unlocked: boolean,
@@ -138,39 +133,33 @@ const HomePage: React.FC = () => {
   ) => {
     const completed = progress === 100;
     const current = unlocked && progress > 0 && progress < 100;
-
-    // 잠김 상태 (progress === 0 조건 추가)
     if (!unlocked || progress === 0)
       return {
         bubble: "bg-gray-300",
         ring: "",
         iconTint: "text-white opacity-90",
       };
-    // 완료 상태
     if (completed)
       return { bubble: baseColor, ring: "", iconTint: "text-white" };
-    // 현재 진행중 상태
     if (current)
       return {
         bubble: baseColor,
-        ring: "ring-4 ring-rose-200", // 진행 중일 때 링
+        ring: "ring-4 ring-rose-200",
         iconTint: "text-white",
       };
-    // 기본 (시작 가능) 상태 - unlocked && progress === 0
     return { bubble: baseColor, ring: "", iconTint: "text-white" };
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <header className="bg-rose-500 text-white p-4 sm:p-6 shadow-md">
+    <div className="min-h-screen bg-white pb-20">
+      <header className="bg-rose-500 text-white p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-row items-center justify-between mb-5 sm:mb-6">
             <div className="min-w-0 mr-3 sm:mr-4">
-              <h1 className="text-xl sm:text-2xl font-bold mb-0.5 tracking-tight leading-snug truncate">
+              <h1 className="text-base sm:text-2xl font-bold mb-0.5 tracking-tight leading-snug truncate">
                 안녕하세요, {user.name}님!
               </h1>
-              <p className="text-white/80 text-sm sm:text-base tracking-tight">
+              <p className="text-white/80 text-xs sm:text-sm tracking-tight">
                 오늘도 영어 학습을 시작해볼까요?
               </p>
             </div>
@@ -191,128 +180,119 @@ const HomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress Bar Card */}
           <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4">
             <div className="flex items-center justify-between mb-3.5">
-              <span className="text-sm sm:text-base font-medium tracking-tight">
+              <span className="text-xs sm:text-sm font-medium tracking-tight">
                 오늘의 학습 진행도
               </span>
-              <span className="text-sm sm:text-base font-bold tracking-tight">
+              <span className="text-xs sm:text-sm font-bold tracking-tight">
                 {todayProgress}%
               </span>
             </div>
-            <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden">
+            <div className="w-full bg-white/20 h-2 rounded overflow-hidden">
               <div
-                className="h-2.5 bg-gradient-to-r from-gray-100 to-white rounded-full transition-all duration-500"
+                className="h-2 bg-gradient-to-r from-gray-00 to-white rounded"
                 style={{ width: `${todayProgress}%` }}
               />
             </div>
-            <p className="text-xs sm:text-sm text-white/70 mt-2.5 tracking-tight">
+            <p className="text-[11px] sm:text-xs text-white/70 mt-2 tracking-tight">
               목표까지 {100 - todayProgress}% 남았어요!
             </p>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto p-4 sm:p-6 py-6 sm:py-8">
-        <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-foreground">
+      <main className="max-w-4xl mx-auto p-4 sm:p-6">
+        <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 tracking-tight">
           오늘의 유닛
         </h2>
 
-        {/* Step List: space-y-*를 다시 추가하여 항목 간 간격을 만듭니다. */}
         <ul className="space-y-4 sm:space-y-6">
           {steps.map((step, idx) => {
             const unlocked = isUnlocked(idx);
             const completed = step.progress === 100;
-            const current =
-              unlocked && step.progress > 0 && step.progress < 100;
-
             const bubble = getBubbleClasses(
               step.progress,
               unlocked,
               step.color
             );
-
-            // --- 연결선 로직 모두 제거 ---
+            const prevCompleted =
+              idx > 0 ? steps[idx - 1].progress === 100 : false;
+            const nextCompleted =
+              idx < steps.length - 1 ? steps[idx + 1].progress === 100 : false;
+            const connectorColor =
+              idx < steps.length - 1 && completed && nextCompleted
+                ? "bg-rose-500"
+                : "bg-gray-200";
+            const topConnectorColor =
+              prevCompleted && completed ? "bg-rose-500" : "bg-gray-200";
 
             return (
-              // li 요소: py-* 패딩 제거
               <li key={step.id}>
-                <div className="grid grid-cols-[72px_1fr] sm:grid-cols-[88px_1fr] gap-3 sm:gap-4 items-center">
-                  {/* Icon Bubble: 연결선 로직 제거 및 단순화 */}
-                  {/* grid의 items-center가 이 cell을 카드(버튼)와 수직 중앙 정렬합니다. */}
-                  <div className="flex items-center justify-center">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full shadow-md border-2 border-white/80 flex items-center justify-center z-10 transition-all">
+                <div className="grid grid-cols-[56px_1fr] sm:grid-cols-[72px_1fr] gap-3 sm:gap-4 items-center">
+                  <div className="relative h-full">
+                    {idx > 0 && (
                       <div
-                        className={`relative ${bubble.bubble} ${bubble.ring} w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all`}
+                        className={`absolute left-1/2 -translate-x-1/2 w-[2px] sm:w-[3px] ${topConnectorColor} rounded-full top-[-1rem] sm:top-[-1.5rem] bottom-1/2 mb-5 sm:mb-6`}
+                      />
+                    )}
+
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-sm border border-white/60 flex items-center justify-center z-10 absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2">
+                      <div
+                        className={`relative ${bubble.bubble} ${bubble.ring} w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center`}
                       >
-                        <div className={`${bubble.iconTint} transition-all`}>
-                          {step.icon}
-                        </div>
+                        <div className={bubble.iconTint}>{step.icon}</div>
                       </div>
                     </div>
-                  </div>
-                  {/* --- Icon Bubble Cell 끝 --- */}
 
-                  {/* Card Button */}
+                    {idx < steps.length - 1 && (
+                      <div
+                        className={`absolute left-1/2 -translate-x-1/2 w-[2px] sm:w-[3px] ${connectorColor} rounded-full top-1/2 mt-5 sm:mt-6 bottom-[-1rem] sm:bottom-[-1.5rem]`}
+                      />
+                    )}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() =>
                       handleNavigateToTraining(step.startType, unlocked)
                     }
-                    onMouseEnter={() =>
-                      unlocked && prefetchQuestions(step.startType)
-                    }
+                    onMouseEnter={() => prefetchQuestions(step.startType)}
                     disabled={!unlocked}
-                    className={`w-full text-left bg-card rounded-2xl border-2 p-4 sm:p-5 shadow-sm transition-all duration-300 active:scale-[0.99] group ${
+                    className={`w-full text-left bg-white rounded-xl border p-3 sm:p-4 shadow-sm transition transform active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-md ${
                       unlocked
-                        ? "border-gray-200 hover:shadow-lg hover:-translate-y-1 hover:border-rose-200 cursor-pointer"
-                        : "border-gray-200 bg-gray-50 opacity-70 cursor-not-allowed"
+                        ? "border-rose-100"
+                        : "border-gray-100 opacity-60 cursor-not-allowed"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <h3
-                          className={`text-base sm:text-lg font-bold text-foreground truncate ${
-                            !unlocked
-                              ? "text-gray-500"
-                              : "group-hover:text-rose-500"
-                          }`}
-                        >
+                        <h3 className="text-sm sm:text-lg font-semibold text-gray-900 tracking-tight leading-snug truncate">
                           {step.title}
                         </h3>
-                        <p className="text-sm text-muted-foreground mt-0.5 sm:mt-1 tracking-tight leading-snug line-clamp-1">
+                        <p className="text-sm text-gray-500 mt-0.5 sm:mt-1 tracking-tight leading-snug">
                           {step.description}
                         </p>
                       </div>
 
-                      {/* Status Badge */}
-                      <div className="flex-shrink-0">
-                        {prefetchingType === step.startType ? (
-                          <div className="text-xs sm:text-sm text-rose-500 font-medium animate-pulse">
-                            로딩...
-                          </div>
-                        ) : completed ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-emerald-600 bg-emerald-50 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full font-medium">
-                            <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            완료
-                          </span>
-                        ) : current ? (
-                          <span className="inline-flex items-center text-xs sm:text-sm text-rose-600 bg-rose-50 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-medium">
-                            진행중
-                          </span>
-                        ) : unlocked ? (
-                          <span className="inline-flex items-center text-xs sm:text-sm text-rose-600 bg-rose-50 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-medium group-hover:bg-rose-500 group-hover:text-white transition-all">
-                            시작
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-gray-500 bg-gray-200 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full font-medium">
-                            <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            잠김
-                          </span>
-                        )}
-                      </div>
+                      {prefetchingType === step.startType ? (
+                        <div className="text-sm text-rose-500 font-medium">
+                          로딩...
+                        </div>
+                      ) : completed ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] sm:text-sm text-emerald-600 bg-emerald-50 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
+                          <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          완료
+                        </span>
+                      ) : unlocked ? (
+                        <span className="inline-flex items-center text-[11px] sm:text-sm text-rose-600 bg-rose-50 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
+                          진행중
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] sm:text-sm text-gray-600 bg-gray-100 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
+                          <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 잠김
+                        </span>
+                      )}
                     </div>
                   </button>
                 </div>
