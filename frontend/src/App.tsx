@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 import { routes } from "./routes/routes"; // ✅ 라우트 정의 가져오기
 
-import ScrollToTop from "./pages/ScrollToTop";
+import ScrollToTop from "./components/ScrollToTop";
 import AuthProvider from "./providers/AuthProvider";
 import { setNavigator } from "./routes/navigate";
 
