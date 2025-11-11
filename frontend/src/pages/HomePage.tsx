@@ -79,7 +79,7 @@ const HomePage: React.FC = () => {
       description: "단어와 뜻을 연결하세요",
       icon: <Link2 className="w-6 h-6 sm:w-7 sm:h-7" />,
       color: "bg-pink-500",
-      progress: 40, // 예시 진행도 (진행중)
+      progress: 100, // 예시 진행도 (진행중)
       startType: "blank",
     },
     {
@@ -88,7 +88,7 @@ const HomePage: React.FC = () => {
       description: "문장을 직접 작성해보세요",
       icon: <PenTool className="w-6 h-6 sm:w-7 sm:h-7" />,
       color: "bg-rose-300",
-      progress: 0, // 예시 진행도 (잠김)
+      progress: 100, // 예시 진행도 (잠김)
       startType: "writing",
     },
     {
@@ -97,7 +97,7 @@ const HomePage: React.FC = () => {
       description: "AI가 발음을 교정해드립니다",
       icon: <Mic className="w-6 h-6 sm:w-7 sm:h-7" />,
       color: "bg-indigo-500",
-      progress: 0,
+      progress: 100,
       startType: "speakingListening",
     },
   ];

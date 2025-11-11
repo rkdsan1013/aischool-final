@@ -16,9 +16,10 @@ import {
   arrayMove,
   SortableContext,
   useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+  horizontalListSortingStrategy, // 수평 정렬 전략 사용
+} from "@dnd-kit/sortable"; // 오타 수정
+import { CSS } from "@dnd-kit/utilities"; // 오타 수정
+// import { GripVertical, X } from "lucide-react"; // 아이콘이 제거되었으므로 임포트 필요 없음
 
 interface Props {
   question: string;
@@ -30,14 +31,15 @@ interface Props {
   onReset?: () => void;
 }
 
+// 드래그 가능한 아이템
 function SortablePlacedItem({
   id,
   value,
-  onClick,
+  onRemove,
 }: {
   id: UniqueIdentifier;
   value: string;
-  onClick?: (v: string) => void;
+  onRemove?: (v: string) => void;
 }) {
   const {
     attributes,
@@ -53,33 +55,42 @@ function SortablePlacedItem({
     transition,
     touchAction: "none",
     zIndex: isDragging ? 40 : undefined,
-    userSelect: "none",
+    userSelect: "none", // 텍스트 선택 방지
     WebkitUserSelect: "none",
+  };
+
+  // 드래그가 아닌 실제 클릭 시에만 onRemove 호출
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // e.detail > 0: 실제 마우스 클릭인지 확인
+    if (!isDragging && e.detail > 0 && onRemove) {
+      onRemove(String(value));
+    }
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
+      // DnD 속성과 리스너를 카드 전체에 적용
       {...attributes}
       {...listeners}
-      onClick={(e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.detail === 0) return;
-        if (!isDragging && onClick) onClick(String(value));
-      }}
-      className={`p-3 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center gap-3 select-none ${
-        isDragging ? "shadow-lg scale-[1.02]" : ""
+      // 클릭 핸들러 추가
+      onClick={handleClick}
+      className={`flex-shrink-0 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-700 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
+        isDragging ? "shadow-lg scale-[1.03] z-50" : ""
       }`}
       role="listitem"
       aria-label={`선택된 단어 ${value}`}
     >
-      <div className="text-sm font-medium text-gray-800 whitespace-pre">
+      {/* 아이콘 제거, 텍스트에 패딩 추가 */}
+      <div className="p-3 sm:p-4 text-base font-medium whitespace-pre">
         {value}
       </div>
     </div>
   );
 }
 
+// 단어 풀 아이템
 function PoolItem({
   value,
   onAdd,
@@ -95,13 +106,13 @@ function PoolItem({
       onClick={() => !disabled && onAdd(value)}
       disabled={disabled}
       aria-pressed={disabled}
-      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition bg-white border border-gray-200 hover:bg-gray-50 whitespace-pre ${
+      className={`flex-shrink-0 items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl transition-all duration-300 whitespace-pre ${
         disabled
-          ? "opacity-50 bg-gray-50 cursor-not-allowed text-gray-500"
-          : "text-gray-800"
+          ? "bg-gray-100 text-gray-400 opacity-70 cursor-not-allowed border-2 border-gray-200"
+          : "bg-card border-2 border-gray-200 text-foreground text-base font-medium hover:border-rose-400 hover:shadow-md active:scale-95"
       }`}
     >
-      <span className="text-sm font-medium">{value}</span>
+      {value}
     </button>
   );
 }
@@ -123,9 +134,9 @@ const Sentence: React.FC<Props> = ({
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 0, tolerance: 5 },
+      activationConstraint: { delay: 100, tolerance: 5 }, // 터치 드래그 민감도
     }),
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }) // 마우스 드래그 민감도
   );
 
   useEffect(() => {
@@ -181,24 +192,43 @@ const Sentence: React.FC<Props> = ({
   const pool = options.slice();
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 sm:space-y-5">
+      {/* 제목 및 설명 */}
       <div className="text-left">
-        <h1 className="text-lg font-bold text-gray-800">
-          문장을 올바른 순서로 배열하세요
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+          문장 배열하기
         </h1>
+        <p className="text-base text-muted-foreground mt-1">
+          단어들을 올바른 순서로 배열하여 문장을 완성하세요.
+        </p>
       </div>
 
+      {/* 문제 카드 */}
       <div className="w-full">
-        <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-gray-100">
-          <span className="text-sm text-gray-500">{question}</span>
+        <div className="bg-card border-2 border-gray-200 rounded-2xl p-5 sm:p-6">
+          <span className="text-lg sm:text-xl font-medium text-foreground">
+            {question}
+          </span>
         </div>
       </div>
 
+      {/* 선택된 순서 (드래그 영역) */}
       <div
-        className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100"
+        className="bg-card border-2 border-gray-200 rounded-2xl p-4 sm:p-5"
         style={{ touchAction: "none" }}
       >
-        <div className="text-xs text-gray-500 mb-2">선택된 순서</div>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-semibold text-muted-foreground">
+            배열된 문장
+          </span>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="text-sm font-medium text-muted-foreground hover:text-rose-500 transition-colors"
+          >
+            초기화
+          </button>
+        </div>
 
         <DndContext
           sensors={sensors}
@@ -208,12 +238,15 @@ const Sentence: React.FC<Props> = ({
         >
           <SortableContext
             items={placed}
-            strategy={verticalListSortingStrategy}
+            strategy={horizontalListSortingStrategy} // 수평 정렬
           >
-            <div className="min-h-[48px] flex flex-wrap gap-2" role="list">
+            <div
+              className="min-h-[60px] sm:min-h-[72px] flex flex-wrap gap-2"
+              role="list"
+            >
               {placed.length === 0 ? (
-                <div className="text-xs text-gray-400">
-                  여기에 선택한 단어 조각이 표시됩니다
+                <div className="flex items-center h-[60px] sm:h-[72px] text-muted-foreground text-sm">
+                  아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
                 </div>
               ) : (
                 placed.map((part) => (
@@ -221,7 +254,7 @@ const Sentence: React.FC<Props> = ({
                     key={part}
                     id={part}
                     value={part}
-                    onClick={handleRemove}
+                    onRemove={handleRemove}
                   />
                 ))
               )}
@@ -230,39 +263,35 @@ const Sentence: React.FC<Props> = ({
 
           <DragOverlay dropAnimation={{ duration: 160 }}>
             {activeId ? (
-              <div className="p-3 rounded-lg bg-white border border-gray-200 shadow-lg flex items-center gap-3 scale-[1.01]">
-                <div className="text-sm font-medium text-gray-800 whitespace-pre">
+              // DragOverlay에서도 아이콘 제거
+              <div className="rounded-xl bg-white border-2 border-rose-400 shadow-lg flex items-center select-none scale-[1.03]">
+                <div className="p-3 sm:p-4 text-base font-medium text-foreground whitespace-pre">
                   {String(activeId)}
                 </div>
               </div>
             ) : null}
           </DragOverlay>
         </DndContext>
-
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={handleReset}
-            className="text-sm text-gray-600 hover:text-gray-800"
-          >
-            초기화
-          </button>
-        </div>
       </div>
 
-      {/* pool: flex로 변경, 카드 너비는 콘텐츠에 맞춰 자동 조정 */}
-      <div className="flex flex-wrap gap-2">
-        {pool.map((part, idx) => {
-          const disabled = placed.includes(part);
-          return (
-            <PoolItem
-              key={`${part}-${idx}`}
-              value={part}
-              onAdd={handleAdd}
-              disabled={disabled}
-            />
-          );
-        })}
+      {/* 단어 풀 */}
+      <div className="bg-card border-2 border-gray-200 rounded-2xl p-4 sm:p-5">
+        <span className="text-sm font-semibold text-muted-foreground mb-3 block">
+          단어 목록
+        </span>
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          {pool.map((part, idx) => {
+            const disabled = placed.includes(part);
+            return (
+              <PoolItem
+                key={`${part}-${idx}`}
+                value={part}
+                onAdd={handleAdd}
+                disabled={disabled}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

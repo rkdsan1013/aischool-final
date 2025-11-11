@@ -1,5 +1,6 @@
 // src/components/Blank.tsx
 import React from "react";
+import { Check } from "lucide-react";
 
 interface Props {
   question: string;
@@ -10,20 +11,28 @@ interface Props {
 
 const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 sm:space-y-5">
+      {/* 제목 및 설명 */}
       <div className="text-left">
-        <h1 className="text-lg font-bold text-gray-800">
-          빈칸에 들어갈 올바른 단어를 고르세요
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+          빈칸 채우기
         </h1>
+        <p className="text-base text-muted-foreground mt-1">
+          문맥에 맞는 올바른 단어를 선택하세요.
+        </p>
       </div>
 
+      {/* 문제 카드 */}
       <div className="w-full">
-        <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-gray-100">
-          <span className="text-lg font-medium text-gray-800">{question}</span>
+        <div className="bg-card border-2 border-gray-200 rounded-2xl p-5 sm:p-6 min-h-[120px] flex items-center justify-center">
+          <span className="text-lg sm:text-xl font-medium text-foreground text-center leading-relaxed">
+            {question}
+          </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {/* 선택지 그리드 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         {options.map((opt) => {
           const isSelected = selected === opt;
           return (
@@ -31,27 +40,35 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
               key={opt}
               type="button"
               onClick={() => onSelect(opt)}
-              className={`p-3 rounded-lg text-left flex items-center gap-3 transition ${
+              className={`group w-full rounded-2xl text-left p-4 sm:p-5 transition-all duration-300 ${
                 isSelected
-                  ? "bg-rose-500 text-white shadow-sm"
-                  : "bg-white border border-gray-200 hover:bg-gray-50"
+                  ? "bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20"
+                  : "bg-card border-2 border-gray-200 hover:border-rose-400 hover:shadow-md"
               }`}
             >
-              <div
-                className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-bold ${
-                  isSelected
-                    ? "bg-white/20 text-white"
-                    : "bg-gray-100 text-gray-700"
-                }`}
-              >
-                {opt[0]?.toUpperCase() ?? "•"}
-              </div>
-              <div
-                className={`text-sm font-medium ${
-                  isSelected ? "text-white" : "text-gray-800"
-                }`}
-              >
-                {opt}
+              <div className="flex items-center gap-3 sm:gap-4">
+                {/* 아이콘 */}
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold flex-shrink-0 transition-colors ${
+                    isSelected
+                      ? "bg-white/20 text-white"
+                      : "bg-gray-100 text-gray-700 group-hover:bg-rose-100 group-hover:text-rose-600"
+                  }`}
+                >
+                  {isSelected ? (
+                    <Check className="w-5 h-5" />
+                  ) : (
+                    opt[0]?.toUpperCase() ?? "•"
+                  )}
+                </div>
+                {/* 텍스트 */}
+                <div
+                  className={`text-base font-medium ${
+                    isSelected ? "text-white" : "text-foreground"
+                  }`}
+                >
+                  {opt}
+                </div>
               </div>
             </button>
           );

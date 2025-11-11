@@ -21,32 +21,51 @@ const Writing: React.FC<Props> = ({
   }, [initialValue]);
 
   const handleChange = (v: string) => {
-    if (v.length > maxLength) return;
-    setValue(v);
-    onChange?.(v);
+    // maxLength를 초과하는 입력 방지
+    const newValue = v.slice(0, maxLength);
+    setValue(newValue);
+    onChange?.(newValue);
   };
 
+  const remaining = maxLength - value.length;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 sm:space-y-5">
+      {/* 제목 및 설명 */}
       <div className="text-left">
-        <h1 className="text-lg font-bold text-gray-800">작문 문제</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+          작문 연습
+        </h1>
+        <p className="text-base text-muted-foreground mt-1">
+          제시된 주제에 대해 영어로 자유롭게 작성해보세요.
+        </p>
       </div>
 
-      <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-gray-100">
-        <div className="text-sm text-gray-600 mb-2">문제</div>
-        <div className="text-sm text-gray-800">{prompt}</div>
+      {/* 프롬프트 카드 */}
+      <div className="bg-card border-2 border-gray-200 rounded-2xl p-5 sm:p-6">
+        <div className="text-sm font-semibold text-muted-foreground mb-2">
+          주제
+        </div>
+        <div className="text-lg sm:text-xl font-medium text-foreground">
+          {prompt}
+        </div>
       </div>
 
-      <textarea
-        value={value}
-        onChange={(e) => handleChange(e.target.value)}
-        placeholder="여기에 영어로 작성하세요..."
-        className="w-full min-h-[160px] p-3 rounded-lg border border-gray-200 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-200"
-      />
-
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        <div>자유롭게 작성하세요. 가능하면 한 문단(2~4문장)</div>
-        <div>
+      {/* 텍스트 입력 영역 */}
+      <div className="relative">
+        <textarea
+          value={value}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="여기에 영어로 작성하세요..."
+          className="w-full min-h-[200px] sm:min-h-[240px] p-4 sm:p-5 rounded-2xl border-2 border-gray-200 bg-card resize-none focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-colors placeholder:text-muted-foreground text-base text-foreground"
+          aria-label="작문 입력"
+        />
+        {/* 글자 수 제한 */}
+        <div
+          className={`absolute bottom-4 right-5 text-sm font-medium ${
+            remaining < 20 ? "text-red-500" : "text-muted-foreground"
+          }`}
+        >
           {value.length}/{maxLength}
         </div>
       </div>
