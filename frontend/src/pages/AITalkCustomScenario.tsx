@@ -1,7 +1,7 @@
 // src/pages/AITalkCustomScenario.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 interface CustomScenario {
   id: string;
@@ -32,6 +32,8 @@ const AITalkCustomScenario: React.FC = () => {
   const [difficulty, setDifficulty] = useState("초급");
   const [context, setContext] = useState("");
 
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   useEffect(() => {
     setEditId(getEditIdFromSearch(location.search));
   }, [location.search]);
@@ -60,6 +62,27 @@ const AITalkCustomScenario: React.FC = () => {
       // ignore parse errors
     }
   }, [editId]);
+
+  useEffect(() => {
+    // adjust height on mount and when context changes programmatically
+    adjustTextareaHeight();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const adjustTextareaHeight = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    const scrollHeight = el.scrollHeight;
+    // set a max height to avoid growing beyond viewport; allow internal scrolling if needed
+    const max = Math.min(scrollHeight, window.innerHeight * 0.5);
+    el.style.height = `${max}px`;
+  };
+
+  const handleContextChange = (value: string) => {
+    setContext(value);
+    requestAnimationFrame(adjustTextareaHeight);
+  };
 
   const handleSave = () => {
     if (!title.trim() || !description.trim() || !context.trim()) {
@@ -111,28 +134,50 @@ const AITalkCustomScenario: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-1">
-      {/* Header */}
-      <div className="bg-rose-500 text-white p-6">
-        <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-white">
+      <style>{`
+        .duration-250 { transition-duration: 250ms; }
+        .duration-350 { transition-duration: 350ms; }
+        .py-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 12px); padding-top: 12px; }
+
+        /* Footer safe area padding helper used on the page container */
+        .pb-footer-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 76px); }
+
+        /* Fixed footer always on bottom */
+        .fixed-footer {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 40;
+          background: white;
+        }
+      `}</style>
+
+      {/* Header - align content start with main content (max-w-4xl, left-aligned) */}
+      <div className="bg-rose-500 text-white">
+        <div className="max-w-4xl mx-auto px-6 py-6 flex gap-4">
           <button
             type="button"
             onClick={() => navigate("/ai-talk")}
-            className="inline-flex items-center text-white hover:bg-white/10 mb-4 -ml-2 px-2 py-1 rounded"
+            className="inline-flex items-center text-white hover:bg-white/10 px-2 py-1 rounded -ml-2"
+            aria-label="뒤로가기"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <h1 className="text-3xl font-bold mb-2">
-            {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
-          </h1>
-          <p className="text-white/90">원하는 대화 상황을 직접 설정하세요</p>
+          <div>
+            <h1 className="text-3xl font-bold mb-2">
+              {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
+            </h1>
+            <p className="text-white/90">원하는 대화 상황을 직접 설정하세요</p>
+          </div>
         </div>
       </div>
 
-      {/* Main form */}
-      <div className="max-w-4xl mx-auto p-6">
-        <section className="bg-white rounded-2xl shadow p-6 border border-slate-100">
+      {/* Main form - add bottom padding so content isn't hidden behind fixed footer */}
+      <main className="w-full pb-footer-safe">
+        <section className="w-full p-6 max-w-4xl mx-auto">
           <header className="mb-4">
             <h2 className="text-lg font-semibold">시나리오 정보</h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -196,7 +241,7 @@ const AITalkCustomScenario: React.FC = () => {
             </select>
           </div>
 
-          {/* Context */}
+          {/* Context - auto-resizing textarea only; page layout unchanged */}
           <div className="mb-4">
             <label
               htmlFor="context"
@@ -206,22 +251,28 @@ const AITalkCustomScenario: React.FC = () => {
             </label>
             <textarea
               id="context"
+              ref={textareaRef}
               value={context}
-              onChange={(e) => setContext(e.target.value)}
+              onChange={(e) => handleContextChange(e.target.value)}
               placeholder={
                 "AI가 어떤 역할을 하고, 어떤 상황인지 자세히 설명해주세요.\n\n예시:\n당신은 병원 접수처 직원입니다. 환자가 처음 방문했고, 증상을 듣고 적절한 진료과를 안내해주세요. 친절하고 전문적인 태도로 대화하며, 필요한 서류나 절차에 대해서도 안내해주세요."
               }
-              rows={10}
-              className="mt-1 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-200"
+              rows={4}
+              className="mt-1 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-200 overflow-auto"
+              onInput={adjustTextareaHeight}
             />
             <p className="text-sm text-gray-500 mt-2">
               AI의 역할, 상황, 대화 스타일 등을 구체적으로 작성하면 더 좋은
               대화를 할 수 있어요
             </p>
           </div>
+        </section>
+      </main>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
+      {/* Fixed footer with the same buttons (kept styles unchanged) */}
+      <footer className="fixed-footer">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={handleCancel}
@@ -235,32 +286,11 @@ const AITalkCustomScenario: React.FC = () => {
               onClick={handleSave}
               className="flex-1 rounded-md bg-rose-500 text-white px-4 py-2 inline-flex items-center justify-center gap-2 hover:bg-rose-600"
             >
-              <Save className="w-4 h-4" />
               <span>{editId ? "수정하기" : "저장하기"}</span>
             </button>
           </div>
-        </section>
-
-        {/* Tips card */}
-        <section className="mt-6 rounded-2xl p-6 border border-rose-100 bg-rose-50">
-          <h3 className="text-base font-semibold mb-2">💡 시나리오 작성 팁</h3>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>
-              • AI의 역할을 명확히 지정하세요 (예: 카페 직원, 면접관, 여행
-              가이드)
-            </p>
-            <p>
-              • 구체적인 상황을 설명하세요 (예: 첫 방문, 급한 상황, 공식적인
-              자리)
-            </p>
-            <p>
-              • 원하는 대화 스타일을 명시하세요 (예: 친근하게, 격식있게,
-              전문적으로)
-            </p>
-            <p>• 특정 표현이나 어휘를 연습하고 싶다면 포함시키세요</p>
-          </div>
-        </section>
-      </div>
+        </div>
+      </footer>
     </div>
   );
 };
