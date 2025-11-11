@@ -126,6 +126,7 @@ const AITalkPageDetail: React.FC = () => {
 
   if (isLoading || !user || !scenario) {
     return (
+      // [STYLE] 로딩창 배경 제거
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-rose-500 border-t-transparent rounded-full animate-spin" />
       </div>
@@ -133,10 +134,12 @@ const AITalkPageDetail: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col  bg-white">
-      {/* Header */}
-      <header className="w-full bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto flex items-center gap-4 px-4 py-3">
+    // [STYLE] h-[100dvh] (모바일 스크롤 버그 방지)
+    <div className="h-[100dvh] flex flex-col bg-gray-50">
+      {/* Header [STYLE] flex-shrink-0 추가 */}
+      <header className="w-full bg-white border-b border-gray-200 flex-shrink-0">
+        {/* [STYLE] max-w-5xl로 변경 */}
+        <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
           <button
             type="button"
             onClick={() => navigate("/ai-talk")}
@@ -159,11 +162,12 @@ const AITalkPageDetail: React.FC = () => {
         </div>
       </header>
 
-      {/* Messages */}
+      {/* Messages [STYLE] flex-1 overflow-hidden (스크롤 컨테이너) */}
       <main className="flex-1 overflow-hidden" aria-live="polite">
+        {/* [STYLE] h-full overflow-y-auto (실제 스크롤 영역) */}
         <div
           ref={listRef}
-          className="max-w-4xl mx-auto h-full px-4 py-4 overflow-y-auto flex flex-col gap-4"
+          className="max-w-5xl mx-auto h-full px-4 sm:px-6 py-4 overflow-y-auto flex flex-col gap-4"
           style={{ minHeight: 0 }}
         >
           {messages.map((m) => (
@@ -188,8 +192,8 @@ const AITalkPageDetail: React.FC = () => {
                 <div
                   className={`relative rounded-xl p-3 break-words text-sm ${
                     m.role === "user"
-                      ? "bg-rose-500 text-white"
-                      : "bg-white text-gray-800 shadow-sm"
+                      ? "bg-rose-500 text-white" // 사용자 말풍선
+                      : "bg-white text-gray-800 shadow-sm border border-gray-100" // AI 말풍선 (카드 스타일)
                   }`}
                 >
                   <div className="whitespace-pre-wrap break-words">
@@ -220,13 +224,14 @@ const AITalkPageDetail: React.FC = () => {
             </div>
           ))}
 
+          {/* AI 응답 대기 중 */}
           {isSending && (
             <div className="flex gap-3 items-start">
               <div className="w-10 h-10 rounded-lg bg-indigo-500 text-white flex items-center justify-center">
                 <Bot size={16} />
               </div>
               <div className="max-w-[72%]">
-                <div className="rounded-xl p-3 bg-white flex items-center gap-2">
+                <div className="rounded-xl p-3 bg-white shadow-sm border border-gray-100 flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-bounce" />
                   <span
                     className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-bounce"
@@ -245,9 +250,10 @@ const AITalkPageDetail: React.FC = () => {
         </div>
       </main>
 
-      {/* Input (fixed footer) */}
-      <footer className="border-t border-gray-200 bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+      {/* Input (fixed footer) [STYLE] flex-shrink-0 추가 */}
+      <footer className="border-t border-gray-200 bg-white flex-shrink-0">
+        {/* [STYLE] max-w-5xl로 변경 */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
           <button
             type="button"
             onClick={toggleRecording}
@@ -266,7 +272,8 @@ const AITalkPageDetail: React.FC = () => {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyPress}
             disabled={isSending}
-            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-rose-300"
+            // [STYLE] 폼 스타일 일관성
+            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
             aria-label="메시지 입력"
           />
 
