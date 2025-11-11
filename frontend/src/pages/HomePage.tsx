@@ -153,7 +153,8 @@ const HomePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white pb-20">
       <header className="bg-rose-500 text-white p-4 sm:p-6">
-        <div className="max-w-4xl mx-auto">
+        {/* [CHANGED] max-w-4xl -> max-w-5xl로 변경하여 다른 페이지와 통일 */}
+        <div className="max-w-5xl mx-auto">
           <div className="flex flex-row items-center justify-between mb-5 sm:mb-6">
             <div className="min-w-0 mr-3 sm:mr-4">
               <h1 className="text-base sm:text-2xl font-bold mb-0.5 tracking-tight leading-snug truncate">
@@ -202,7 +203,8 @@ const HomePage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 sm:p-6">
+      {/* [CHANGED] max-w-4xl, p-4 sm:p-6 -> max-w-5xl, px-4 sm:px-6 py-6 sm:py-8로 변경하여 다른 페이지와 통일 */}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 tracking-tight">
           오늘의 유닛
         </h2>

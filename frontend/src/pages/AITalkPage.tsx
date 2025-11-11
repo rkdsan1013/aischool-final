@@ -138,7 +138,8 @@ const AITalkPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      {/* [CHANGED] max-w-4xl -> max-w-5xl로 변경하여 다른 페이지와 통일 */}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Scenarios Section */}
         <section className="mb-8 sm:mb-12">
           <div className="mb-4 sm:mb-6">
