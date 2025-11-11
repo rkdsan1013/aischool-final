@@ -19,7 +19,15 @@ function useAuth() {
   return { user, isLoading };
 }
 
-// [STYLE] CustomDropdown 스타일 수정: AITalkCustomScenario와 동일하게
+/**
+ * CustomDropdown
+ * - 디자인 유지
+ * - 항상 위로 열리도록(openUpwards forced true)
+ * - fade + scale 애니메이션
+ * - 키보드 접근성 지원
+ * - 외부 클릭/ESC 닫기
+ * - TypeScript 이벤트 핸들러 타입 안정성 처리
+ */
 const CustomDropdown: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -40,35 +48,45 @@ const CustomDropdown: React.FC<{
   }, [value, options]);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocClick(e: Event) {
+      if (!btnRef.current || !panelRef.current) return;
+      const target = e.target as Node | null;
       if (
-        !btnRef.current ||
-        !panelRef.current ||
-        (e.target instanceof Node &&
-          (btnRef.current.contains(e.target) ||
-            panelRef.current.contains(e.target)))
+        target &&
+        (btnRef.current.contains(target) || panelRef.current.contains(target))
       ) {
         return;
       }
       setOpen(false);
     }
-    function onEsc(e: KeyboardEvent) {
+    function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
+    document.addEventListener("touchstart", onDocClick);
+    document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
+      document.removeEventListener("touchstart", onDocClick);
+      document.removeEventListener("keydown", onKey);
     };
   }, []);
 
+  // focus selected/first when opened
   useEffect(() => {
     if (open && panelRef.current) {
       const el = panelRef.current.querySelector<HTMLElement>(
         '[data-selected="true"]'
-      );
-      el?.focus();
+      ) as HTMLElement | null;
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: "nearest" });
+      } else {
+        const first = panelRef.current.querySelector<HTMLElement>(
+          'li[role="option"]'
+        ) as HTMLElement | null;
+        first?.focus();
+      }
     }
   }, [open]);
 
@@ -78,11 +96,23 @@ const CustomDropdown: React.FC<{
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setOpen(true);
-      setActiveIndex((i) => Math.min(options.length - 1, i === -1 ? 0 : i + 1));
+      setActiveIndex((i) => {
+        const next = i + 1;
+        return next >= options.length ? options.length - 1 : next;
+      });
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setOpen(true);
-      setActiveIndex((i) => Math.max(0, i === -1 ? options.length - 1 : i - 1));
+      setActiveIndex((i) => {
+        const prev = i - 1;
+        return prev < 0 ? 0 : prev;
+      });
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIndex(options.length - 1);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       if (!open) {
@@ -98,11 +128,22 @@ const CustomDropdown: React.FC<{
     }
   };
 
+  useEffect(() => {
+    if (!open || !panelRef.current) return;
+    const items =
+      panelRef.current.querySelectorAll<HTMLElement>('li[role="option"]');
+    const el = items[activeIndex];
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, open]);
+
   const onOptionClick = (index: number) => {
     onChange(options[index].value);
     setOpen(false);
     btnRef.current?.focus();
   };
+
+  // Force dropdown to open upwards for both instances
+  const openUpwards = true;
 
   return (
     <div className="relative inline-block w-full">
@@ -115,8 +156,6 @@ const CustomDropdown: React.FC<{
         type="button"
         onClick={toggleOpen}
         onKeyDown={onKeyDown}
-        // [STYLE] 폼 스타일 일관성 (AITalkCustomScenario와 동일하게)
-        // py-3 -> py-2.5, bg-gray-50 -> bg-white, border-gray-200 추가
         className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white border border-gray-200 text-sm transition focus:outline-none focus:ring-2 focus:ring-rose-300"
       >
         <span className="truncate">
@@ -136,12 +175,19 @@ const CustomDropdown: React.FC<{
         role="listbox"
         aria-labelledby={uid}
         tabIndex={-1}
-        className={`origin-top-right absolute z-50 mt-2 w-full rounded-md bg-white shadow-sm ring-1 ring-gray-100 focus:outline-none transform transition-all duration-250 ease-out ${
+        className={`absolute z-50 w-full rounded-md bg-white shadow-sm ring-1 ring-gray-100 transform transition-all duration-250 ease-out ${
           open
             ? "opacity-100 scale-y-100 pointer-events-auto"
             : "opacity-0 scale-y-75 pointer-events-none"
+        } ${
+          openUpwards
+            ? "bottom-full mb-2 mt-0 origin-bottom"
+            : "top-full mt-2 origin-top"
         }`}
-        style={{ transformOrigin: "top center" }}
+        style={{
+          transformOrigin: openUpwards ? "bottom center" : "top center",
+          maxHeight: "14rem",
+        }}
         onKeyDown={onKeyDown}
       >
         <ul className="max-h-56 overflow-auto py-1">
@@ -200,7 +246,6 @@ const VoiceRoomCreate: React.FC = () => {
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    // 폼 제출 로직 (현재는 네비게이션만)
     console.log("Form Data:", formData);
     navigate("/voiceroom");
   };
@@ -246,7 +291,7 @@ const VoiceRoomCreate: React.FC = () => {
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                 방 설정
               </h2>
-              <p className="text-sm sm:text-base text-gray-600 text-pretty">
+              <p className="text-sm sm:text-base text-gray-600">
                 다른 학습자들과 함께할 방을 만들어보세요
               </p>
             </div>
@@ -272,8 +317,6 @@ const VoiceRoomCreate: React.FC = () => {
                     setFormData({ ...formData, name: e.target.value })
                   }
                   required
-                  // [STYLE] 폼 스타일 일관성 (AITalkCustomScenario와 동일하게)
-                  // py-3 -> py-2.5, bg-gray-50 -> bg-white, border-gray-200 추가
                   className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                 />
               </div>
@@ -294,8 +337,6 @@ const VoiceRoomCreate: React.FC = () => {
                     setFormData({ ...formData, topic: e.target.value })
                   }
                   required
-                  // [STYLE] 폼 스타일 일관성 (AITalkCustomScenario와 동일하게)
-                  // py-3 -> py-2.5, bg-gray-50 -> bg-white, border-gray-200 추가
                   className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                 />
               </div>
@@ -304,26 +345,32 @@ const VoiceRoomCreate: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-900">
                   최대 참여 인원
                 </label>
-                <CustomDropdown
-                  value={formData.maxParticipants}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, maxParticipants: v }))
-                  }
-                  options={maxOptions}
-                  label={null}
-                />
+                <div className="mt-1">
+                  <CustomDropdown
+                    id="maxParticipants"
+                    value={formData.maxParticipants}
+                    onChange={(v) =>
+                      setFormData((p) => ({ ...p, maxParticipants: v }))
+                    }
+                    options={maxOptions}
+                    label={null}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-900">
                   권장 레벨
                 </label>
-                <CustomDropdown
-                  value={formData.level}
-                  onChange={(v) => setFormData((p) => ({ ...p, level: v }))}
-                  options={levelOptions}
-                  label={null}
-                />
+                <div className="mt-1">
+                  <CustomDropdown
+                    id="level"
+                    value={formData.level}
+                    onChange={(v) => setFormData((p) => ({ ...p, level: v }))}
+                    options={levelOptions}
+                    label={null}
+                  />
+                </div>
               </div>
             </form>
           </section>
@@ -334,7 +381,7 @@ const VoiceRoomCreate: React.FC = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <button
             type="submit"
-            form="room-create-form" // 폼 ID 연결
+            form="room-create-form"
             className="w-full h-12 rounded-lg bg-rose-500 text-white text-lg font-semibold shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300"
           >
             방 만들기

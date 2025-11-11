@@ -20,7 +20,15 @@ function getEditIdFromSearch(search: string) {
   }
 }
 
-// [ADDED] VoiceRoomCreate.tsx의 CustomDropdown 컴포넌트 복사
+/**
+ * CustomDropdown
+ * - 디자인 유지
+ * - 항상 위로 열리도록(openUpwards forced true)
+ * - fade + scale 애니메이션
+ * - 키보드 접근성 지원
+ * - 외부 클릭/ESC 닫기
+ * - TypeScript 이벤트 핸들러 타입 안정성 처리
+ */
 const CustomDropdown: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -41,26 +49,27 @@ const CustomDropdown: React.FC<{
   }, [value, options]);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocClick(e: Event) {
+      if (!btnRef.current || !panelRef.current) return;
+      const target = e.target as Node | null;
       if (
-        !btnRef.current ||
-        !panelRef.current ||
-        (e.target instanceof Node &&
-          (btnRef.current.contains(e.target) ||
-            panelRef.current.contains(e.target)))
+        target &&
+        (btnRef.current.contains(target) || panelRef.current.contains(target))
       ) {
         return;
       }
       setOpen(false);
     }
-    function onEsc(e: KeyboardEvent) {
+    function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
+    document.addEventListener("touchstart", onDocClick);
+    document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
+      document.removeEventListener("touchstart", onDocClick);
+      document.removeEventListener("keydown", onKey);
     };
   }, []);
 
@@ -68,8 +77,16 @@ const CustomDropdown: React.FC<{
     if (open && panelRef.current) {
       const el = panelRef.current.querySelector<HTMLElement>(
         '[data-selected="true"]'
-      );
-      el?.focus();
+      ) as HTMLElement | null;
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: "nearest" });
+      } else {
+        const first = panelRef.current.querySelector<HTMLElement>(
+          'li[role="option"]'
+        ) as HTMLElement | null;
+        first?.focus();
+      }
     }
   }, [open]);
 
@@ -79,11 +96,23 @@ const CustomDropdown: React.FC<{
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setOpen(true);
-      setActiveIndex((i) => Math.min(options.length - 1, i === -1 ? 0 : i + 1));
+      setActiveIndex((i) => {
+        const next = i + 1;
+        return next >= options.length ? options.length - 1 : next;
+      });
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setOpen(true);
-      setActiveIndex((i) => Math.max(0, i === -1 ? options.length - 1 : i - 1));
+      setActiveIndex((i) => {
+        const prev = i - 1;
+        return prev < 0 ? 0 : prev;
+      });
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIndex(options.length - 1);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       if (!open) {
@@ -99,11 +128,22 @@ const CustomDropdown: React.FC<{
     }
   };
 
+  useEffect(() => {
+    if (!open || !panelRef.current) return;
+    const items =
+      panelRef.current.querySelectorAll<HTMLElement>('li[role="option"]');
+    const el = items[activeIndex];
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, open]);
+
   const onOptionClick = (index: number) => {
     onChange(options[index].value);
     setOpen(false);
     btnRef.current?.focus();
   };
+
+  // Force dropdown to open upwards
+  const openUpwards = true;
 
   return (
     <div className="relative inline-block w-full">
@@ -116,7 +156,6 @@ const CustomDropdown: React.FC<{
         type="button"
         onClick={toggleOpen}
         onKeyDown={onKeyDown}
-        // [STYLE] 폼 스타일 일관성 (py-3 -> py-2.5)
         className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white border border-gray-200 text-sm transition focus:outline-none focus:ring-2 focus:ring-rose-300"
       >
         <span className="truncate">
@@ -136,12 +175,19 @@ const CustomDropdown: React.FC<{
         role="listbox"
         aria-labelledby={uid}
         tabIndex={-1}
-        className={`origin-top-right absolute z-50 mt-2 w-full rounded-md bg-white shadow-sm ring-1 ring-gray-100 focus:outline-none transform transition-all duration-250 ease-out ${
+        className={`absolute z-50 w-full rounded-md bg-white shadow-sm ring-1 ring-gray-100 transform transition-all duration-250 ease-out ${
           open
             ? "opacity-100 scale-y-100 pointer-events-auto"
             : "opacity-0 scale-y-75 pointer-events-none"
+        } ${
+          openUpwards
+            ? "bottom-full mb-2 mt-0 origin-bottom"
+            : "top-full mt-2 origin-top"
         }`}
-        style={{ transformOrigin: "top center" }}
+        style={{
+          transformOrigin: openUpwards ? "bottom center" : "top center",
+          maxHeight: "14rem",
+        }}
         onKeyDown={onKeyDown}
       >
         <ul className="max-h-56 overflow-auto py-1">
@@ -174,7 +220,6 @@ const CustomDropdown: React.FC<{
     </div>
   );
 };
-// [ADDED] End of CustomDropdown
 
 const AITalkCustomScenario: React.FC = () => {
   const navigate = useNavigate();
@@ -190,7 +235,6 @@ const AITalkCustomScenario: React.FC = () => {
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // [ADDED] 난이도 옵션
   const difficultyOptions = [
     { value: "초급", label: "초급" },
     { value: "중급", label: "중급" },
@@ -227,7 +271,6 @@ const AITalkCustomScenario: React.FC = () => {
   }, [editId]);
 
   useEffect(() => {
-    // adjust height on mount and when context changes programmatically
     adjustTextareaHeight();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -237,7 +280,6 @@ const AITalkCustomScenario: React.FC = () => {
     if (!el) return;
     el.style.height = "0px";
     const scrollHeight = el.scrollHeight;
-    // set a max height to avoid growing beyond viewport; allow internal scrolling if needed
     const max = Math.min(scrollHeight, window.innerHeight * 0.5);
     el.style.height = `${max}px`;
   };
@@ -249,7 +291,6 @@ const AITalkCustomScenario: React.FC = () => {
 
   const handleSave = () => {
     if (!title.trim() || !description.trim() || !context.trim()) {
-      // [FIX] window.alert -> console.warn으로 변경 (alert 사용 금지)
       console.warn("모든 필드를 입력해주세요");
       return;
     }
@@ -298,11 +339,8 @@ const AITalkCustomScenario: React.FC = () => {
   };
 
   return (
-    // [FIX] min-h-screen -> h-[100dvh], pb-20 제거 (앱 레이아웃)
     <div className="h-[100dvh] bg-white flex flex-col">
-      {/* Header [FIX] flex-shrink-0 추가 */}
       <header className="bg-rose-500 text-white flex-shrink-0">
-        {/* [STYLE] max-w-5xl, px-4 sm:px-6, py-6 -> py-4, items-center 추가 */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
           <button
             type="button"
@@ -314,7 +352,6 @@ const AITalkCustomScenario: React.FC = () => {
           </button>
 
           <div>
-            {/* [FIX] 모바일 폰트 크기 조정 */}
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">
               {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
             </h1>
@@ -323,11 +360,8 @@ const AITalkCustomScenario: React.FC = () => {
         </div>
       </header>
 
-      {/* [FIX] flex-1 overflow-y-auto (내부 스크롤) */}
       <main className="w-full flex-1 overflow-y-auto">
-        {/* [FIX] 하단 패딩 수정 (pb-24 -> pb-20) */}
         <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-20">
-          {/* [STYLE] 섹션 제목 스타일 통일 */}
           <header className="mb-4 sm:mb-6">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
               시나리오 정보
@@ -337,7 +371,6 @@ const AITalkCustomScenario: React.FC = () => {
             </p>
           </header>
 
-          {/* Title */}
           <div className="mb-4">
             <label
               htmlFor="title"
@@ -351,12 +384,10 @@ const AITalkCustomScenario: React.FC = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: 병원에서 진료 받기"
-              // [STYLE] 폼 스타일 일관성 (py-2 -> py-2.5)
               className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
             />
           </div>
 
-          {/* Description */}
           <div className="mb-4">
             <label
               htmlFor="description"
@@ -370,12 +401,10 @@ const AITalkCustomScenario: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="예: 병원에서 증상을 설명하고 진료를 받는 상황"
-              // [STYLE] 폼 스타일 일관성 (py-2 -> py-2.5)
               className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
             />
           </div>
 
-          {/* [CHANGED] Difficulty (CustomDropdown으로 변경) */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               난이도
@@ -387,7 +416,6 @@ const AITalkCustomScenario: React.FC = () => {
             />
           </div>
 
-          {/* Context - auto-resizing textarea only; page layout unchanged */}
           <div className="mb-4">
             <label
               htmlFor="context"
@@ -404,7 +432,6 @@ const AITalkCustomScenario: React.FC = () => {
                 "AI가 어떤 역할을 하고, 어떤 상황인지 자세히 설명해주세요.\n\n예시:\n당신은 병원 접수처 직원입니다. 환자가 처음 방문했고, 증상을 듣고 적절한 진료과를 안내해주세요. 친절하고 전문적인 태도로 대화하며, 필요한 서류나 절차에 대해서도 안내해주세요."
               }
               rows={4}
-              // [STYLE] 폼 스타일 일관성 (py-2 -> py-2.5)
               className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 overflow-auto"
               onInput={adjustTextareaHeight}
             />
@@ -413,15 +440,11 @@ const AITalkCustomScenario: React.FC = () => {
               대화를 할 수 있어요
             </p>
           </div>
-
-          {/* [FIX] 버튼 폼에서 제거 (푸터로 이동) */}
         </section>
       </main>
 
-      {/* [FIX] 고정 푸터 추가 */}
       <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
-          {/* [FIX] flex-col sm:flex-row -> flex flex-row (항상 가로 배치) */}
           <div className="flex flex-row gap-3">
             <button
               type="button"
