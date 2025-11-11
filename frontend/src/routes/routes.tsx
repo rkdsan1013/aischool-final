@@ -11,9 +11,6 @@ import MyPage from "../pages/MyPage";
 import AITalk from "../pages/AITalkPage";
 import VoiceRoomPage from "../pages/VoiceRoomPage";
 import TrainingPage from "../pages/Training";
-import AITalkPageDetail from "../pages/AITalkPageDetail";
-import AITalkCustomScenario from "../pages/AITalkCustomScenario";
-import VoiceRoomCreate from "../pages/VoiceRoomCreate";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -41,35 +38,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: "/training",
-        element: (
-          <ProtectedRoute redirectTo="/auth">
-            <TrainingPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "/ai-talk/:id",
-        element: (
-          <ProtectedRoute redirectTo="/auth">
-            <AITalkPageDetail />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "/ai-talk/custom-scenario",
-        element: (
-          <ProtectedRoute redirectTo="/auth">
-            <AITalkCustomScenario />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "/voiceroom/create",
-        element: (
-          <ProtectedRoute redirectTo="/auth">
-            <VoiceRoomCreate />
-          </ProtectedRoute>
-        ),
+        element: <TrainingPage />,
       },
     ],
   },
