@@ -105,7 +105,8 @@ export default function VoiceRoomPage() {
     <div className="min-h-screen bg-white pb-14">
       {/* Hero Section */}
       <div className="bg-gradient-to-b from-rose-50 to-white border-b border-rose-100">
-        <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
+        {/* [CHANGED] max-w-6xl, px-4 py-8 sm:py-12 -> max-w-5xl, px-4 sm:px-6 py-6 sm:py-8로 변경하여 다른 페이지와 통일 */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="text-center space-y-3 sm:space-y-4 mb-6 sm:mb-8">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 rounded-full text-xs sm:text-sm font-medium mb-1 sm:mb-2">
               <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -133,7 +134,8 @@ export default function VoiceRoomPage() {
       </div>
 
       {/* Room List Section */}
-      <div className="max-w-6xl mx-auto px-4 py-6 sm:py-12">
+      {/* [CHANGED] max-w-6xl, px-4 py-6 sm:py-12 -> max-w-5xl, px-4 sm:px-6 py-6 sm:py-8로 변경하여 다른 페이지와 통일 */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-6 sm:mb-8">
           <div>
             <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">

@@ -63,7 +63,8 @@ export default function MyPage() {
     <div className="min-h-screen bg-white pb-20">
       {/* Header */}
       <div className="bg-rose-500 text-white p-4 sm:p-6 shadow-md">
-        <div className="max-w-4xl mx-auto">
+        {/* [CHANGED] max-w-4xl -> max-w-5xl로 변경하여 다른 페이지와 통일 */}
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div
               className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/20 flex items-center justify-center text-2xl sm:text-3xl font-bold"
@@ -126,7 +127,8 @@ export default function MyPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-6 sm:py-12">
+      {/* [CHANGED] max-w-6xl, px-4 py-6 sm:py-12 -> max-w-5xl, px-4 sm:px-6 py-6 sm:py-8로 변경하여 다른 페이지와 통일 */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
             학습 현황
