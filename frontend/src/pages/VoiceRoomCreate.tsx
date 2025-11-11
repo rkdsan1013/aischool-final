@@ -19,7 +19,7 @@ function useAuth() {
   return { user, isLoading };
 }
 
-// [STYLE] CustomDropdown 스타일 수정: rounded-lg, bg-gray-50
+// [STYLE] CustomDropdown 스타일 수정: AITalkCustomScenario와 동일하게
 const CustomDropdown: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -115,8 +115,9 @@ const CustomDropdown: React.FC<{
         type="button"
         onClick={toggleOpen}
         onKeyDown={onKeyDown}
-        // [STYLE] 폼 스타일 일관성 (rounded-lg, bg-gray-50)
-        className="w-full flex items-center justify-between rounded-lg px-3 py-3 bg-gray-50 text-sm transition focus:outline-none focus:ring-2 focus:ring-rose-300"
+        // [STYLE] 폼 스타일 일관성 (AITalkCustomScenario와 동일하게)
+        // py-3 -> py-2.5, bg-gray-50 -> bg-white, border-gray-200 추가
+        className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white border border-gray-200 text-sm transition focus:outline-none focus:ring-2 focus:ring-rose-300"
       >
         <span className="truncate">
           {options.find((o) => o.value === value)?.label}
@@ -191,7 +192,6 @@ const VoiceRoomCreate: React.FC = () => {
 
   if (isLoading || !user) {
     return (
-      // [STYLE] 로딩창 배경 제거
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
       </div>
@@ -223,11 +223,8 @@ const VoiceRoomCreate: React.FC = () => {
   ];
 
   return (
-    // [FIX] min-h-screen -> h-[100dvh], pb-20 제거
     <div className="h-[100dvh] bg-white flex flex-col">
-      {/* [FIX] flex-shrink-0 추가 */}
       <header className="w-full bg-rose-500 text-white flex-shrink-0">
-        {/* [STYLE] max-w-5xl, px-4 sm:px-6 */}
         <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-4">
           <button
             type="button"
@@ -242,12 +239,9 @@ const VoiceRoomCreate: React.FC = () => {
         </div>
       </header>
 
-      {/* [FIX] flex-1 overflow-y-auto (내부 스크롤) */}
       <main className="w-full flex-1 overflow-y-auto">
-        {/* [FIX] 잘못된 주석 제거, 래퍼 div 추가 */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24">
           <section className="w-full p-0">
-            {/* [STYLE] 섹션 제목 스타일 통일 */}
             <div className="mb-4 sm:mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                 방 설정
@@ -257,7 +251,6 @@ const VoiceRoomCreate: React.FC = () => {
               </p>
             </div>
 
-            {/* [FIX] form에 id 추가 */}
             <form
               id="room-create-form"
               onSubmit={handleSubmit}
@@ -279,8 +272,9 @@ const VoiceRoomCreate: React.FC = () => {
                     setFormData({ ...formData, name: e.target.value })
                   }
                   required
-                  // [STYLE] 폼 스타일 일관성 (rounded-lg, bg-gray-50)
-                  className="w-full rounded-lg border border-transparent px-3 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  // [STYLE] 폼 스타일 일관성 (AITalkCustomScenario와 동일하게)
+                  // py-3 -> py-2.5, bg-gray-50 -> bg-white, border-gray-200 추가
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                 />
               </div>
 
@@ -300,8 +294,9 @@ const VoiceRoomCreate: React.FC = () => {
                     setFormData({ ...formData, topic: e.target.value })
                   }
                   required
-                  // [STYLE] 폼 스타일 일관성 (rounded-lg, bg-gray-50)
-                  className="w-full rounded-lg border border-transparent px-3 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  // [STYLE] 폼 스타일 일관성 (AITalkCustomScenario와 동일하게)
+                  // py-3 -> py-2.5, bg-gray-50 -> bg-white, border-gray-200 추가
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                 />
               </div>
 
@@ -330,14 +325,11 @@ const VoiceRoomCreate: React.FC = () => {
                   label={null}
                 />
               </div>
-
-              {/* [FIX] 버튼 폼에서 제거 (푸터로 이동) */}
             </form>
           </section>
         </div>
       </main>
 
-      {/* [FIX] 고정 푸터 추가 */}
       <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <button
