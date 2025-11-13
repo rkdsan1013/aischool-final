@@ -7,7 +7,7 @@ export type TrainingType =
   | "sentence"
   | "blank"
   | "writing"
-  | "speakingListening";
+  | "speaking"; // "speakingListening"에서 "speaking"으로 변경
 
 export interface QuestionItem {
   id: string;
@@ -59,13 +59,14 @@ const DUMMY: Record<TrainingType, QuestionItem[]> = {
       correct: "",
     },
   ],
-  speakingListening: [
+  speaking: [
+    // "speakingListening"에서 "speaking"으로 변경
     {
       id: "sp1",
-      type: "speakingListening",
-      question: "Listen and choose the word you hear: 'Library' or 'Libary'?",
-      options: ["Library", "Libary"],
-      correct: "Library",
+      type: "speaking", // "speakingListening"에서 "speaking"으로 변경
+      question: "따라 말해보세요: How's the weather today?", // '말하기'에 맞는 프롬프트로 변경
+      // options 속성 제거 (듣기 선택지 불필요)
+      correct: "", // '말하기'는 정해진 정답이 없음
     },
   ],
 };

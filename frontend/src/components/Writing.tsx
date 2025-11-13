@@ -41,8 +41,8 @@ const Writing: React.FC<Props> = ({
         </p>
       </div>
 
-      {/* 프롬프트 카드 */}
-      <div className="bg-card border-2 border-gray-200 rounded-2xl p-5 sm:p-6">
+      {/* 프롬프트 카드 (디자인 조화: bg-gray-50) */}
+      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6">
         <div className="text-sm font-semibold text-muted-foreground mb-2">
           주제
         </div>
@@ -51,13 +51,13 @@ const Writing: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 텍스트 입력 영역 */}
+      {/* 텍스트 입력 영역 (디자인 조화: bg-white) */}
       <div className="relative">
         <textarea
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="여기에 영어로 작성하세요..."
-          className="w-full min-h-[200px] sm:min-h-[240px] p-4 sm:p-5 rounded-2xl border-2 border-gray-200 bg-card resize-none focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-colors placeholder:text-muted-foreground text-base text-foreground"
+          className="w-full min-h-[200px] sm:min-h-[240px] p-4 sm:p-5 rounded-2xl border border-gray-200 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-500 transition-colors placeholder:text-muted-foreground text-base text-foreground"
           aria-label="작문 입력"
         />
         {/* 글자 수 제한 */}
