@@ -1,13 +1,18 @@
 // src/pages/AITalkPageDetail.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Mic, Send, Volume2, User, Bot } from "lucide-react";
+import { ArrowLeft, Mic, Volume2, Languages } from "lucide-react";
 
 type Message = {
   id: string;
   role: "user" | "ai";
   content: string;
   timestamp: Date;
+  audioUrl?: string;
+};
+
+type Props = {
+  scenarioId?: string;
+  onBack?: () => void;
 };
 
 const scenarioData: Record<
@@ -25,42 +30,37 @@ const scenarioData: Record<
     initialMessage: "Hi there! Are you looking for something specific today?",
     context: "You are a helpful sales assistant.",
   },
+  interview: {
+    title: "면접 연습",
+    initialMessage:
+      "Good morning! Thank you for coming in today. Please tell me about yourself.",
+    context: "You are a hiring manager conducting an interview.",
+  },
+  travel: {
+    title: "여행 대화",
+    initialMessage: "Welcome! How can I help you with your travel plans today?",
+    context: "You are a travel agent.",
+  },
+  study: {
+    title: "학교 생활",
+    initialMessage: "Hi! What class do you have next?",
+    context: "You are a friendly classmate.",
+  },
   free: {
     title: "자유 대화",
     initialMessage:
       "Hello! I'm your AI conversation partner. What would you like to talk about today?",
     context: "You are a friendly AI assistant ready to discuss any topic.",
   },
-  // 필요하면 더 추가
 };
 
-/* 간단한 인증 훅(프로젝트 인증으로 교체) */
-function useAuth() {
-  const [isLoading] = useState(false);
-  const [user] = useState<{ id: string; name: string } | null>({
-    id: "1",
-    name: "Test",
-  });
-  return { user, isLoading };
-}
-
-const AITalkPageDetail: React.FC = () => {
-  const navigate = useNavigate();
-  const params = useParams<{ id?: string }>();
-  const { user, isLoading } = useAuth();
-
+const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
+  const listRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const listRef = useRef<HTMLDivElement | null>(null);
 
-  const scenarioId = params.id ?? "free";
   const scenario = scenarioData[scenarioId] ?? scenarioData["free"];
-
-  useEffect(() => {
-    if (!isLoading && !user) navigate("/login");
-  }, [user, isLoading, navigate]);
 
   useEffect(() => {
     setMessages([
@@ -71,78 +71,36 @@ const AITalkPageDetail: React.FC = () => {
         timestamp: new Date(),
       },
     ]);
-  }, [scenarioId, scenario.initialMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarioId]);
 
   useEffect(() => {
-    // 새 메시지 추가 시 스크롤 맨 아래로
     const el = listRef.current;
     if (el) {
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }
   }, [messages, isSending]);
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isSending) return;
-
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: inputValue.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages((p) => [...p, userMessage]);
-    setInputValue("");
-    setIsSending(true);
-
-    // 모의 AI 응답 (실제 API 교체)
-    setTimeout(() => {
-      const aiResponses = [
-        "That's great! Could you tell me more about that?",
-        "I see. That's very interesting. What else would you like to share?",
-        "Excellent! Your English is improving. Let's continue.",
-        "Good job! Try to use more descriptive words next time.",
-        "Perfect! That's exactly how you would say it in English.",
-      ];
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        role: "ai",
-        content: aiResponses[Math.floor(Math.random() * aiResponses.length)],
-        timestamp: new Date(),
-      };
-      setMessages((p) => [...p, aiMessage]);
-      setIsSending(false);
-    }, 900);
+  const toggleRecording = () => {
+    setIsRecording((s) => !s);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
+  const playAIVoice = (text: string) => {
+    console.log("[v0] Playing AI voice:", text);
   };
 
-  const toggleRecording = () => setIsRecording((s) => !s);
-
-  if (isLoading || !user || !scenario) {
-    return (
-      // [STYLE] 로딩창 배경 제거
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-rose-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const translateText = (text: string) => {
+    console.log("[v0] Translating AI text:", text);
+  };
 
   return (
-    // [STYLE] h-[100dvh] (모바일 스크롤 버그 방지)
-    <div className="h-[100dvh] flex flex-col bg-white">
-      {/* Header [STYLE] flex-shrink-0 추가 */}
-      <header className="w-full bg-white border-b border-gray-200 flex-shrink-0">
-        {/* [STYLE] max-w-5xl로 변경 */}
+    <div className="h-screen flex flex-col bg-white">
+      {/* Header (mobile-first) */}
+      <header className="w-full bg-white flex-shrink-0">
         <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
           <button
             type="button"
-            onClick={() => navigate("/ai-talk")}
+            onClick={() => (onBack ? onBack() : window.history.back())}
             aria-label="뒤로"
             className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100"
           >
@@ -150,149 +108,133 @@ const AITalkPageDetail: React.FC = () => {
           </button>
 
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-semibold text-gray-900 truncate">
+            <h1 className="text-[19px] sm:text-[22px] font-semibold text-gray-900 truncate">
               {scenario.title}
             </h1>
-            <p className="text-xs text-gray-500 mt-0.5">AI와 대화 중</p>
-          </div>
-
-          <div className="w-9 h-9 rounded-xl bg-rose-500 flex items-center justify-center text-white">
-            <Bot size={18} />
+            <p className="text-[15px] sm:text-[18px] text-gray-500 mt-0.5">
+              AI와 대화 중
+            </p>
           </div>
         </div>
       </header>
 
-      {/* Messages [STYLE] flex-1 overflow-hidden (스크롤 컨테이너) */}
+      {/* Messages (mobile-first widths, bottom padding to avoid overlap with footer) */}
       <main className="flex-1 overflow-hidden" aria-live="polite">
-        {/* [STYLE] h-full overflow-y-auto (실제 스크롤 영역) */}
         <div
           ref={listRef}
-          className="max-w-5xl mx-auto h-full px-4 sm:px-6 py-4 overflow-y-auto flex flex-col gap-4"
+          className="max-w-5xl mx-auto h-full px-4 sm:px-6 pt-4 pb-24 sm:pb-[104px] overflow-y-auto flex flex-col gap-4"
           style={{ minHeight: 0 }}
         >
           {messages.map((m) => (
             <div
               key={m.id}
-              className={`flex gap-3 items-start ${
-                m.role === "user" ? "flex-row-reverse" : "flex-row"
+              className={`flex items-start ${
+                m.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  m.role === "user"
-                    ? "bg-rose-500 text-white"
-                    : "bg-indigo-500 text-white"
-                }`}
-                aria-hidden
-              >
-                {m.role === "user" ? <User size={16} /> : <Bot size={16} />}
-              </div>
-
-              <div className="flex-1 max-w-[72%]">
+              <div className="flex-1 max-w-[88%] sm:max-w-[70%]">
                 <div
-                  className={`relative rounded-xl p-3 break-words text-sm ${
+                  className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug break-words ${
                     m.role === "user"
-                      ? "bg-rose-500 text-white" // 사용자 말풍선
-                      : "bg-white text-gray-800 shadow-sm border border-gray-100" // AI 말풍선 (카드 스타일)
+                      ? "bg-rose-500 text-white"
+                      : "bg-gray-100 text-gray-800"
                   }`}
                 >
+                  {/* 텍스트 */}
                   <div className="whitespace-pre-wrap break-words">
                     {m.content}
                   </div>
 
+                  {/* 아이콘들: 텍스트 아래 줄로 배치 */}
                   {m.role === "ai" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        /* TTS placeholder */
-                      }}
-                      className="absolute right-2 bottom-2 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
-                    >
-                      <Volume2 size={14} />
-                      <span className="sr-only">듣기</span>
-                    </button>
+                    <div className="flex gap-3 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => playAIVoice(m.content)}
+                        className="inline-flex items-center text-gray-400 hover:text-gray-600"
+                      >
+                        <Volume2 size={18} />
+                        <span className="sr-only">듣기</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => translateText(m.content)}
+                        className="inline-flex items-center text-gray-400 hover:text-gray-600"
+                      >
+                        <Languages size={18} />
+                        <span className="sr-only">번역</span>
+                      </button>
+                    </div>
                   )}
-                </div>
-
-                <div className="text-xs text-gray-400 mt-1">
-                  {m.timestamp.toLocaleTimeString("ko-KR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
                 </div>
               </div>
             </div>
           ))}
 
-          {/* AI 응답 대기 중 */}
+          {/* AI 응답 대기 중 (점 애니메이션만 표시) */}
           {isSending && (
-            <div className="flex gap-3 items-start">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500 text-white flex items-center justify-center">
-                <Bot size={16} />
-              </div>
-              <div className="max-w-[72%]">
-                <div className="rounded-xl p-3 bg-white shadow-sm border border-gray-100 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-bounce" />
+            <div className="flex items-start">
+              <div className="max-w-[80%]">
+                <div className="rounded-xl px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
                   <span
-                    className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-bounce"
-                    style={{ animationDelay: "150ms" }}
+                    className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"
+                    style={{ animationDelay: "200ms" }}
                   />
                   <span
-                    className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-bounce"
-                    style={{ animationDelay: "300ms" }}
+                    className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"
+                    style={{ animationDelay: "400ms" }}
                   />
                 </div>
               </div>
             </div>
           )}
-          {/* 스크롤 용 더미 끝 */}
-          <div className="h-6" />
         </div>
       </main>
 
-      {/* Input (fixed footer) [STYLE] flex-shrink-0 추가 */}
-      <footer className="border-t border-gray-200 bg-white flex-shrink-0">
-        {/* [STYLE] max-w-5xl로 변경 */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={toggleRecording}
-            aria-pressed={isRecording}
-            aria-label="record"
-            className={`w-11 h-11 rounded-lg flex items-center justify-center text-white ${
-              isRecording ? "bg-rose-600" : "bg-rose-500 hover:bg-rose-600"
-            }`}
-          >
-            <Mic size={16} />
-          </button>
-
-          <input
-            placeholder="메시지를 입력하세요..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyPress}
-            disabled={isSending}
-            // [STYLE] 폼 스타일 일관성
-            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
-            aria-label="메시지 입력"
-          />
-
-          <button
-            type="button"
-            onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isSending}
-            aria-label="send"
-            className={`px-4 py-2 rounded-lg text-white flex items-center gap-2 ${
-              !inputValue.trim() || isSending
-                ? "bg-rose-200 cursor-not-allowed"
-                : "bg-rose-500 hover:bg-rose-600"
-            }`}
-          >
-            <Send size={16} />
-            <span className="hidden sm:inline">전송</span>
-          </button>
+      {/* Footer: fixed, mobile-first, no divider, mic slightly lifted but centered */}
+      <footer className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="h-20 sm:h-24 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={toggleRecording}
+              aria-pressed={isRecording}
+              aria-label="record"
+              className={`relative w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center text-white shadow-md ${
+                isRecording ? "bg-rose-600" : "bg-rose-500 hover:bg-rose-600"
+              }`}
+              style={{
+                transform: "translateY(-15px)", // 살짝 위로 (~15px)
+              }}
+            >
+              <Mic size={30} />
+              {/* Safe ring animation using box-shadow (no layout growth) */}
+              {isRecording && (
+                <span
+                  className="pointer-events-none absolute inset-0 rounded-full"
+                  style={{
+                    boxShadow: "0 0 0 0 rgba(244, 63, 94, 0.4)",
+                    animation: "ringPulse 1.8s ease-out infinite",
+                    willChange: "box-shadow",
+                  }}
+                />
+              )}
+            </button>
+          </div>
         </div>
       </footer>
+
+      {/* Keyframes: ring via box-shadow only to avoid scroll and clipping */}
+      <style>
+        {`
+          @keyframes ringPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); }
+            70%  { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); }
+          }
+        `}
+      </style>
     </div>
   );
 };
