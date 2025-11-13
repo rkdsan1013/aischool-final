@@ -1,13 +1,12 @@
-// src/contexts/authContext.ts
+// frontend/src/contexts/authContext.ts
 import { createContext } from "react";
-import type { UserProfileResponse } from "../services/userService";
 
 export interface AuthContextState {
+  // 인증 관련 최소 상태만 포함합니다 (프로필은 ProfileContext로 분리)
   isLoggedIn: boolean;
-  profile: UserProfileResponse | null;
-  isLoading: boolean;
+  isAuthLoading: boolean;
   logout: () => Promise<void>;
-  refreshProfile: () => Promise<UserProfileResponse | null>;
+  refreshAuth: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextState | undefined>(

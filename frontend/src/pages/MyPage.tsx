@@ -1,4 +1,4 @@
-// src/pages/MyPage.tsx
+// frontend/src/pages/MyPage.tsx
 // cSpell:ignore CEFR
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -12,20 +12,25 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useProfile } from "../hooks/useProfile";
 
 export default function MyPage() {
   const navigate = useNavigate();
-  const { profile, isLoading, logout, refreshProfile } = useAuth();
+  const { isAuthLoading, logout } = useAuth();
+  const { profile, isProfileLoading /*, refreshProfile */ } = useProfile();
 
+  // 전체 로딩: 인증 관련 로딩 또는 프로필 로딩 중 하나라도 true면 로딩 상태로 판단
+  const isLoading = isAuthLoading || isProfileLoading;
+
+  // 프로필이 비어 있고 로딩이 끝났으면 홈으로 보냅니다.
   useEffect(() => {
     if (!isLoading && profile === null) {
       navigate("/");
     }
   }, [profile, isLoading, navigate]);
 
-  useEffect(() => {
-    void refreshProfile();
-  }, [refreshProfile]);
+  // 주의: 여기서는 더 이상 mount 시 항상 refreshProfile()을 호출하지 않습니다.
+  // ProfileProvider가 자동으로 초기 fetch를 담당하므로 중복 호출을 방지합니다.
 
   if (isLoading) {
     return (
@@ -49,10 +54,15 @@ export default function MyPage() {
 
   // 로그아웃: auth에서 세션 정리 후 루트로 이동하고 전체 리프레시
   const handleLogout = async () => {
-    await logout();
-    navigate("/", { replace: true });
-    // 전체 페이지 새로고침으로 인증 상태 / 캐시를 확실히 초기화
-    window.location.reload();
+    try {
+      await logout();
+    } catch (err) {
+      console.error("[MyPage] logout failed:", err);
+    } finally {
+      navigate("/", { replace: true });
+      // 전체 페이지 새로고침 대신 ProfileProvider.setProfileLocal(null)으로 부드럽게 처리하는 것이 권장됩니다.
+      window.location.reload();
+    }
   };
 
   const handleRetakeTest = () => {
@@ -63,7 +73,6 @@ export default function MyPage() {
     <div className="min-h-screen bg-white pb-20">
       {/* Header */}
       <div className="bg-rose-500 text-white p-4 sm:p-6 shadow-md">
-        {/* [CHANGED] max-w-4xl -> max-w-5xl로 변경하여 다른 페이지와 통일 */}
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div
@@ -127,7 +136,6 @@ export default function MyPage() {
       </div>
 
       {/* Main Content */}
-      {/* [CHANGED] max-w-6xl, px-4 py-6 sm:py-12 -> max-w-5xl, px-4 sm:px-6 py-6 sm:py-8로 변경하여 다른 페이지와 통일 */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
