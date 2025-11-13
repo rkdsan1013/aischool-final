@@ -43,8 +43,7 @@ const TrainingPage: React.FC = () => {
       })
     : undefined;
 
-  // location.state.startType가 외부에서 문자열로 올 가능성을 안전하게 처리
-  // unknown 타입으로 받아서 런타임에서 문자열인지 확인
+  // 안전한 rawStart 처리 (unknown)
   const rawStart: unknown =
     locState && (locState as Record<string, unknown>).startType;
 
@@ -100,7 +99,6 @@ const TrainingPage: React.FC = () => {
     [questions, index]
   );
 
-  // stable options: 참조 안정화를 위해 복사 전달
   const stableOptions = useMemo(
     () => (currentQuestion?.options ? [...currentQuestion.options] : []),
     [currentQuestion?.options]
@@ -113,8 +111,8 @@ const TrainingPage: React.FC = () => {
       : ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
   const isLastQuestion = index === (questions?.length ?? 1) - 1;
 
+  // 닫기 버튼은 피드백 여부와 상관없이 항상 동작
   const handleClose = () => {
-    if (showFeedback) return;
     navigate("/home");
   };
 
@@ -132,19 +130,16 @@ const TrainingPage: React.FC = () => {
     setSelectedAnswer(option);
   };
 
-  // onPick: 풀에서 단어 하나를 추가했을 때
   const handlePickPart = (part: string) => {
     if (showFeedback) return;
     setSelectedOrder((s) => (s.includes(part) ? s : [...s, part]));
   };
 
-  // onRemove: 선택된 항목을 제거했을 때
   const handleRemovePart = (part: string) => {
     if (showFeedback) return;
     setSelectedOrder((s) => s.filter((x) => x !== part));
   };
 
-  // onReorder: 전체 재배열 결과를 받았을 때 (Sentence에서 호출)
   const handleReorder = (next: string[]) => {
     if (showFeedback) return;
     setSelectedOrder(next);
@@ -160,10 +155,8 @@ const TrainingPage: React.FC = () => {
     setWritingValue(v);
   };
 
-  // recording 파라미터가 사용되지 않아 제거함 (eslint/ts 경고 해결)
   const handleRecordToggle = () => {
     if (showFeedback) return;
-    // Speaking 컴포넌트에서 자체 토글을 관리하거나 필요시 콜백을 확장하세요.
   };
 
   const handleRecordReceived = (blob: Blob) => {
@@ -193,7 +186,6 @@ const TrainingPage: React.FC = () => {
         break;
       }
       case "speaking": {
-        // 말하기는 녹음 완료 여부로 '정답' 처리 (데모)
         correct = Boolean(recordedBlob);
         break;
       }
@@ -208,7 +200,6 @@ const TrainingPage: React.FC = () => {
         break;
       }
       case "writing": {
-        // 작문은 내용 존재 여부로 '정답' 처리 (데모)
         correct = writingValue.trim().length > 0;
         break;
       }
@@ -235,7 +226,6 @@ const TrainingPage: React.FC = () => {
     navigate("/home");
   };
 
-  // 푸터 영역이 차지할 총 높이 (피드백 포함/미포함)
   const footerVisualHeight = showFeedback
     ? FOOTER_BUTTON_AREA_HEIGHT + FEEDBACK_AREA_HEIGHT
     : FOOTER_BUTTON_AREA_HEIGHT;
@@ -248,7 +238,6 @@ const TrainingPage: React.FC = () => {
       case "writing":
         return writingValue.trim().length > 0;
       case "speaking":
-        // 말하기는 녹음 완료 여부로 판단
         return Boolean(recordedBlob);
       default:
         return selectedAnswer != null;
@@ -312,11 +301,13 @@ const TrainingPage: React.FC = () => {
           />
         );
       case "writing":
+        // Writing 컴포넌트가 "sentence" (한국어 원문) prop을 기대하므로 prop 이름을 맞춤
         return (
           <Writing
-            prompt={item.question}
+            sentence={String(item.question ?? "")}
             initialValue={writingValue}
             onChange={handleWritingChange}
+            disabled={showFeedback}
           />
         );
       case "speaking":
@@ -341,14 +332,12 @@ const TrainingPage: React.FC = () => {
       {/* --- Header --- */}
       <header className="flex-none border-b border-gray-200 bg-white">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
+          {/* 닫기 버튼을 overlay보다 위에 놓고 항상 클릭 가능하게 z-index와 pointer-events 설정 */}
           <button
             onClick={handleClose}
-            className={`w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition ${
-              showFeedback ? "opacity-50 pointer-events-none" : ""
-            }`}
+            className="w-8 h-8 relative z-40 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
             aria-label="닫기"
             type="button"
-            aria-disabled={showFeedback}
           >
             <svg
               className="w-4 h-4"
@@ -386,7 +375,7 @@ const TrainingPage: React.FC = () => {
         className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
         style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
       >
-        {/* Interaction blocker: 피드백이 올라오면 모든 메인 영역 인터랙션 차단 */}
+        {/* Interaction blocker: 피드백이 올라오면 메인 영역 인터랙션 차단 (header 버튼은 영향을 받지 않음) */}
         {showFeedback && (
           <div
             className="absolute inset-0 bg-transparent"
@@ -395,7 +384,6 @@ const TrainingPage: React.FC = () => {
           />
         )}
 
-        {/* fieldset으로 감싸고 showFeedback일 때 disabled */}
         <fieldset
           disabled={showFeedback}
           className="w-full flex flex-col gap-4 h-full"

@@ -89,13 +89,13 @@ const HomePage: React.FC = () => {
       startType: "writing",
     },
     {
-      id: "speaking-listening",
+      id: "speaking",
       title: "말하기 연습",
       description: "AI가 발음을 교정해드립니다",
       icon: <Mic className="w-5 h-5 sm:w-6 sm:h-6" />,
       color: "bg-indigo-500",
       progress: 100,
-      startType: "speakingListening",
+      startType: "speaking",
     },
   ];
 
