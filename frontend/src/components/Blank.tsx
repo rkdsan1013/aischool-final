@@ -22,16 +22,16 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
         </p>
       </div>
 
-      {/* 문제 카드 */}
+      {/* 문제 카드 (디자인 조화: bg-gray-50, border) */}
       <div className="w-full">
-        <div className="bg-card border-2 border-gray-200 rounded-2xl p-5 sm:p-6 min-h-[120px] flex items-center justify-center">
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6 min-h-[120px] flex items-center justify-center">
           <span className="text-lg sm:text-xl font-medium text-foreground text-center leading-relaxed">
             {question}
           </span>
         </div>
       </div>
 
-      {/* 선택지 그리드 */}
+      {/* 선택지 그리드 (디자인 조화: bg-white, border, shadow) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         {options.map((opt) => {
           const isSelected = selected === opt;
@@ -42,12 +42,12 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
               onClick={() => onSelect(opt)}
               className={`group w-full rounded-2xl text-left p-4 sm:p-5 transition-all duration-300 ${
                 isSelected
-                  ? "bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20"
-                  : "bg-card border-2 border-gray-200 hover:border-rose-400 hover:shadow-md"
+                  ? "bg-rose-500 border-rose-500 text-white shadow-xl shadow-rose-500/30 scale-[1.02]"
+                  : "bg-white border border-gray-200 hover:border-rose-400 hover:shadow-lg hover:scale-[1.02] active:scale-[.98]"
               }`}
             >
               <div className="flex items-center gap-3 sm:gap-4">
-                {/* 아이콘 */}
+                {/* 아이콘 (디자인 조화) */}
                 <div
                   className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold flex-shrink-0 transition-colors ${
                     isSelected

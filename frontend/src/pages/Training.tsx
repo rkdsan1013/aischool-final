@@ -1,13 +1,15 @@
 // src/pages/Training.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+// --- 경로 수정 (빌드 오류 해결) ---
 import Vocabulary from "../components/Vocabulary";
 import Sentence from "../components/Sentence";
 import Blank from "../components/Blank";
 import Writing from "../components/Writing";
-import SpeakingListening from "../components/SpeakingListening";
+import Speaking from "../components/Speaking";
 import type { QuestionItem, TrainingType } from "../services/trainingService";
 import { fetchTrainingQuestions } from "../services/trainingService";
+// --- 경로 수정 완료 ---
 
 /* location.state 타입가드 */
 function isLocState(
@@ -15,18 +17,20 @@ function isLocState(
 ): obj is { startType?: TrainingType; questions?: QuestionItem[] } {
   if (!obj || typeof obj !== "object") return false;
   const o = obj as Record<string, unknown>;
-  if ("startType" in o && typeof o.startType !== "undefined")
-    return typeof o.startType === "string";
-  if ("questions" in o && typeof o.questions !== "undefined")
-    return Array.isArray(o.questions);
-  return false;
+  const hasStart = typeof o.startType === "string";
+  const hasQuestions = Array.isArray(o.questions);
+  return hasStart || hasQuestions;
 }
 
-const FOOTER_BASE_HEIGHT = 64;
-const SAFE_BOTTOM = 12;
-const FEEDBACK_EXTRA_HEIGHT = 140;
-const FOOTER_TOTAL_PADDING =
-  FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_EXTRA_HEIGHT;
+// *** 원본 푸터 로직 복원 ***
+const FOOTER_BASE_HEIGHT = 64; // 버튼 영역 높이
+const SAFE_BOTTOM = 12; // 하단 여백
+const FEEDBACK_AREA_HEIGHT = 140; // 피드백 내용이 표시될 영역 높이
+const FOOTER_BUTTON_AREA_HEIGHT = FOOTER_BASE_HEIGHT + SAFE_BOTTOM; // 76px
+
+// main 태그의 padding-bottom에 사용할 전체 높이 (스크롤 방지)
+const MAIN_CONTENT_PADDING_BOTTOM =
+  FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_AREA_HEIGHT; // 216px
 
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -38,7 +42,15 @@ const TrainingPage: React.FC = () => {
         questions?: QuestionItem[];
       })
     : undefined;
-  const startType = locState?.startType as TrainingType | undefined;
+
+  // 안전한 rawStart 처리 (unknown)
+  const rawStart: unknown =
+    locState && (locState as Record<string, unknown>).startType;
+
+  const startType =
+    typeof rawStart === "string" && rawStart === "speakingListening"
+      ? ("speaking" as TrainingType)
+      : (rawStart as TrainingType | undefined);
 
   const [questions, setQuestions] = useState<QuestionItem[] | null>(
     locState?.questions ?? null
@@ -52,13 +64,13 @@ const TrainingPage: React.FC = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
   const [writingValue, setWritingValue] = useState<string>("");
-  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!startType) {
-      window.alert("잘못된 접근입니다. 훈련은 홈에서 시작해주세요.");
+    if (!startType && !questions) {
+      console.error("잘못된 접근입니다. 훈련은 홈에서 시작해주세요.");
       navigate("/home");
       return;
     }
@@ -72,7 +84,7 @@ const TrainingPage: React.FC = () => {
           setIndex(0);
         } catch (err) {
           console.error(err);
-          window.alert("문제를 불러오지 못했습니다.");
+          console.error("문제를 불러오지 못했습니다.");
           navigate("/home");
         } finally {
           setLoading(false);
@@ -80,15 +92,13 @@ const TrainingPage: React.FC = () => {
       };
       void load();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [startType, questions, navigate]);
 
   const currentQuestion = useMemo(
     () => (questions && questions[index] ? questions[index] : null),
     [questions, index]
   );
 
-  // stable options: 참조 안정화를 위해 복사 전달
   const stableOptions = useMemo(
     () => (currentQuestion?.options ? [...currentQuestion.options] : []),
     [currentQuestion?.options]
@@ -101,13 +111,16 @@ const TrainingPage: React.FC = () => {
       : ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
   const isLastQuestion = index === (questions?.length ?? 1) - 1;
 
-  const handleClose = () => navigate("/home");
+  // 닫기 버튼은 피드백 여부와 상관없이 항상 동작
+  const handleClose = () => {
+    navigate("/home");
+  };
 
   const resetQuestionState = () => {
     setSelectedAnswer(null);
     setSelectedOrder([]);
     setWritingValue("");
-    setIsRecording(false);
+    setRecordedBlob(null);
     setShowFeedback(false);
     setIsCorrect(false);
   };
@@ -117,19 +130,16 @@ const TrainingPage: React.FC = () => {
     setSelectedAnswer(option);
   };
 
-  // onPick: 풀에서 단어 하나를 추가했을 때
   const handlePickPart = (part: string) => {
     if (showFeedback) return;
     setSelectedOrder((s) => (s.includes(part) ? s : [...s, part]));
   };
 
-  // onRemove: 선택된 항목을 제거했을 때
   const handleRemovePart = (part: string) => {
     if (showFeedback) return;
     setSelectedOrder((s) => s.filter((x) => x !== part));
   };
 
-  // onReorder: 전체 재배열 결과를 받았을 때 (Sentence에서 호출)
   const handleReorder = (next: string[]) => {
     if (showFeedback) return;
     setSelectedOrder(next);
@@ -141,17 +151,23 @@ const TrainingPage: React.FC = () => {
   };
 
   const handleWritingChange = (v: string) => {
+    if (showFeedback) return;
     setWritingValue(v);
   };
 
-  const handleRecordToggle = (recording: boolean) => {
-    setIsRecording(recording);
+  const handleRecordToggle = () => {
+    if (showFeedback) return;
   };
 
   const handleRecordReceived = (blob: Blob) => {
-    setIsRecording(false);
+    if (showFeedback) return;
+    setRecordedBlob(blob);
     console.debug("received recording blob (demo)", blob);
   };
+
+  const arraysEqual = (a: string[], b: string[]) =>
+    a.length === b.length &&
+    a.every((v, i) => v.trim() === (b[i] ?? "").trim());
 
   const handleCheckAnswer = () => {
     if (!currentQuestion) return;
@@ -159,8 +175,7 @@ const TrainingPage: React.FC = () => {
 
     switch (currentQuestion.type) {
       case "vocabulary":
-      case "blank":
-      case "speakingListening": {
+      case "blank": {
         const correctField = currentQuestion.correct;
         correct =
           typeof correctField === "string"
@@ -170,11 +185,13 @@ const TrainingPage: React.FC = () => {
             : false;
         break;
       }
+      case "speaking": {
+        correct = Boolean(recordedBlob);
+        break;
+      }
       case "sentence": {
         if (Array.isArray(currentQuestion.correct)) {
-          correct =
-            JSON.stringify(currentQuestion.correct) ===
-            JSON.stringify(selectedOrder);
+          correct = arraysEqual(currentQuestion.correct, selectedOrder);
         } else if (typeof currentQuestion.correct === "string") {
           correct = currentQuestion.correct === selectedOrder.join(" ");
         } else {
@@ -205,13 +222,33 @@ const TrainingPage: React.FC = () => {
   };
 
   const handleTrainingComplete = () => {
-    window.alert("학습을 종료합니다.");
+    console.log("학습을 종료합니다.");
     navigate("/home");
   };
 
   const footerVisualHeight = showFeedback
-    ? FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_EXTRA_HEIGHT
-    : FOOTER_BASE_HEIGHT + SAFE_BOTTOM;
+    ? FOOTER_BUTTON_AREA_HEIGHT + FEEDBACK_AREA_HEIGHT
+    : FOOTER_BUTTON_AREA_HEIGHT;
+
+  const canCheck = useMemo(() => {
+    if (!currentQuestion) return false;
+    switch (currentQuestion.type) {
+      case "sentence":
+        return selectedOrder.length > 0;
+      case "writing":
+        return writingValue.trim().length > 0;
+      case "speaking":
+        return Boolean(recordedBlob);
+      default:
+        return selectedAnswer != null;
+    }
+  }, [
+    currentQuestion,
+    selectedOrder,
+    writingValue,
+    recordedBlob,
+    selectedAnswer,
+  ]);
 
   if (loading) {
     return (
@@ -224,7 +261,9 @@ const TrainingPage: React.FC = () => {
   if (!currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
-        <div className="text-gray-500">문제가 없습니다.</div>
+        <div className="text-gray-500">
+          문제를 불러오는 중이거나, 문제가 없습니다.
+        </div>
       </div>
     );
   }
@@ -262,19 +301,19 @@ const TrainingPage: React.FC = () => {
           />
         );
       case "writing":
+        // Writing 컴포넌트가 "sentence" (한국어 원문) prop을 기대하므로 prop 이름을 맞춤
         return (
           <Writing
-            prompt={item.question}
+            sentence={String(item.question ?? "")}
             initialValue={writingValue}
             onChange={handleWritingChange}
+            disabled={showFeedback}
           />
         );
-      case "speakingListening":
+      case "speaking":
         return (
-          <SpeakingListening
+          <Speaking
             prompt={item.question}
-            options={stableOptions}
-            onSelect={handleSelect}
             onRecord={handleRecordReceived}
             onToggleRecord={handleRecordToggle}
           />
@@ -290,11 +329,13 @@ const TrainingPage: React.FC = () => {
 
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
+      {/* --- Header --- */}
       <header className="flex-none border-b border-gray-200 bg-white">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
+          {/* 닫기 버튼을 overlay보다 위에 놓고 항상 클릭 가능하게 z-index와 pointer-events 설정 */}
           <button
             onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100"
+            className="w-8 h-8 relative z-40 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
             aria-label="닫기"
             type="button"
           >
@@ -313,6 +354,7 @@ const TrainingPage: React.FC = () => {
             </svg>
           </button>
 
+          {/* Progress Bar */}
           <div className="flex-1 px-3">
             <div className="mt-2">
               <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
@@ -328,164 +370,173 @@ const TrainingPage: React.FC = () => {
         </div>
       </header>
 
+      {/* --- Main Content --- */}
       <main
-        className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4"
-        style={{ paddingBottom: `${FOOTER_TOTAL_PADDING}px` }}
+        className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
+        style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
       >
-        <div className="w-full flex flex-col gap-4 h-full">
+        {/* Interaction blocker: 피드백이 올라오면 메인 영역 인터랙션 차단 (header 버튼은 영향을 받지 않음) */}
+        {showFeedback && (
+          <div
+            className="absolute inset-0 bg-transparent"
+            style={{ zIndex: 30, pointerEvents: "auto" }}
+            aria-hidden="true"
+          />
+        )}
+
+        <fieldset
+          disabled={showFeedback}
+          className="w-full flex flex-col gap-4 h-full"
+        >
           {renderQuestionComponent(currentQuestion)}
           <div className="flex-1" />
-        </div>
+        </fieldset>
       </main>
 
+      {/* --- Footer (원본 슬라이딩 로직 복원) --- */}
       <div
         className="fixed left-0 right-0 bottom-0 z-50 flex justify-center"
         style={{ pointerEvents: "none" }}
       >
         <div
-          className="max-w-4xl w-full px-4"
+          className="max-w-4xl w-full relative overflow-hidden"
           style={{
             height: `${footerVisualHeight}px`,
             transition: "height 260ms ease",
-            paddingBottom: `${SAFE_BOTTOM}px`,
             pointerEvents: "auto",
           }}
         >
-          <div className="relative h-full flex flex-col justify-end">
+          {/* 피드백 카드 */}
+          <div
+            className={`absolute bottom-0 left-0 right-0 transition-transform duration-300 ease-out ${
+              showFeedback ? "translate-y-0" : "translate-y-full"
+            } ${
+              isCorrect
+                ? "bg-green-100 border-t border-green-200"
+                : "bg-rose-100 border-t border-rose-200"
+            } rounded-t-2xl shadow-2xl`}
+            style={{
+              height: "100%",
+              zIndex: 5,
+              pointerEvents: showFeedback ? "auto" : "none",
+            }}
+          >
             <div
-              className="absolute left-4 right-4 top-0 flex justify-center"
-              style={{
-                transform: showFeedback ? "translateY(0)" : "translateY(20px)",
-                opacity: showFeedback ? 1 : 0,
-                transition: "transform 260ms ease, opacity 200ms ease",
-                pointerEvents: showFeedback ? "auto" : "none",
-              }}
+              className="max-w-4xl mx-auto w-full flex items-start gap-3 p-4"
+              style={{ height: `${FEEDBACK_AREA_HEIGHT}px` }}
             >
               {showFeedback && (
-                <div
-                  className={`w-full rounded-lg p-3 border shadow-md ${
-                    isCorrect
-                      ? "bg-green-50 border-green-200"
-                      : "bg-rose-50 border-rose-200"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
+                <>
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      isCorrect ? "bg-green-500" : "bg-rose-500"
+                    }`}
+                  >
+                    {isCorrect ? (
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1">
                     <div
-                      className={`w-10 h-10 rounded-md flex items-center justify-center ${
-                        isCorrect ? "bg-green-500" : "bg-rose-500"
+                      className={`text-lg font-semibold ${
+                        isCorrect ? "text-green-800" : "text-rose-800"
                       }`}
                     >
-                      {isCorrect ? (
-                        <svg
-                          className="w-5 h-5 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={3}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="w-5 h-5 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={3}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      )}
+                      {isCorrect ? "정답입니다!" : "아쉬워요!"}
                     </div>
-
-                    <div className="flex-1">
-                      <div
-                        className={`text-sm font-semibold ${
-                          isCorrect ? "text-green-700" : "text-rose-700"
-                        }`}
-                      >
-                        {isCorrect ? "정답입니다!" : "아쉬워요!"}
-                      </div>
-                      {!isCorrect && (
+                    {!isCorrect &&
+                      currentQuestion.type !== "writing" &&
+                      currentQuestion.type !== "speaking" && (
                         <div className="mt-1">
-                          <div className="text-xs text-gray-500">정답은</div>
-                          <div className="text-sm font-bold text-gray-900 mt-1">
+                          <div className="text-sm text-gray-600">정답은</div>
+                          <div className="text-base font-bold text-gray-900 mt-1">
                             {String(currentQuestion.correct ?? "")}
                           </div>
                         </div>
                       )}
-                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
+          </div>
 
-            <div className="w-full">
-              <div
-                style={{
-                  height: `${FOOTER_BASE_HEIGHT}px`,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                <div className="w-full px-0">
-                  {!showFeedback ? (
-                    <button
-                      onClick={handleCheckAnswer}
-                      disabled={
-                        currentQuestion?.type === "sentence"
-                          ? selectedOrder.length === 0
-                          : currentQuestion?.type === "writing"
-                          ? writingValue.trim().length === 0
-                          : currentQuestion?.type === "speakingListening"
-                          ? isRecording
-                          : selectedAnswer == null
-                      }
-                      className={`w-full h-12 rounded-lg font-semibold text-base transition ${
-                        (
-                          currentQuestion?.type === "writing"
-                            ? writingValue.trim().length > 0
-                            : currentQuestion?.type === "sentence"
-                            ? selectedOrder.length > 0
-                            : selectedAnswer
-                        )
-                          ? "bg-rose-500 text-white shadow"
-                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      }`}
-                      style={{ pointerEvents: "auto" }}
-                    >
-                      정답 확인
-                    </button>
-                  ) : isLastQuestion ? (
-                    <button
-                      onClick={handleTrainingComplete}
-                      className="w-full h-12 rounded-lg font-semibold text-base transition bg-indigo-600 text-white shadow"
-                      style={{ pointerEvents: "auto" }}
-                    >
-                      학습 종료
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleNext}
-                      className={`w-full h-12 rounded-lg font-semibold text-base transition ${
-                        isCorrect
-                          ? "bg-green-600 text-white shadow"
-                          : "bg-rose-600 text-white shadow"
-                      }`}
-                      style={{ pointerEvents: "auto" }}
-                    >
-                      다음 문제
-                    </button>
-                  )}
-                </div>
+          {/* 버튼 컨테이너 */}
+          <div
+            className="absolute bottom-0 left-0 right-0 w-full"
+            style={{
+              height: `${FOOTER_BUTTON_AREA_HEIGHT}px`,
+              paddingBottom: `${SAFE_BOTTOM}px`,
+              zIndex: 10,
+              pointerEvents: "auto",
+            }}
+          >
+            <div
+              className="flex items-center max-w-4xl mx-auto w-full px-4"
+              style={{
+                height: `${FOOTER_BASE_HEIGHT}px`,
+              }}
+            >
+              <div className="w-full px-0">
+                {!showFeedback ? (
+                  <button
+                    onClick={handleCheckAnswer}
+                    disabled={!canCheck}
+                    className={`w-full h-12 rounded-xl font-semibold text-base transition duration-200 ${
+                      canCheck
+                        ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20 active:scale-[.98]"
+                        : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
+                    style={{ pointerEvents: "auto" }}
+                  >
+                    정답 확인
+                  </button>
+                ) : isLastQuestion ? (
+                  <button
+                    onClick={handleTrainingComplete}
+                    className="w-full h-12 rounded-xl font-semibold text-base transition duration-200 bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 active:scale-[.98]"
+                    style={{ pointerEvents: "auto" }}
+                  >
+                    학습 종료
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleNext}
+                    className={`w-full h-12 rounded-xl font-semibold text-base transition duration-200 text-white shadow-lg active:scale-[.98] ${
+                      isCorrect
+                        ? "bg-green-600 shadow-green-500/20"
+                        : "bg-rose-600 shadow-rose-500/20"
+                    }`}
+                    style={{ pointerEvents: "auto" }}
+                  >
+                    다음 문제
+                  </button>
+                )}
               </div>
             </div>
           </div>
