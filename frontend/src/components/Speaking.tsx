@@ -95,7 +95,7 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, onToggleRecord }) => {
       {/* 듣기 선택지 (제거됨) */}
 
       {/* 녹음 컨트롤 영역 (디자인 조화: bg-white) */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 flex flex-col items-center gap-4">
+      <div className=" rounded-2xl p-5 sm:p-6 flex flex-col items-center gap-4">
         {/* 녹음 버튼 */}
         <button
           type="button"

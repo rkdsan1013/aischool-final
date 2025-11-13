@@ -8,8 +8,9 @@ import {
   Users,
   MessageSquare,
   Volume2,
-  Clock,
   Check,
+  Phone,
+  PhoneOff,
 } from "lucide-react";
 
 // Participant 인터페이스
@@ -42,13 +43,17 @@ function formatTime(seconds: number) {
 export default function VoiceRoomDetail(): React.ReactElement {
   const navigate = useNavigate();
   const [isMuted, setIsMuted] = useState(false);
-  const [isConnected, setIsConnected] = useState(true);
+  const [isConnected, setIsConnected] = useState(true); // 통화 참여 여부
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true); // 스피커(오디오 출력) 토글
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [sessionTime, setSessionTime] = useState(0);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const participantsRef = useRef<HTMLDivElement | null>(null);
+
+  // 입력 상태
+  const [inputText, setInputText] = useState("");
 
   // 초기 데이터 및 타이머
   useEffect(() => {
@@ -237,6 +242,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
     });
   };
 
+  const toggleSpeaker = () => {
+    setIsSpeakerOn((s) => !s);
+    // 실제 오디오 출력 라우팅 변경은 여기서 구현
+  };
+
   const handleLeaveRoom = () => {
     if (recognitionRef.current) {
       try {
@@ -247,36 +257,135 @@ export default function VoiceRoomDetail(): React.ReactElement {
     navigate("/voiceroom");
   };
 
+  const handleJoinCall = () => {
+    setIsConnected(true);
+    // 재연결 시 STT 재시작 시도
+    if (recognitionRef.current && !isMuted) {
+      try {
+        recognitionRef.current.start();
+      } catch {}
+    }
+  };
+
   // 뒤로 가기 (ArrowLeft) 처리: 방 나가기와 동일하게 동작시킴
   const handleBack = () => {
     handleLeaveRoom();
   };
 
+  // 사용자가 푸터에서 텍스트 전송
+  const handleSend = () => {
+    const text = inputText.trim();
+    if (!text) return;
+    const newTranscript: TranscriptItem = {
+      id: Date.now().toString(),
+      speaker: "나",
+      text,
+      timestamp: new Date(),
+      feedback:
+        text.length > 20 ? "Good pronunciation! 발음이 정확해요." : undefined,
+    };
+    setTranscript((prev) => [...prev, newTranscript]);
+    setInputText("");
+  };
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     // 전체 화면 고정, 페이지 자체 스크롤 차단
-    <div className="min-h-screen h-screen w-screen overflow-hidden bg-white text-gray-900 font-sans flex flex-col">
-      {/* Header: 모바일 우선, ArrowLeft(뒤로) 버튼 상단 좌측 배치 (동그라미 보더 제거) */}
-      <header className="flex items-center justify-between px-3 py-2 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen h-screen w-screen overflow-hidden bg-white text-gray-900 flex flex-col">
+      {/* Header: 모바일 우선 - 아이콘들을 동그라미 박스에 넣어 배경과 구분 */}
+      <header className="flex items-center justify-between px-4 py-3.5 border-b border-gray-200 flex-shrink-0">
+        <div className="flex items-center gap-3.5">
           <button
             onClick={handleBack}
-            className="p-1 text-gray-700 hover:bg-gray-50 rounded-md"
+            className="p-2 text-gray-700 hover:bg-gray-50 rounded-md"
             aria-label="뒤로"
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
 
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md">
-              <Users className="w-4 h-4" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md">
+              <Users className="w-4.5 h-4.5" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold">초보자 환영방</span>
+              <span className="text-sm sm:text-base font-bold">
+                초보자 환영방
+              </span>
               <span className="text-xs text-gray-600">
-                {participants.length}명
+                {participants.length}명 · {formatTime(sessionTime)}
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Header 오른쪽: 각 아이콘을 동그라미 박스에 넣어 배경과 구분 */}
+        <div className="flex items-center gap-2.5">
+          {/* 스피커 토글 (원형 박스) */}
+          <button
+            onClick={toggleSpeaker}
+            className={`p-2.5 rounded-full flex items-center justify-center ${
+              isSpeakerOn
+                ? "bg-rose-50 text-rose-600"
+                : "bg-gray-50 text-gray-500"
+            } hover:brightness-95`}
+            aria-pressed={isSpeakerOn}
+            aria-label={isSpeakerOn ? "스피커 끄기" : "스피커 켜기"}
+            title={isSpeakerOn ? "스피커 켜짐" : "스피커 꺼짐"}
+            style={{ width: 40, height: 40 }}
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
+
+          {/* 음소거 토글 (원형 박스) */}
+          <button
+            onClick={toggleMute}
+            className={`p-2.5 rounded-full flex items-center justify-center ${
+              isMuted ? "bg-red-50 text-red-600" : "bg-gray-50 text-gray-700"
+            } hover:brightness-95`}
+            aria-pressed={isMuted}
+            aria-label={isMuted ? "음소거 해제" : "음소거"}
+            title={isMuted ? "마이크 음소거됨" : "마이크 음소거 아님"}
+            style={{ width: 40, height: 40 }}
+          >
+            {isMuted ? (
+              <MicOff className="w-5 h-5" />
+            ) : (
+              <Mic className="w-5 h-5" />
+            )}
+          </button>
+
+          {/* 통화 참여 / 끊기 (원형 박스 + 텍스트) */}
+          {isConnected ? (
+            <button
+              onClick={handleLeaveRoom}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
+              aria-label="통화 끊기"
+              title="통화 끊기"
+            >
+              <div className="w-8 h-8 rounded-full bg-red-700 flex items-center justify-center">
+                <PhoneOff className="w-4 h-4 text-white" />
+              </div>
+              <span className="hidden sm:inline">나가기</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleJoinCall}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500 text-white text-sm hover:bg-rose-600"
+              aria-label="통화 참여"
+              title="통화 참여"
+            >
+              <div className="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center">
+                <Phone className="w-4 h-4 text-white" />
+              </div>
+              <span className="hidden sm:inline">참여</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -389,38 +498,70 @@ export default function VoiceRoomDetail(): React.ReactElement {
             ))}
 
             {/* 바닥 여백 확보 (입력 바 높이와 겹치지 않도록) */}
-            <div style={{ height: 72 }} />
+            <div style={{ height: 88 }} />
           </div>
 
           {/* 입력/행동 패널 (고정 하단) */}
-          <div className="absolute left-0 right-0 bottom-0 px-3 py-2 border-t border-gray-100 bg-white flex items-center gap-3">
-            <button
-              onClick={toggleMute}
-              className={`w-11 h-11 rounded-full flex items-center justify-center ${
-                isMuted ? "bg-red-500 text-white" : "bg-gray-100 text-gray-700"
-              }`}
-              aria-label={isMuted ? "마이크 켜기" : "마이크 끄기"}
-            >
-              {isMuted ? (
-                <MicOff className="w-5 h-5" />
-              ) : (
-                <Mic className="w-5 h-5" />
-              )}
-            </button>
+          <div className="absolute left-0 right-0 bottom-0 px-3 py-3 border-t border-gray-100 bg-white flex items-center gap-3">
+            {/* 텍스트 입력 (전체 너비에서 send 버튼 제외한 부분 차지) */}
+            <div className="flex-1">
+              <label htmlFor="voice-input" className="sr-only">
+                메시지 입력
+              </label>
+              <input
+                id="voice-input"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Say something... (or type here)"
+                className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
+                aria-label="메시지 입력"
+              />
+            </div>
 
-            <button className="flex-1 rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-600 text-left">
-              Say something... (STT active)
-            </button>
-
+            {/* Send 버튼 */}
             <button
-              className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center"
-              aria-label="볼륨"
+              onClick={handleSend}
+              className="w-12 h-12 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600"
+              aria-label="전송"
             >
-              <Volume2 className="w-5 h-5 text-gray-700" />
+              <SendIcon size={18} />
             </button>
           </div>
         </section>
       </main>
     </div>
+  );
+}
+
+/**
+ * 작은 Send 아이콘 컴포넌트 (크기 prop 추가).
+ */
+function SendIcon({ size = 18 }: { size?: number }) {
+  const s = size;
+  return (
+    <svg
+      width={s}
+      height={s}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M22 2L11 13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M22 2L15 22L11 13L2 9L22 2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

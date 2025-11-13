@@ -177,12 +177,6 @@ const Sentence: React.FC<Props> = ({
     }
   };
 
-  const handleReset = () => {
-    setPlaced([]);
-    onReset?.();
-    onReorder?.([]);
-  };
-
   const pool = options.slice();
 
   return (
@@ -215,13 +209,6 @@ const Sentence: React.FC<Props> = ({
           <span className="text-sm font-semibold text-muted-foreground">
             배열된 문장
           </span>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="text-sm font-medium text-muted-foreground hover:text-rose-500 transition-colors"
-          >
-            초기화
-          </button>
         </div>
 
         <DndContext
@@ -268,10 +255,7 @@ const Sentence: React.FC<Props> = ({
       </div>
 
       {/* 단어 풀 (디자인 조화: bg-gray-50) */}
-      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 sm:p-5">
-        <span className="text-sm font-semibold text-muted-foreground mb-3 block">
-          단어 목록
-        </span>
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5">
         <div className="flex flex-wrap gap-2 sm:gap-3">
           {pool.map((part, idx) => {
             const disabled = placed.includes(part);
