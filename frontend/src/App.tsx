@@ -1,3 +1,4 @@
+// frontend/src/App.tsx
 import React, { useEffect } from "react";
 import {
   createBrowserRouter,
@@ -5,13 +6,13 @@ import {
   Outlet,
   useNavigate,
 } from "react-router-dom";
-import { routes } from "./routes/routes"; // ✅ 라우트 정의 가져오기
-
+import { routes } from "./routes/routes";
 import ScrollToTop from "./components/ScrollToTop";
 import AuthProvider from "./providers/AuthProvider";
+import ProfileProvider from "./providers/ProfileProvider";
 import { setNavigator } from "./routes/navigate";
 
-// ✅ NavigatorSetter: useNavigate를 전역 navigate 헬퍼에 연결
+// NavigatorSetter: useNavigate를 전역 navigate 헬퍼에 연결
 function NavigatorSetter() {
   const navigate = useNavigate();
   useEffect(() => {
@@ -23,11 +24,13 @@ function NavigatorSetter() {
 const router = createBrowserRouter([
   {
     element: (
-      <AuthProvider>
-        <ScrollToTop />
-        <NavigatorSetter />
-        <Outlet />
-      </AuthProvider>
+      <ProfileProvider>
+        <AuthProvider>
+          <ScrollToTop />
+          <NavigatorSetter />
+          <Outlet />
+        </AuthProvider>
+      </ProfileProvider>
     ),
     children: routes,
   },
