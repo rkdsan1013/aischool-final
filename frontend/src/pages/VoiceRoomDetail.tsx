@@ -7,7 +7,6 @@ import {
   Users,
   MessageSquare,
   Volume2,
-  Phone,
   PhoneOff,
   AlertCircle,
 } from "lucide-react";
@@ -217,13 +216,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
       {
         id: "6",
         speaker: "나",
-        text: "I didn't recieve the email yet.",
+        text: "I didn't receive the email yet.",
         timestamp: new Date(Date.now() - 60000),
         feedback: {
           errors: [
             {
               index: 3,
-              word: "recieve",
+              word: "receive",
               type: "spelling",
               message: "'receive'로 철자 수정 필요",
             },
@@ -395,22 +394,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     navigate("/voiceroom");
   };
 
-  const handleJoinCall = () => {
-    setIsConnected(true);
-    const rec = recognitionRef.current;
-    if (rec && !isMuted) {
-      try {
-        rec.start();
-      } catch {
-        // intentionally empty
-      }
-    }
-  };
-
-  const handleBack = () => {
-    handleLeaveRoom();
-  };
-
   const handleSend = () => {
     const text = inputText.trim();
     if (!text) return;
@@ -419,7 +402,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
       speaker: "나",
       text,
       timestamp: new Date(),
-      // 피드백 없이 단순 추가
     };
     setTranscript((prev) => [...prev, newTranscript]);
     setInputText("");
@@ -482,7 +464,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (outOfView) {
       closeTooltip();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // interactions
@@ -582,31 +563,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
               )}
             </button>
 
-            {/* {isConnected ? (
-              <button
-                onClick={handleLeaveRoom}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
-                aria-label="통화 끊기"
-                title="통화 끊기"
-              >
-                <div className="w-8 h-8 rounded-full bg-red-700 flex items-center justify-center">
-                  <PhoneOff className="w-4 h-4 text-white" />
-                </div>
-                <span className="hidden sm:inline">나가기</span>
-              </button>
-            ) : (
-              <button
-                onClick={handleJoinCall}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500 text-white text-sm hover:bg-rose-600"
-                aria-label="통화 참여"
-                title="통화 참여"
-              >
-                <div className="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center">
-                  <Phone className="w-4 h-4 text-white" />
-                </div>
-                <span className="hidden sm:inline">참여</span>
-              </button>
-            )} */}
             <button
               onClick={handleLeaveRoom}
               className="flex items-center gap-1 px-4.5 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
@@ -824,8 +780,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="메시지를 입력하세요..." /* 한국어로 변경 */
-                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200" /* 입력창을 더 넓고 여유있게 조정 */
+                    placeholder="메시지를 입력하세요..."
+                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
                     aria-label="메시지 입력"
                   />
                 </div>
