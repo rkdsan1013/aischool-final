@@ -219,7 +219,7 @@ const conversationsSeed: ConversationRecord[] = [
   },
   {
     id: "vocab-20250112-1",
-    scenarioTitle: "단어 학습 세션",
+    scenarioTitle: "단어 학습",
     category: "단어",
     type: "학습",
     date: new Date(2025, 0, 12, 10, 15),
@@ -228,7 +228,7 @@ const conversationsSeed: ConversationRecord[] = [
   },
   {
     id: "sentence-20250111-1",
-    scenarioTitle: "문장 연습 세션",
+    scenarioTitle: "문장 연습",
     category: "문장",
     type: "학습",
     date: new Date(2025, 0, 11, 19, 0),
@@ -237,7 +237,7 @@ const conversationsSeed: ConversationRecord[] = [
   },
   {
     id: "fill-20250110-1",
-    scenarioTitle: "빈칸 채우기 연습",
+    scenarioTitle: "빈칸 채우기",
     category: "빈칸",
     type: "학습",
     date: new Date(2025, 0, 10, 13, 45),
