@@ -222,11 +222,11 @@ const Sentence: React.FC<Props> = ({
             strategy={horizontalListSortingStrategy}
           >
             <div
-              className="min-h-[50px] sm:min-h-[72px] flex flex-wrap gap-2"
+              className="min-h-[44px] sm:min-h-[44px] flex flex-wrap gap-2"
               role="list"
             >
               {placed.length === 0 ? (
-                <div className="flex items-center h-[50px] sm:h-[72px] text-muted-foreground text-sm">
+                <div className="flex items-center h-[44px] sm:h-[44px] text-muted-foreground text-sm">
                   아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
                 </div>
               ) : (
