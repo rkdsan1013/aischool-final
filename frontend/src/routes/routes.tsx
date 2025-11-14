@@ -12,10 +12,11 @@ import AITalk from "../pages/AITalkPage";
 import VoiceRoomPage from "../pages/VoiceRoomPage";
 import TrainingPage from "../pages/Training";
 import VoiceRoomDetail from "../pages/VoiceRoomDetail";
-import VoiceRoomCreate from "../pages/VoiceRoomCreate"; // [ADDED]
-import AITalkPageDetail from "../pages/AITalkPageDetail"; // [ADDED]
-import AITalkCustomScenario from "../pages/AITalkCustomScenario"; // [ADDED]
+import VoiceRoomCreate from "../pages/VoiceRoomCreate";
+import AITalkPageDetail from "../pages/AITalkPageDetail";
+import AITalkCustomScenario from "../pages/AITalkCustomScenario";
 import MyPageHistory from "../pages/MyPageHistory";
+import MyPageProfile from "../pages/MyPageProfile";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -85,6 +86,14 @@ export const routes: RouteObject[] = [
         element: (
           <ProtectedRoute redirectTo="/auth">
             <MyPageHistory />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/my/profile",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <MyPageProfile />
           </ProtectedRoute>
         ),
       },
