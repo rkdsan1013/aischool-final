@@ -27,10 +27,12 @@ interface Props {
   onPick?: (part: string) => void;
   onRemove?: (part: string) => void;
   onReorder?: (order: string[]) => void;
-  onReset?: () => void;
 }
 
-// 드래그 가능한 아이템 (디자인 조화: bg-rose-100, border-rose-300)
+// 공통 텍스트 스타일: 카드 너비는 내용에 맞게 자동, 줄바꿈 금지로 높이 변화 방지
+const CARD_TEXT_CLASS =
+  "text-base font-medium whitespace-nowrap overflow-hidden";
+
 function SortablePlacedItem({
   id,
   value,
@@ -71,20 +73,22 @@ function SortablePlacedItem({
       {...attributes}
       {...listeners}
       onClick={handleClick}
-      className={`flex-shrink-0S rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
-        isDragging ? "shadow-lg scale-[1.03] z-50" : ""
-      }`}
       role="listitem"
       aria-label={`선택된 단어 ${value}`}
+      className={`flex-none rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
+        isDragging ? "shadow-lg scale-[1.03] z-50" : ""
+      }`}
     >
-      <div className="p-3 sm:p-4 text-base font-medium whitespace-pre">
+      {/* inline-flex으로 너비가 내용에 맞게 결정되며 padding으로 카드 크기 보정 */}
+      <div
+        className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
+      >
         {value}
       </div>
     </div>
   );
 }
 
-// 단어 풀 아이템 (디자인 조화: bg-white, border-gray-200)
 function PoolItem({
   value,
   onAdd,
@@ -100,13 +104,19 @@ function PoolItem({
       onClick={() => !disabled && onAdd(value)}
       disabled={disabled}
       aria-pressed={disabled}
-      className={`flex-shrink-0 items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl transition-all duration-300 whitespace-pre ${
+      className={`flex-none text-left rounded-2xl transition-all duration-200 inline-flex items-center ${
+        disabled ? "cursor-not-allowed" : "hover:shadow-md active:scale-95"
+      } ${
         disabled
-          ? "bg-gray-100 text-gray-400 opacity-70 cursor-not-allowed border border-gray-200"
-          : "bg-white border border-gray-200 text-foreground text-base font-medium hover:border-rose-400 hover:shadow-md active:scale-95"
+          ? "bg-gray-100 text-gray-400 border border-gray-200"
+          : "bg-white border border-gray-200 text-foreground"
       }`}
     >
-      {value}
+      <div
+        className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
+      >
+        {value}
+      </div>
     </button>
   );
 }
@@ -118,7 +128,6 @@ const Sentence: React.FC<Props> = ({
   onPick,
   onRemove,
   onReorder,
-  onReset,
 }) => {
   const [placed, setPlaced] = React.useState<string[]>(() =>
     selectedOrder ? selectedOrder.slice() : []
@@ -181,7 +190,6 @@ const Sentence: React.FC<Props> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* 제목 및 설명 */}
       <div className="text-left">
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">
           문장 배열하기
@@ -191,7 +199,6 @@ const Sentence: React.FC<Props> = ({
         </p>
       </div>
 
-      {/* 문제 카드 (디자인 조화: bg-gray-50) */}
       <div className="w-full">
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6">
           <span className="text-lg sm:text-xl font-medium text-foreground">
@@ -200,7 +207,7 @@ const Sentence: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 선택된 순서 (드래그 영역) (디자인 조화: bg-white) */}
+      {/* 배열된 단어 영역: 충분한 여유 높이로 레이아웃 고정. 카드 너비는 내용 기반 */}
       <div
         className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5"
         style={{ touchAction: "none" }}
@@ -221,31 +228,40 @@ const Sentence: React.FC<Props> = ({
             items={placed}
             strategy={horizontalListSortingStrategy}
           >
+            {/* min-h를 넉넉하게 잡아 항목 추가로 인한 부모 레이아웃 변화 억제 */}
             <div
-              className="min-h-[44px] sm:min-h-[44px] flex flex-wrap gap-2"
+              className="min-h-[88px] sm:min-h-[88px] flex items-center gap-2 overflow-x-auto py-2"
               role="list"
             >
-              {placed.length === 0 ? (
-                <div className="flex items-center h-[44px] sm:h-[44px] text-muted-foreground text-sm">
-                  아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
-                </div>
-              ) : (
-                placed.map((part) => (
-                  <SortablePlacedItem
-                    key={part}
-                    id={part}
-                    value={part}
-                    onRemove={handleRemove}
-                  />
-                ))
-              )}
+              <div
+                className="flex items-center gap-2"
+                style={{ flexWrap: "nowrap" }}
+              >
+                {placed.length === 0 ? (
+                  <div className="flex items-center h-[56px] sm:h-[56px] text-muted-foreground text-sm px-2">
+                    아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
+                  </div>
+                ) : (
+                  placed.map((part) => (
+                    <SortablePlacedItem
+                      key={part}
+                      id={part}
+                      value={part}
+                      onRemove={handleRemove}
+                    />
+                  ))
+                )}
+                <div aria-hidden style={{ width: 12 }} />
+              </div>
             </div>
           </SortableContext>
 
           <DragOverlay dropAnimation={{ duration: 160 }}>
             {activeId ? (
               <div className="rounded-2xl bg-white border-2 border-rose-400 shadow-lg flex items-center select-none scale-[1.03]">
-                <div className="p-3 sm:p-4 text-base font-medium text-foreground whitespace-pre">
+                <div
+                  className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
+                >
                   {String(activeId)}
                 </div>
               </div>
@@ -254,7 +270,6 @@ const Sentence: React.FC<Props> = ({
         </DndContext>
       </div>
 
-      {/* 단어 풀 (디자인 조화: bg-gray-50) */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5">
         <div className="flex flex-wrap gap-2 sm:gap-3">
           {pool.map((part, idx) => {

@@ -145,11 +145,6 @@ const TrainingPage: React.FC = () => {
     setSelectedOrder(next);
   };
 
-  const handleResetOrder = () => {
-    if (showFeedback) return;
-    setSelectedOrder([]);
-  };
-
   const handleWritingChange = (v: string) => {
     if (showFeedback) return;
     setWritingValue(v);
@@ -288,7 +283,6 @@ const TrainingPage: React.FC = () => {
             onPick={handlePickPart}
             onRemove={handleRemovePart}
             onReorder={handleReorder}
-            onReset={handleResetOrder}
           />
         );
       case "blank":
