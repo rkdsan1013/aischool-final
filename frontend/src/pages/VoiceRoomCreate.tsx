@@ -1,7 +1,7 @@
 // src/pages/VoiceRoomCreate.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronDown, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 
 type FormState = {
   name: string;

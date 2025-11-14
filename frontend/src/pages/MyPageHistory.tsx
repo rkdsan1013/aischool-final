@@ -1,13 +1,7 @@
 // src/pages/MyPageHistory.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  ChevronDown,
-  Calendar,
-  MessageCircle,
-  X,
-} from "lucide-react";
+import { ChevronDown, Calendar, MessageCircle, X } from "lucide-react";
 
 type ConversationRecord = {
   id: string;
@@ -27,7 +21,8 @@ const CustomDropdown: React.FC<{
   id?: string;
   label?: React.ReactNode;
 }> = ({ value, onChange, options, id, label }) => {
-  const uid = id ?? `cd-${Math.random().toString(36).slice(2, 9)}`;
+  const uidRef = useRef(id ?? `cd-${Math.random().toString(36).slice(2, 9)}`);
+  const uid = uidRef.current;
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -49,9 +44,13 @@ const CustomDropdown: React.FC<{
       )
         return;
       setOpen(false);
+      btnRef.current?.focus();
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        btnRef.current?.focus();
+      }
     }
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("touchstart", onDocClick);
@@ -145,7 +144,7 @@ const CustomDropdown: React.FC<{
           {options.find((o) => o.value === value)?.label}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-gray-500 transition-transform duration-250 ${
+          className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
             open ? "rotate-180" : "rotate-0"
           }`}
           aria-hidden
@@ -407,8 +406,9 @@ const MyPageHistory: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      <header className="bg-rose-500 text-white p-4 sm:p-6 shadow-md">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+      {/* header 전체 폭 배경 유지, 내부 컨테이너에 콘텐츠 패딩을 맞춰서 좌우 여백(콘텐츠와 동일) 정렬 */}
+      <header className="bg-rose-500 text-white py-4 shadow-md">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between">
           {/* 좌측: 헤더 멘트 */}
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold mb-0 leading-tight truncate">
