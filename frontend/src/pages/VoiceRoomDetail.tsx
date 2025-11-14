@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Mic,
   MicOff,
-  ArrowLeft,
   Users,
   MessageSquare,
   Volume2,
@@ -483,6 +482,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (outOfView) {
       closeTooltip();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // interactions
@@ -534,13 +534,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
       <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 flex-shrink-0">
         <div className="max-w-4xl w-full mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <button
-              onClick={handleBack}
-              className="p-2 text-gray-700 hover:bg-gray-50 rounded-md"
-              aria-label="뒤로"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md">
                 <Users className="w-4.5 h-4.5" />
@@ -589,7 +582,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
               )}
             </button>
 
-            {isConnected ? (
+            {/* {isConnected ? (
               <button
                 onClick={handleLeaveRoom}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
@@ -613,7 +606,18 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 </div>
                 <span className="hidden sm:inline">참여</span>
               </button>
-            )}
+            )} */}
+            <button
+              onClick={handleLeaveRoom}
+              className="flex items-center gap-1 px-4.5 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
+              aria-label="나가기"
+              title="나가기"
+            >
+              <div className="w-8 h-8 flex items-center justify-center">
+                <PhoneOff className="w-4 h-4 text-white" />
+              </div>
+              <span className="hidden sm:inline">나가기</span>
+            </button>
           </div>
         </div>
       </header>
@@ -636,7 +640,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     )}
                     <div
                       className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
-                        p.id === "1" ? "bg-rose-500" : "bg-blue-500"
+                        p.id === "1" ? "bg-rose-500" : "bg-gray-300"
                       }`}
                     >
                       {p.name.charAt(0)}
@@ -806,11 +810,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 );
               })}
 
-              <div style={{ height: 88 }} />
+              <div style={{ height: 70 }} />
             </div>
 
-            <div className="absolute left-0 right-0 bottom-0 px-3 py-3 border-t border-gray-100 bg-white flex items-center gap-3">
-              <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-3">
+            <div className="absolute left-0 right-0 bottom-0 px-0 py-2 border-t border-gray-100 bg-white flex items-center gap-2">
+              <div className="max-w-4xl mx-auto w-full px-0 sm:px-6 flex items-center gap-3">
                 <div className="flex-1">
                   <label htmlFor="voice-input" className="sr-only">
                     메시지 입력
@@ -820,8 +824,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Say something... (or type here)"
-                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
+                    placeholder="메시지를 입력하세요..." /* 한국어로 변경 */
+                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200" /* 입력창을 더 넓고 여유있게 조정 */
                     aria-label="메시지 입력"
                   />
                 </div>
