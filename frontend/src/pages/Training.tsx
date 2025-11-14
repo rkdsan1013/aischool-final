@@ -474,7 +474,7 @@ const TrainingPage: React.FC = () => {
                       currentQuestion.type !== "writing" &&
                       currentQuestion.type !== "speaking" && (
                         <div className="mt-1">
-                          <div className="text-sm text-gray-600">정답은</div>
+                          <div className="text-sm text-gray-600">정답</div>
                           <div className="text-base font-bold text-gray-900 mt-1">
                             {Array.isArray(currentQuestion.correct)
                               ? currentQuestion.correct.join(" ")
@@ -521,7 +521,11 @@ const TrainingPage: React.FC = () => {
                 ) : isLastQuestion ? (
                   <button
                     onClick={handleTrainingComplete}
-                    className="w-full h-12 rounded-xl font-semibold text-base transition duration-200 bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 active:scale-[.98]"
+                    className={`w-full h-12 rounded-xl font-semibold text-base transition duration-200 text-white shadow-lg active:scale-[.98] ${
+                      isCorrect
+                        ? "bg-green-600 shadow-green-500/20"
+                        : "bg-rose-600 shadow-rose-500/20"
+                    }`}
                     style={{ pointerEvents: "auto" }}
                   >
                     학습 종료
