@@ -282,11 +282,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
             prev.map((p) => (p.id === "1" ? { ...p, isSpeaking: false } : p))
           );
           if (!isMuted && isConnected) {
+            // try restart after short delay; ignore any thrown errors
             setTimeout(() => {
               try {
                 recognition.start();
-              } catch (err) {
-                // ignore restart error
+              } catch {
+                // intentionally empty
               }
             }, 200);
           }
@@ -320,8 +321,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
       try {
         if (isConnected && !isMuted && recognitionRef.current)
           recognitionRef.current.start();
-      } catch (err) {
-        // ignore start error
+      } catch {
+        // intentionally empty
       }
     }
 
@@ -352,8 +353,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
           recognitionRef.current.onend = null;
           recognitionRef.current.onstart = null;
           recognitionRef.current.stop();
-        } catch (err) {
-          // ignore stop error
+        } catch {
+          // intentionally empty
         }
         recognitionRef.current = null;
       }
@@ -376,8 +377,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
         try {
           if (newMuted) rec.stop();
           else if (isConnected) rec.start();
-        } catch (err) {
-          // ignore toggle error
+        } catch {
+          // intentionally empty
         }
       }
       return newMuted;
@@ -389,8 +390,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (rec) {
       try {
         rec.stop();
-      } catch (err) {
-        // ignore stop error
+      } catch {
+        // intentionally empty
       }
     }
     setIsConnected(false);
@@ -403,8 +404,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (rec && !isMuted) {
       try {
         rec.start();
-      } catch (err) {
-        // ignore start error
+      } catch {
+        // intentionally empty
       }
     }
   };
@@ -451,8 +452,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
     }
     return { errored: false, kind: null as ErrorType | null };
   }
+  // hasStyleError를 실제로 사용하도록 구현: 맵핑 내에서 호출하는 대신 여기도 재사용 가능
   function hasStyleError(feedback?: FeedbackPayload) {
-    return Boolean(feedback?.errors.find((e) => e.type === "style"));
+    return Boolean(feedback?.errors.some((e) => e.type === "style"));
   }
 
   // card position (clamped to viewport)
@@ -509,8 +511,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
   function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
     if (!feedback) return;
-    const hasStyle = Boolean(feedback.errors.find((e) => e.type === "style"));
-    if (!hasStyle) return;
+    if (!hasStyleError(feedback)) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([]); // style-only
     updateCardPosition(msgId);
@@ -680,9 +681,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
               const tokens = isMe
                 ? tokenizeWithIndices(item.text)
                 : [{ token: item.text, index: -1 }];
-              const styleError = Boolean(
-                item.feedback?.errors.find((e) => e.type === "style")
-              );
+              const styleError = hasStyleError(item.feedback);
 
               return (
                 <div
@@ -873,34 +872,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
       </style>
     </div>
   );
-
-  // interactions (defined once)
-  function onWordInteract(
-    msgId: string,
-    wordIndex: number,
-    feedback?: FeedbackPayload
-  ) {
-    if (!feedback) return;
-    const errorsForWord = feedback.errors.filter((e) => e.index === wordIndex);
-    if (errorsForWord.length === 0) return;
-    setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([wordIndex]);
-    updateCardPosition(msgId);
-  }
-
-  function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
-    if (!feedback) return;
-    const hasStyle = Boolean(feedback.errors.find((e) => e.type === "style"));
-    if (!hasStyle) return;
-    setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([]); // style-only
-    updateCardPosition(msgId);
-  }
-
-  function closeTooltip() {
-    setActiveTooltipMsgId(null);
-    setActiveTooltipWordIndexes([]);
-  }
 }
 
 /* ------------------------------ Send icon ------------------------------ */

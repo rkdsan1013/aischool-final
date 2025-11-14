@@ -60,7 +60,6 @@ const scenarioData: Record<
   },
 };
 
-// Dummy messages (cSpell warnings ignored)
 function buildDummyMessages(initial: string): Message[] {
   return [
     { id: "ai-0", role: "ai", content: initial, timestamp: new Date() },
@@ -281,14 +280,10 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
   }, [messages]);
 
   const toggleRecording = () => setIsRecording((s) => !s);
-  const playAIVoice = (text: string) => {
-    // placeholder for TTS
-    console.log("[voice] play:", text);
-  };
-  const translateText = (text: string) => {
-    // placeholder for translate
-    console.log("[translate] text:", text);
-  };
+  const playAIVoice = (text: string) =>
+    console.log("[v0] Playing AI voice:", text);
+  const translateText = (text: string) =>
+    console.log("[v0] Translating AI text:", text);
 
   function isWordErrored(index: number, feedback?: FeedbackPayload) {
     if (!feedback) return { errored: false, kind: null as ErrorType | null };
@@ -358,7 +353,7 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     if (!feedback) return;
     if (!hasStyleError(feedback)) return;
     setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([]); // style-only
+    setActiveTooltipWordIndexes([]); // 스타일 전용
     updateCardPosition(msgId);
   }
 
@@ -473,13 +468,12 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
                                 : kind === "spelling"
                                 ? "bg-orange-500/30 underline decoration-wavy"
                                 : "";
+                            const clickable = errored ? "cursor-pointer" : "";
 
                             return (
                               <span
                                 key={`${m.id}-w-${index}`}
-                                className={`${base} ${highlight} ${
-                                  errored ? "cursor-pointer" : ""
-                                }`}
+                                className={`${base} ${highlight} ${clickable}`}
                                 onMouseEnter={() => {
                                   if (!isMobile && errored)
                                     onWordInteract(m.id, index, m.feedback);
@@ -613,33 +607,6 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
       </style>
     </div>
   );
-
-  // handlers
-  function onWordInteract(
-    msgId: string,
-    wordIndex: number,
-    feedback?: FeedbackPayload
-  ) {
-    if (!feedback) return;
-    const errorsForWord = feedback.errors.filter((e) => e.index === wordIndex);
-    if (errorsForWord.length === 0) return;
-    setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([wordIndex]);
-    updateCardPosition(msgId);
-  }
-
-  function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
-    if (!feedback) return;
-    if (!hasStyleError(feedback)) return;
-    setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([]);
-    updateCardPosition(msgId);
-  }
-
-  function closeTooltip() {
-    setActiveTooltipMsgId(null);
-    setActiveTooltipWordIndexes([]);
-  }
 };
 
 export default AITalkPageDetail;
