@@ -104,18 +104,28 @@ export default function VoiceRoomPage() {
     navigate("/voiceroom/create");
   };
 
-  // 검색어에 따라 rooms 필터링 (이름, 주제, 호스트, 레벨)
+  // 검색어에 따라 rooms 필터링 (이름, 주제, 호스트, 레벨) 및 최신순 정렬
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rooms;
-    return rooms.filter((r) => {
-      return (
-        r.name.toLowerCase().includes(q) ||
-        r.topic.toLowerCase().includes(q) ||
-        r.host.toLowerCase().includes(q) ||
-        r.level.toLowerCase().includes(q)
-      );
-    });
+
+    // 1. 검색어로 먼저 필터링합니다.
+    const baseList = !q
+      ? rooms // 검색어가 없으면 전체 목록
+      : rooms.filter((r) => {
+          // 검색어가 있으면 필터링
+          return (
+            r.name.toLowerCase().includes(q) ||
+            r.topic.toLowerCase().includes(q) ||
+            r.host.toLowerCase().includes(q) ||
+            r.level.toLowerCase().includes(q)
+          );
+        });
+
+    // 2. 필터링된 결과를 ID의 내림차순(큰 값순)으로 정렬합니다.
+    //    sort()는 원본 배열을 변경할 수 있으므로, [...baseList]로 복사본을 만들어 정렬합니다.
+    return [...baseList].sort(
+      (a, b) => parseInt(b.id, 10) - parseInt(a.id, 10)
+    );
   }, [rooms, query]);
 
   return (
