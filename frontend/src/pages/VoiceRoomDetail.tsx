@@ -119,6 +119,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isMobile = isMobileUA();
 
+  // 푸터 높이 상수 (px) — 필요시 조정
+  const FOOTER_HEIGHT = 92;
+
   // initial data
   useEffect(() => {
     setParticipants([
@@ -580,7 +583,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
       {/* Main (centered content area) */}
       <main className="flex-1 flex flex-col min-h-0">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 flex-1 flex flex-col gap-4">
+        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-4 pb-0 flex-1 flex flex-col gap-4">
           {/* Participants strip */}
           <div className="w-full border-b border-gray-100">
             <div
@@ -628,9 +631,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
               </div>
             </div>
 
+            {/* transcript 컨테이너: bottom을 FOOTER_HEIGHT로 띄워 푸터와 겹치지 않게 함.
+                paddingBottom은 내부 여유만 주도록 작게 설정 (푸터와 붙어 보이게). */}
             <div
               ref={transcriptRef}
-              className="absolute inset-x-0 top-[56px] bottom-0 overflow-y-auto px-3 py-4 bg-white"
+              className="absolute inset-x-0 top-[56px] overflow-y-auto px-3"
+              style={{
+                bottom: FOOTER_HEIGHT,
+                paddingBottom: 12,
+                background: "white",
+              }}
             >
               {transcript.map((item) => {
                 const isMe = item.speaker === "나";
@@ -765,11 +775,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
                   </div>
                 );
               })}
-
-              <div style={{ height: 70 }} />
             </div>
 
-            <div className="absolute left-0 right-0 bottom-0 px-0 py-2 border-t border-gray-100 bg-white flex items-center gap-2">
+            {/* 채팅 푸터: 푸터 내부 padding-bottom/외부 마진 제거하여 화면 바닥에 딱 붙게 함 */}
+            <div
+              className="absolute left-0 right-0 bottom-0 border-t border-gray-100 bg-white flex items-center"
+              style={{ height: FOOTER_HEIGHT, padding: 0, boxShadow: "none" }}
+            >
               <div className="max-w-4xl mx-auto w-full px-0 sm:px-6 flex items-center gap-3">
                 <div className="flex-1">
                   <label htmlFor="voice-input" className="sr-only">
@@ -820,6 +832,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         </div>
       </main>
 
+      {/* FloatingFeedbackCard는 푸터 위에 떠야 하므로 컴포넌트 내부 또는 전역 CSS에서 z-index 처리 필요 */}
       <FloatingFeedbackCard
         show={Boolean(activeTooltipMsgId)}
         top={cardPos.top}
