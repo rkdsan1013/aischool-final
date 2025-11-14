@@ -1,7 +1,7 @@
 // src/pages/AITalkCustomScenario.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 
 interface CustomScenario {
   id: string;
@@ -341,22 +341,24 @@ const AITalkCustomScenario: React.FC = () => {
   return (
     <div className="h-[100dvh] bg-white flex flex-col">
       <header className="bg-rose-500 text-white flex-shrink-0">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => navigate("/ai-talk")}
-            className="inline-flex items-center text-white hover:bg-white/10 px-2 py-1 rounded -ml-2"
-            aria-label="뒤로가기"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          {/* 헤더 멘트 영역 */}
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">
               {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
             </h1>
             <p className="text-white/90">원하는 대화 상황을 직접 설정하세요</p>
           </div>
+
+          {/* 상단 우측 X 버튼 */}
+          <button
+            type="button"
+            onClick={() => navigate("/ai-talk")}
+            className="inline-flex items-center text-white hover:bg-white/10 px-2 py-1 rounded"
+            aria-label="닫기"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
         </div>
       </header>
 

@@ -1,6 +1,8 @@
 // src/pages/Training.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { X } from "lucide-react";
+
 // --- 경로 수정 (빌드 오류 해결) ---
 import Vocabulary from "../components/Vocabulary";
 import Sentence from "../components/Sentence";
@@ -325,30 +327,8 @@ const TrainingPage: React.FC = () => {
     <div className="h-screen bg-white flex flex-col overflow-hidden">
       {/* --- Header --- */}
       <header className="flex-none border-b border-gray-200 bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
-          {/* 닫기 버튼을 overlay보다 위에 놓고 항상 클릭 가능하게 z-index와 pointer-events 설정 */}
-          <button
-            onClick={handleClose}
-            className="w-8 h-8 relative z-40 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
-            aria-label="닫기"
-            type="button"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-
-          {/* Progress Bar */}
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          {/* 좌측: Progress Bar */}
           <div className="flex-1 px-3">
             <div className="mt-2">
               <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
@@ -360,7 +340,15 @@ const TrainingPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="w-8" />
+          {/* 우측: 닫기 버튼 */}
+          <button
+            onClick={handleClose}
+            className="w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
+            aria-label="닫기"
+            type="button"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
         </div>
       </header>
 

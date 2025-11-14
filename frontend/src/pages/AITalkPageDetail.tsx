@@ -624,7 +624,7 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
               className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md ${
                 isRecording ? "bg-rose-600" : "bg-rose-500 hover:bg-rose-600"
               }`}
-              style={{ transform: "translateY(2px)" }}
+              style={{ transform: "translateY(15px)" }}
             >
               <Mic size={30} />
               {isRecording && (
