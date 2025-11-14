@@ -1,5 +1,5 @@
 // src/pages/VoiceRoomDetail.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Mic,
@@ -11,9 +11,16 @@ import {
   Check,
   Phone,
   PhoneOff,
+  AlertCircle,
 } from "lucide-react";
+import FloatingFeedbackCard from "../components/FloatingFeedbackCard";
+import type {
+  FeedbackPayload,
+  ErrorType,
+} from "../components/FloatingFeedbackCard";
 
-// Participant 인터페이스
+/* ----------------------------- Types & helpers ----------------------------- */
+
 interface Participant {
   id: string;
   name: string;
@@ -22,16 +29,14 @@ interface Participant {
   isMuted: boolean;
 }
 
-// Transcript 아이템 인터페이스
 interface TranscriptItem {
   id: string;
   speaker: string;
   text: string;
   timestamp: Date;
-  feedback?: string;
+  feedback?: FeedbackPayload;
 }
 
-// 초를 mm:ss 형식의 문자열로 변환
 function formatTime(seconds: number) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -40,22 +45,84 @@ function formatTime(seconds: number) {
     .padStart(2, "0")}`;
 }
 
+function tokenizeWithIndices(text: string): { token: string; index: number }[] {
+  const parts = text.split(/(\s+)/);
+  const tokens: { token: string; index: number }[] = [];
+  let wordIndex = 0;
+  for (const part of parts) {
+    if (/\s+/.test(part)) {
+      tokens.push({ token: part, index: -1 });
+    } else {
+      tokens.push({ token: part, index: wordIndex });
+      wordIndex++;
+    }
+  }
+  return tokens;
+}
+
+function isMobileUA(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(
+    ua
+  );
+}
+
+// Minimal speech recognition types to avoid `any`
+interface SpeechRecognitionAlternative {
+  transcript: string;
+}
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionAlternative;
+  length: number;
+}
+interface SpeechRecognitionEvent {
+  results: SpeechRecognitionResult[];
+}
+interface IWebkitSpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+/* -------------------------------- Component -------------------------------- */
+
 export default function VoiceRoomDetail(): React.ReactElement {
   const navigate = useNavigate();
   const [isMuted, setIsMuted] = useState(false);
-  const [isConnected, setIsConnected] = useState(true); // 통화 참여 여부
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true); // 스피커(오디오 출력) 토글
+  const [isConnected, setIsConnected] = useState(true);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [sessionTime, setSessionTime] = useState(0);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<IWebkitSpeechRecognition | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const participantsRef = useRef<HTMLDivElement | null>(null);
 
-  // 입력 상태
   const [inputText, setInputText] = useState("");
 
-  // 초기 데이터 및 타이머
+  // shared card state
+  const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
+    null
+  );
+  const [activeTooltipWordIndexes, setActiveTooltipWordIndexes] = useState<
+    number[]
+  >([]);
+  const [cardPos, setCardPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  }>({ top: 0, left: 0, width: 0 });
+  const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const isMobile = isMobileUA();
+
+  // initial data
   useEffect(() => {
     setParticipants([
       {
@@ -100,8 +167,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
         speaker: "나",
         text: "I'm doing great, thanks! How about you?",
         timestamp: new Date(Date.now() - 240000),
-        feedback:
-          "Great pronunciation! Your intonation is natural. 발음이 정확하고 억양이 자연스러워요.",
+        feedback: {
+          errors: [],
+          explanation: "자연스러운 응답이에요.",
+          suggestion: "I'm doing great, thanks! How about you?",
+        },
       },
       {
         id: "3",
@@ -112,16 +182,76 @@ export default function VoiceRoomDetail(): React.ReactElement {
       {
         id: "4",
         speaker: "나",
-        text: "That sounds amazing! Where did you go hiking?",
+        text: "He ain't coming to the meeting.",
         timestamp: new Date(Date.now() - 120000),
-        feedback:
-          "Good job! Consider using 'That sounds fantastic' for more variety. 다양한 표현을 사용해보세요.",
+        feedback: {
+          errors: [
+            {
+              index: 1,
+              word: "ain't",
+              type: "word",
+              message:
+                "비표준적이고 구어체적인 표현으로 공식적인 문맥에서는 적절하지 않음",
+            },
+          ],
+          explanation: "공식적 맥락에서는 'isn't' 또는 'is not'을 사용합니다.",
+          suggestion: "He isn't coming to the meeting.",
+        },
       },
       {
         id: "5",
-        speaker: "박민수",
-        text: "I love hiking too! It's such a great way to relax and enjoy nature.",
+        speaker: "나",
+        text: "She go to the office every day.",
+        timestamp: new Date(Date.now() - 90000),
+        feedback: {
+          errors: [
+            {
+              index: 1,
+              word: "go",
+              type: "grammar",
+              message: "3인칭 단수 주어에는 현재형 동사에 -s 필요",
+            },
+          ],
+          explanation: "주어가 She일 때 동사는 goes가 됩니다.",
+          suggestion: "She goes to the office every day.",
+        },
+      },
+      {
+        id: "6",
+        speaker: "나",
+        text: "I didn't recieve the email yet.",
         timestamp: new Date(Date.now() - 60000),
+        feedback: {
+          errors: [
+            {
+              index: 3,
+              word: "recieve",
+              type: "spelling",
+              message: "'receive'로 철자 수정 필요",
+            },
+          ],
+          explanation: "'receive'가 올바른 철자입니다.",
+          suggestion: "I didn't receive the email yet.",
+        },
+      },
+      {
+        id: "7",
+        speaker: "나",
+        text: "Yo, I'm like super into coding and stuff.",
+        timestamp: new Date(),
+        feedback: {
+          errors: [
+            {
+              index: null,
+              word: null,
+              type: "style",
+              message: "면접/격식 문맥에서 지나치게 비격식적이고 모호한 표현",
+            },
+          ],
+          explanation: "격식 있는 어휘와 구체성을 높여 표현해 보세요.",
+          suggestion:
+            "I am highly interested in software development, particularly in building reliable web applications.",
+        },
       },
     ]);
 
@@ -129,15 +259,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
     return () => clearInterval(t);
   }, []);
 
-  // STT 및 다른 참가자 시뮬레이션
+  // STT simulation
   useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      (window as any).webkitSpeechRecognition
-    ) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition;
+    const w = window as unknown as {
+      webkitSpeechRecognition?: new () => IWebkitSpeechRecognition;
+    };
+    if (typeof window !== "undefined" && w.webkitSpeechRecognition) {
       if (!recognitionRef.current) {
-        const recognition = new SpeechRecognition();
+        const recognition = new w.webkitSpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = "en-US";
@@ -156,12 +285,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
             setTimeout(() => {
               try {
                 recognition.start();
-              } catch {}
+              } catch {
+                // intentionally empty
+              }
             }, 200);
           }
         };
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
           const last = event.results.length - 1;
           const text = event.results[last][0].transcript;
           if (event.results[last].isFinal) {
@@ -172,7 +303,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
               timestamp: new Date(),
               feedback:
                 text.length > 20
-                  ? "Good pronunciation! 발음이 정확해요."
+                  ? {
+                      errors: [],
+                      explanation: "발음이 자연스러워요.",
+                      suggestion: text,
+                    }
                   : undefined,
             };
             setTranscript((prev) => [...prev, newTranscript]);
@@ -185,7 +320,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
       try {
         if (isConnected && !isMuted && recognitionRef.current)
           recognitionRef.current.start();
-      } catch {}
+      } catch {
+        // intentionally empty
+      }
     }
 
     const speakingInterval = setInterval(() => {
@@ -215,13 +352,15 @@ export default function VoiceRoomDetail(): React.ReactElement {
           recognitionRef.current.onend = null;
           recognitionRef.current.onstart = null;
           recognitionRef.current.stop();
-        } catch {}
+        } catch {
+          // intentionally empty
+        }
         recognitionRef.current = null;
       }
     };
   }, [isConnected, isMuted]);
 
-  // 새 자막 추가 시 스크롤 하단 유지
+  // keep scroll bottom
   useEffect(() => {
     transcriptRef.current?.scrollTo({
       top: transcriptRef.current.scrollHeight,
@@ -232,26 +371,27 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const toggleMute = () => {
     setIsMuted((s) => {
       const newMuted = !s;
-      if (recognitionRef.current) {
+      const rec = recognitionRef.current;
+      if (rec) {
         try {
-          if (newMuted) recognitionRef.current.stop();
-          else if (isConnected) recognitionRef.current.start();
-        } catch {}
+          if (newMuted) rec.stop();
+          else if (isConnected) rec.start();
+        } catch {
+          // intentionally empty
+        }
       }
       return newMuted;
     });
   };
 
-  const toggleSpeaker = () => {
-    setIsSpeakerOn((s) => !s);
-    // 실제 오디오 출력 라우팅 변경은 여기서 구현
-  };
-
   const handleLeaveRoom = () => {
-    if (recognitionRef.current) {
+    const rec = recognitionRef.current;
+    if (rec) {
       try {
-        recognitionRef.current.stop();
-      } catch {}
+        rec.stop();
+      } catch {
+        // intentionally empty
+      }
     }
     setIsConnected(false);
     navigate("/voiceroom");
@@ -259,20 +399,20 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
   const handleJoinCall = () => {
     setIsConnected(true);
-    // 재연결 시 STT 재시작 시도
-    if (recognitionRef.current && !isMuted) {
+    const rec = recognitionRef.current;
+    if (rec && !isMuted) {
       try {
-        recognitionRef.current.start();
-      } catch {}
+        rec.start();
+      } catch {
+        // intentionally empty
+      }
     }
   };
 
-  // 뒤로 가기 (ArrowLeft) 처리: 방 나가기와 동일하게 동작시킴
   const handleBack = () => {
     handleLeaveRoom();
   };
 
-  // 사용자가 푸터에서 텍스트 전송
   const handleSend = () => {
     const text = inputText.trim();
     if (!text) return;
@@ -282,7 +422,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
       text,
       timestamp: new Date(),
       feedback:
-        text.length > 20 ? "Good pronunciation! 발음이 정확해요." : undefined,
+        text.length > 20
+          ? {
+              errors: [],
+              explanation: "자연스러운 표현이에요.",
+              suggestion: text,
+            }
+          : undefined,
     };
     setTranscript((prev) => [...prev, newTranscript]);
     setInputText("");
@@ -295,273 +441,466 @@ export default function VoiceRoomDetail(): React.ReactElement {
     }
   };
 
-  return (
-    // 전체 화면 고정, 페이지 자체 스크롤 차단
-    <div className="min-h-screen h-screen w-screen overflow-hidden bg-white text-gray-900 flex flex-col">
-      {/* Header: 모바일 우선 - 아이콘들을 동그라미 박스에 넣어 배경과 구분 */}
-      <header className="flex items-center justify-between px-4 py-3.5 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center gap-3.5">
-          <button
-            onClick={handleBack}
-            className="p-2 text-gray-700 hover:bg-gray-50 rounded-md"
-            aria-label="뒤로"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
+  // helpers
+  function isWordErrored(index: number, feedback?: FeedbackPayload) {
+    if (!feedback) return { errored: false, kind: null as ErrorType | null };
+    for (const e of feedback.errors) {
+      if (e.type !== "style" && e.index === index) {
+        return { errored: true, kind: e.type };
+      }
+    }
+    return { errored: false, kind: null as ErrorType | null };
+  }
+  function hasStyleError(feedback?: FeedbackPayload) {
+    return Boolean(feedback?.errors.find((e) => e.type === "style"));
+  }
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md">
-              <Users className="w-4.5 h-4.5" />
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm sm:text-base font-bold">
-                초보자 환영방
-              </span>
-              <span className="text-xs text-gray-600">
-                {participants.length}명 · {formatTime(sessionTime)}
-              </span>
+  // card position (clamped to viewport)
+  const updateCardPosition = useCallback((msgId: string) => {
+    const node = bubbleRefs.current[msgId];
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const margin = 8;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+
+    const desiredWidth = Math.min(rect.width, viewportW * 0.92);
+    const center = rect.left + rect.width / 2;
+    let left = center - desiredWidth / 2;
+    left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
+
+    const spaceBelow = viewportH - rect.bottom;
+    const spaceAbove = rect.top;
+    const cardHeightEstimate = 160;
+
+    let top: number;
+    if (spaceBelow >= cardHeightEstimate + margin) {
+      top = rect.bottom + margin;
+    } else if (spaceAbove >= cardHeightEstimate + margin) {
+      top = Math.max(8, rect.top - cardHeightEstimate - margin);
+    } else {
+      top = Math.max(
+        8,
+        Math.min(rect.bottom + margin, viewportH - cardHeightEstimate - 8)
+      );
+    }
+
+    setCardPos({ top, left, width: desiredWidth });
+
+    const outOfView = rect.bottom < 0 || rect.top > viewportH;
+    if (outOfView) {
+      closeTooltip();
+    }
+  }, []);
+
+  // interactions
+  function onWordInteract(
+    msgId: string,
+    wordIndex: number,
+    feedback?: FeedbackPayload
+  ) {
+    if (!feedback) return;
+    const errorsForWord = feedback.errors.filter((e) => e.index === wordIndex);
+    if (errorsForWord.length === 0) return;
+    setActiveTooltipMsgId(msgId);
+    setActiveTooltipWordIndexes([wordIndex]);
+    updateCardPosition(msgId);
+  }
+
+  function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
+    if (!feedback) return;
+    if (!hasStyleError(feedback)) return;
+    setActiveTooltipMsgId(msgId);
+    setActiveTooltipWordIndexes([]); // style-only
+    updateCardPosition(msgId);
+  }
+
+  function closeTooltip() {
+    setActiveTooltipMsgId(null);
+    setActiveTooltipWordIndexes([]);
+  }
+
+  useEffect(() => {
+    function onScroll() {
+      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
+    }
+    function onResize() {
+      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [activeTooltipMsgId, updateCardPosition]);
+
+  // 레이아웃: AITalkPageDetail과 동일한 중앙 정렬 + 여백(max-w-4xl)
+  return (
+    <div className="min-h-screen h-screen w-screen overflow-hidden bg-white text-gray-900 flex flex-col">
+      {/* Header */}
+      <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 flex-shrink-0">
+        <div className="max-w-4xl w-full mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <button
+              onClick={handleBack}
+              className="p-2 text-gray-700 hover:bg-gray-50 rounded-md"
+              aria-label="뒤로"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md">
+                <Users className="w-4.5 h-4.5" />
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm sm:text-base font-bold">
+                  초보자 환영방
+                </span>
+                <span className="text-xs text-gray-600">
+                  {participants.length}명 · {formatTime(sessionTime)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Header 오른쪽: 각 아이콘을 동그라미 박스에 넣어 배경과 구분 */}
-        <div className="flex items-center gap-2.5">
-          {/* 스피커 토글 (원형 박스) */}
-          <button
-            onClick={toggleSpeaker}
-            className={`p-2.5 rounded-full flex items-center justify-center ${
-              isSpeakerOn
-                ? "bg-rose-50 text-rose-600"
-                : "bg-gray-50 text-gray-500"
-            } hover:brightness-95`}
-            aria-pressed={isSpeakerOn}
-            aria-label={isSpeakerOn ? "스피커 끄기" : "스피커 켜기"}
-            title={isSpeakerOn ? "스피커 켜짐" : "스피커 꺼짐"}
-            style={{ width: 40, height: 40 }}
-          >
-            <Volume2 className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsSpeakerOn((s) => !s)}
+              className={`p-2.5 rounded-full flex items-center justify-center ${
+                isSpeakerOn
+                  ? "bg-rose-50 text-rose-600"
+                  : "bg-gray-50 text-gray-500"
+              } hover:brightness-95`}
+              aria-pressed={isSpeakerOn}
+              aria-label={isSpeakerOn ? "스피커 끄기" : "스피커 켜기"}
+              title={isSpeakerOn ? "스피커 켜짐" : "스피커 꺼짐"}
+              style={{ width: 40, height: 40 }}
+            >
+              <Volume2 className="w-5 h-5" />
+            </button>
 
-          {/* 음소거 토글 (원형 박스) */}
-          <button
-            onClick={toggleMute}
-            className={`p-2.5 rounded-full flex items-center justify-center ${
-              isMuted ? "bg-red-50 text-red-600" : "bg-gray-50 text-gray-700"
-            } hover:brightness-95`}
-            aria-pressed={isMuted}
-            aria-label={isMuted ? "음소거 해제" : "음소거"}
-            title={isMuted ? "마이크 음소거됨" : "마이크 음소거 아님"}
-            style={{ width: 40, height: 40 }}
-          >
-            {isMuted ? (
-              <MicOff className="w-5 h-5" />
+            <button
+              onClick={toggleMute}
+              className={`p-2.5 rounded-full flex items-center justify-center ${
+                isMuted ? "bg-red-50 text-red-600" : "bg-gray-50 text-gray-700"
+              } hover:brightness-95`}
+              aria-pressed={isMuted}
+              aria-label={isMuted ? "음소거 해제" : "음소거"}
+              title={isMuted ? "마이크 음소거됨" : "마이크 음소거 아님"}
+              style={{ width: 40, height: 40 }}
+            >
+              {isMuted ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
+            </button>
+
+            {isConnected ? (
+              <button
+                onClick={handleLeaveRoom}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
+                aria-label="통화 끊기"
+                title="통화 끊기"
+              >
+                <div className="w-8 h-8 rounded-full bg-red-700 flex items-center justify-center">
+                  <PhoneOff className="w-4 h-4 text-white" />
+                </div>
+                <span className="hidden sm:inline">나가기</span>
+              </button>
             ) : (
-              <Mic className="w-5 h-5" />
+              <button
+                onClick={handleJoinCall}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500 text-white text-sm hover:bg-rose-600"
+                aria-label="통화 참여"
+                title="통화 참여"
+              >
+                <div className="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center">
+                  <Phone className="w-4 h-4 text-white" />
+                </div>
+                <span className="hidden sm:inline">참여</span>
+              </button>
             )}
-          </button>
-
-          {/* 통화 참여 / 끊기 (원형 박스 + 텍스트) */}
-          {isConnected ? (
-            <button
-              onClick={handleLeaveRoom}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
-              aria-label="통화 끊기"
-              title="통화 끊기"
-            >
-              <div className="w-8 h-8 rounded-full bg-red-700 flex items-center justify-center">
-                <PhoneOff className="w-4 h-4 text-white" />
-              </div>
-              <span className="hidden sm:inline">나가기</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleJoinCall}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500 text-white text-sm hover:bg-rose-600"
-              aria-label="통화 참여"
-              title="통화 참여"
-            >
-              <div className="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center">
-                <Phone className="w-4 h-4 text-white" />
-              </div>
-              <span className="hidden sm:inline">참여</span>
-            </button>
-          )}
+          </div>
         </div>
       </header>
 
-      {/* Main: 모바일에서는 참가자(가로 스크롤) -> 자막(완전 채움) 순서.
-          participants와 transcript 각각에서만 스크롤 허용 */}
+      {/* Main (centered content area) */}
       <main className="flex-1 flex flex-col min-h-0">
-        {/* Participants strip (가로 스크롤, 모바일 우선) */}
-        <div className="w-full border-b border-gray-100 flex-shrink-0">
-          <div
-            ref={participantsRef}
-            className="flex gap-3 overflow-x-auto py-3 px-3 no-scrollbar"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
-            {participants.map((p) => (
-              <div key={p.id} className="flex-none w-20 text-center">
-                <div className="relative mx-auto w-14 h-14">
-                  {p.isSpeaking && (
-                    <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
-                  )}
-                  <div
-                    className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
-                      p.id === "1" ? "bg-rose-500" : "bg-blue-500"
-                    }`}
-                  >
-                    {p.name.charAt(0)}
-                  </div>
-                </div>
-                <div className="mt-2 text-xs font-medium text-gray-900 truncate">
-                  {p.name}
-                </div>
-                {p.isMuted && (
-                  <div className="text-xs text-gray-400 mt-1">Muted</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Transcript / Feedback: 화면을 꽉 채우고 내부에서 스크롤 */}
-        <section className="flex-1 relative min-h-0">
-          {/* 상단 툴바 (고정 높이) */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-rose-500" />
-              <span className="text-sm font-bold">실시간 자막 & AI 피드백</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-rose-600">
-              <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse" />
-              <span className="font-medium">LIVE</span>
-            </div>
-          </div>
-
-          {/* 자막 스크롤 영역 (이 영역에서만 스크롤 발생) */}
-          <div
-            ref={transcriptRef}
-            className="absolute inset-x-0 top-[56px] bottom-0 overflow-y-auto px-3 py-4 bg-white"
-          >
-            {transcript.map((item) => (
-              <div
-                key={item.id}
-                className={`flex ${
-                  item.speaker === "나" ? "justify-end" : "justify-start"
-                } mb-4`}
-              >
-                <div
-                  className={`w-full max-w-[90%] ${
-                    item.speaker === "나" ? "items-end" : "items-start"
-                  } flex flex-col gap-2`}
-                >
-                  <div
-                    className={`flex items-center gap-2 ${
-                      item.speaker === "나"
-                        ? "flex-row-reverse justify-end"
-                        : ""
-                    }`}
-                  >
-                    <span className="text-xs font-medium text-gray-600">
-                      {item.speaker}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {item.timestamp.toLocaleTimeString("ko-KR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-
-                  <div
-                    className={`${
-                      item.speaker === "나"
-                        ? "bg-rose-500 text-white rounded-2xl p-3"
-                        : "bg-gray-100 text-gray-900 rounded-2xl p-3"
-                    }`}
-                  >
-                    <p className="text-sm leading-relaxed">{item.text}</p>
-                  </div>
-
-                  {item.feedback && item.speaker === "나" && (
-                    <div className="flex items-start gap-3 mt-1 bg-green-50 border border-green-200 rounded-xl p-3 max-w-full">
-                      <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white">
-                        <Check className="w-3 h-3" />
-                      </div>
-                      <p className="text-xs text-green-700 leading-relaxed">
-                        {item.feedback}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {/* 바닥 여백 확보 (입력 바 높이와 겹치지 않도록) */}
-            <div style={{ height: 88 }} />
-          </div>
-
-          {/* 입력/행동 패널 (고정 하단) */}
-          <div className="absolute left-0 right-0 bottom-0 px-3 py-3 border-t border-gray-100 bg-white flex items-center gap-3">
-            {/* 텍스트 입력 (전체 너비에서 send 버튼 제외한 부분 차지) */}
-            <div className="flex-1">
-              <label htmlFor="voice-input" className="sr-only">
-                메시지 입력
-              </label>
-              <input
-                id="voice-input"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Say something... (or type here)"
-                className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                aria-label="메시지 입력"
-              />
-            </div>
-
-            {/* Send 버튼 */}
-            <button
-              onClick={handleSend}
-              className="w-12 h-12 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600"
-              aria-label="전송"
+        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 flex-1 flex flex-col gap-4">
+          {/* Participants strip */}
+          <div className="w-full border-b border-gray-100">
+            <div
+              ref={participantsRef}
+              className="flex gap-3 overflow-x-auto py-3 px-3 no-scrollbar"
+              style={{ WebkitOverflowScrolling: "touch" }}
             >
-              <SendIcon size={18} />
-            </button>
+              {participants.map((p) => (
+                <div key={p.id} className="flex-none w-20 text-center">
+                  <div className="relative mx-auto w-14 h-14">
+                    {p.isSpeaking && (
+                      <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
+                    )}
+                    <div
+                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
+                        p.id === "1" ? "bg-rose-500" : "bg-blue-500"
+                      }`}
+                    >
+                      {p.name.charAt(0)}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs font-medium text-gray-900 truncate">
+                    {p.name}
+                  </div>
+                  {p.isMuted && (
+                    <div className="text-xs text-gray-400 mt-1">Muted</div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        </section>
+
+          {/* Transcript / Feedback */}
+          <section className="flex-1 relative min-h-0">
+            <div className="flex items-center justify-between px-1 py-2 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-rose-500" />
+                <span className="text-sm font-bold">
+                  실시간 자막 & AI 피드백
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-rose-600">
+                <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse" />
+                <span className="font-medium">LIVE</span>
+              </div>
+            </div>
+
+            <div
+              ref={transcriptRef}
+              className="absolute inset-x-0 top-[56px] bottom-0 overflow-y-auto px-3 py-4 bg-white"
+            >
+              {transcript.map((item) => {
+                const isMe = item.speaker === "나";
+                const tokens = isMe
+                  ? tokenizeWithIndices(item.text)
+                  : [{ token: item.text, index: -1 }];
+                const styleError = hasStyleError(item.feedback);
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex ${
+                      isMe ? "justify-end" : "justify-start"
+                    } mb-4`}
+                  >
+                    <div
+                      className={`w-full max-w-[90%] ${
+                        isMe ? "items-end" : "items-start"
+                      } flex flex-col gap-2`}
+                    >
+                      <div
+                        className={`flex items-center gap-2 ${
+                          isMe ? "flex-row-reverse justify-end" : ""
+                        }`}
+                      >
+                        <span className="text-xs font-medium text-gray-600">
+                          {item.speaker}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {item.timestamp.toLocaleTimeString("ko-KR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+
+                      <div
+                        ref={(el) => {
+                          bubbleRefs.current[item.id] = el;
+                        }}
+                        className={`${
+                          isMe
+                            ? "bg-rose-500 text-white"
+                            : "bg-gray-100 text-gray-900"
+                        } rounded-2xl p-3 ${
+                          styleError && isMe ? "ring-2 ring-yellow-300" : ""
+                        }`}
+                        onMouseEnter={() => {
+                          if (!isMobile && styleError && isMe)
+                            onSentenceInteract(item.id, item.feedback);
+                        }}
+                        onMouseLeave={() => {
+                          if (!isMobile) closeTooltip();
+                        }}
+                        onClick={() => {
+                          if (isMobile && styleError && isMe)
+                            onSentenceInteract(item.id, item.feedback);
+                        }}
+                      >
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                          {isMe ? (
+                            <span>
+                              {tokens.map(({ token, index }, i) => {
+                                if (index === -1)
+                                  return (
+                                    <span key={`${item.id}-ws-${i}`}>
+                                      {token}
+                                    </span>
+                                  );
+                                const res = item.feedback
+                                  ? isWordErrored(index, item.feedback)
+                                  : {
+                                      errored: false,
+                                      kind: null as ErrorType | null,
+                                    };
+                                const base = "rounded-sm px-0.5 inline-block";
+                                const highlight =
+                                  res.kind === "word"
+                                    ? "bg-blue-600/30 underline decoration-2 underline-offset-2"
+                                    : res.kind === "grammar"
+                                    ? "bg-purple-600/30 underline decoration-dotted"
+                                    : res.kind === "spelling"
+                                    ? "bg-orange-500/30 underline decoration-wavy"
+                                    : "";
+
+                                return (
+                                  <span
+                                    key={`${item.id}-w-${index}`}
+                                    className={`${base} ${highlight} ${
+                                      res.errored ? "cursor-pointer" : ""
+                                    }`}
+                                    onMouseEnter={() => {
+                                      if (!isMobile && res.errored)
+                                        onWordInteract(
+                                          item.id,
+                                          index,
+                                          item.feedback
+                                        );
+                                    }}
+                                    onMouseLeave={() => {
+                                      if (!isMobile) closeTooltip();
+                                    }}
+                                    onClick={() => {
+                                      if (isMobile && res.errored)
+                                        onWordInteract(
+                                          item.id,
+                                          index,
+                                          item.feedback
+                                        );
+                                    }}
+                                  >
+                                    {token}
+                                  </span>
+                                );
+                              })}
+                            </span>
+                          ) : (
+                            <span>{item.text}</span>
+                          )}
+                        </p>
+
+                        {styleError && isMe && (
+                          <div className="mt-2 flex items-center gap-2 text-yellow-900">
+                            <AlertCircle size={16} />
+                            <span className="text-[13px]">
+                              문장 전체 스타일 개선 필요
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {!item.feedback && isMe && (
+                        <div className="flex items-start gap-3 mt-1 bg-green-50 border border-green-200 rounded-xl p-3 max-w-full">
+                          <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white">
+                            <Check className="w-3 h-3" />
+                          </div>
+                          <p className="text-xs text-green-700 leading-relaxed">
+                            Good job! Keep going.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div style={{ height: 88 }} />
+            </div>
+
+            <div className="absolute left-0 right-0 bottom-0 px-3 py-3 border-t border-gray-100 bg-white flex items-center gap-3">
+              <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 flex items-center gap-3">
+                <div className="flex-1">
+                  <label htmlFor="voice-input" className="sr-only">
+                    메시지 입력
+                  </label>
+                  <input
+                    id="voice-input"
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Say something... (or type here)"
+                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
+                    aria-label="메시지 입력"
+                  />
+                </div>
+                <button
+                  onClick={handleSend}
+                  className="w-12 h-12 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600"
+                  aria-label="전송"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M22 2L11 13"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M22 2L15 22L11 13L2 9L22 2Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
       </main>
+
+      <FloatingFeedbackCard
+        show={Boolean(activeTooltipMsgId)}
+        top={cardPos.top}
+        left={cardPos.left}
+        width={cardPos.width}
+        onClose={closeTooltip}
+        mobile={isMobile}
+        feedback={transcript.find((t) => t.id === activeTooltipMsgId)?.feedback}
+        activeWordIndexes={activeTooltipWordIndexes}
+      />
+
+      <style>
+        {`
+          @keyframes ringPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); }
+            70%  { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); }
+          }
+        `}
+      </style>
     </div>
   );
 }
 
-/**
- * 작은 Send 아이콘 컴포넌트 (크기 prop 추가).
- */
-function SendIcon({ size = 18 }: { size?: number }) {
-  const s = size;
-  return (
-    <svg
-      width={s}
-      height={s}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M22 2L11 13"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M22 2L15 22L11 13L2 9L22 2Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+/* ------------------------------ End of file ------------------------------ */
