@@ -519,8 +519,9 @@ const MyPageHistory: React.FC = () => {
               className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 cursor-pointer hover:border-rose-300 hover:shadow-md transition group"
             >
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
-                  <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                {/* 변경: 그라데이션 제거, 단색 배경으로 교체, 아이콘 수직 중앙 정렬 보장 */}
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-100 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-rose-600" />
                 </div>
 
                 <div className="flex-1 min-w-0">

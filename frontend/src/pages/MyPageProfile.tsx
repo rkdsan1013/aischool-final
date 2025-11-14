@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft,
+  X, // ArrowLeft 아이콘을 X로 변경
   Camera,
-  User,
-  Lock,
   AlertTriangle,
   Check,
 } from "lucide-react";
@@ -84,11 +82,12 @@ const MyPageProfile: React.FC = () => {
 
   const validateNewPassword = (): boolean => {
     if (passwords.new.length < 8) {
-      alert("새 비밀번호는 최소 8자 이상이어야 합니다.");
+      // Use custom alert/toast in production instead of alert()
+      console.error("새 비밀번호는 최소 8자 이상이어야 합니다.");
       return false;
     }
     if (passwords.new !== passwords.confirm) {
-      alert("새 비밀번호가 일치하지 않습니다.");
+      console.error("새 비밀번호가 일치하지 않습니다.");
       return false;
     }
     return true;
@@ -123,56 +122,58 @@ const MyPageProfile: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-rose-50 flex flex-col">
+    <div className="h-[100dvh] bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
-              aria-label="뒤로가기"
-              type="button"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-                개인정보 수정
-              </h1>
-              <p className="text-sm text-gray-600">프로필 정보를 관리하세요</p>
-            </div>
+      <header className="bg-rose-500 text-white flex-shrink-0">
+        {/* div에 justify-between을 추가하고 버튼을 하단으로 이동시킴 */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          {/* 텍스트 영역 */}
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold">개인정보 수정</h1>
+            <p className="text-white/90 text-sm">프로필 정보를 관리하세요</p>
           </div>
+
+          {/* 닫기 버튼 (우측) */}
+          <button
+            onClick={() => navigate(-1)}
+            className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition"
+            aria-label="닫기" // aria-label 수정
+            type="button"
+          >
+            <X className="w-5 h-5" /> {/* 아이콘 변경 */}
+          </button>
         </div>
       </header>
 
       {/* Content */}
-      <main className="flex-1">
+      <main className="w-full flex-1 overflow-y-auto">
         {/* Toast */}
         {showSuccessMessage && (
           <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50">
-            <div className="bg-green-500 text-white px-6 py-3 rounded-xl shadow-md flex items-center gap-2">
+            <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-md flex items-center gap-2">
               <Check className="w-5 h-5" />
               <span className="font-semibold">저장되었습니다!</span>
             </div>
           </div>
         )}
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
           {/* Profile Image */}
-          <section className="bg-white rounded-xl shadow-md border border-gray-100 p-6 sm:p-8">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-rose-500 flex items-center justify-center">
-                <Camera className="w-4 h-4 text-white" />
-              </div>
-              프로필 사진
-            </h2>
+          <section className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8">
+            <header className="mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
+                프로필 사진
+              </h2>
+              <p className="text-sm sm:text-base text-gray-600">
+                표시될 프로필 사진을 관리합니다.
+              </p>
+            </header>
 
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="relative">
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center text-4xl font-bold text-white overflow-hidden">
+                {/* 그라데이션 제거 -> bg-rose-500 단색으로 변경 */}
+                <div className="w-32 h-32 rounded-full bg-rose-500 flex items-center justify-center text-4xl font-bold text-white overflow-hidden">
                   {profile.profileImage ? (
-                    // eslint-disable-next-line jsx-a11y/img-redundant-alt
                     <img
                       src={profile.profileImage}
                       alt="프로필 이미지"
@@ -184,7 +185,7 @@ const MyPageProfile: React.FC = () => {
                 </div>
 
                 <label
-                  className="absolute bottom-0 right-0 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-rose-600 transition shadow-md"
+                  className="absolute bottom-0 right-0 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-rose-600 transition shadow-md border-2 border-white"
                   aria-label="프로필 이미지 업로드"
                 >
                   <Camera className="w-5 h-5 text-white" />
@@ -210,19 +211,21 @@ const MyPageProfile: React.FC = () => {
           </section>
 
           {/* Basic Info */}
-          <section className="bg-white rounded-xl shadow-md border border-gray-100 p-6 sm:p-8">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-rose-500 flex items-center justify-center">
-                <User className="w-4 h-4 text-white" />
-              </div>
-              기본 정보
-            </h2>
+          <section className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8">
+            <header className="mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
+                기본 정보
+              </h2>
+              <p className="text-sm sm:text-base text-gray-600">
+                계정의 기본 정보를 수정합니다.
+              </p>
+            </header>
 
             <div className="space-y-4">
               <div>
                 <label
                   htmlFor="name"
-                  className="block text-sm font-semibold text-gray-700 mb-2"
+                  className="block text-sm font-medium text-gray-700 mb-2"
                 >
                   이름
                 </label>
@@ -233,7 +236,7 @@ const MyPageProfile: React.FC = () => {
                   onChange={(e) =>
                     setProfile((p) => ({ ...p, name: e.target.value }))
                   }
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-rose-500 focus:outline-none transition"
+                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                   placeholder="이름을 입력하세요"
                 />
               </div>
@@ -241,7 +244,7 @@ const MyPageProfile: React.FC = () => {
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-semibold text-gray-700 mb-2"
+                  className="block text-sm font-medium text-gray-700 mb-2"
                 >
                   이메일
                 </label>
@@ -250,7 +253,7 @@ const MyPageProfile: React.FC = () => {
                   type="email"
                   value={profile.email}
                   disabled
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
+                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   이메일은 변경할 수 없습니다
@@ -260,9 +263,7 @@ const MyPageProfile: React.FC = () => {
               <button
                 onClick={handleSaveProfile}
                 disabled={loadingSave}
-                className={`w-full px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-semibold rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
-                  loadingSave ? "" : "hover:from-rose-600 hover:to-pink-600"
-                }`}
+                className="w-full mt-4 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 type="button"
                 aria-disabled={loadingSave}
               >
@@ -272,17 +273,19 @@ const MyPageProfile: React.FC = () => {
           </section>
 
           {/* Password */}
-          <section className="bg-white rounded-xl shadow-md border border-gray-100 p-6 sm:p-8">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-rose-500 flex items-center justify-center">
-                <Lock className="w-4 h-4 text-white" />
-              </div>
-              비밀번호 변경
-            </h2>
+          <section className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8">
+            <header className="mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
+                비밀번호 변경
+              </h2>
+              <p className="text-sm sm:text-base text-gray-600">
+                로그인 비밀번호를 새로 설정합니다.
+              </p>
+            </header>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   현재 비밀번호
                 </label>
                 <input
@@ -291,13 +294,13 @@ const MyPageProfile: React.FC = () => {
                   onChange={(e) =>
                     setPasswords((s) => ({ ...s, current: e.target.value }))
                   }
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-rose-500 focus:outline-none transition"
+                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                   placeholder="현재 비밀번호를 입력하세요"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   새 비밀번호
                 </label>
                 <input
@@ -306,13 +309,13 @@ const MyPageProfile: React.FC = () => {
                   onChange={(e) =>
                     setPasswords((s) => ({ ...s, new: e.target.value }))
                   }
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-rose-500 focus:outline-none transition"
-                  placeholder="새 비밀번호를 입력하세요"
+                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  placeholder="새 비밀번호를 입력하세요 (8자 이상)"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   새 비밀번호 확인
                 </label>
                 <input
@@ -321,7 +324,7 @@ const MyPageProfile: React.FC = () => {
                   onChange={(e) =>
                     setPasswords((s) => ({ ...s, confirm: e.target.value }))
                   }
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-rose-500 focus:outline-none transition"
+                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                   placeholder="새 비밀번호를 다시 입력하세요"
                 />
               </div>
@@ -329,9 +332,7 @@ const MyPageProfile: React.FC = () => {
               <button
                 onClick={handleChangePassword}
                 disabled={loadingPwd}
-                className={`w-full px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-semibold rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
-                  loadingPwd ? "" : "hover:from-rose-600 hover:to-pink-600"
-                }`}
+                className="w-full mt-4 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 type="button"
                 aria-disabled={loadingPwd}
               >
@@ -341,13 +342,12 @@ const MyPageProfile: React.FC = () => {
           </section>
 
           {/* Delete Account */}
-          <section className="bg-white rounded-xl shadow-md border-2 border-rose-200 p-6 sm:p-8">
-            <h2 className="text-lg sm:text-xl font-bold text-rose-600 mb-4 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
-              </div>
-              회원 탈퇴
-            </h2>
+          <section className="bg-white rounded-lg border-2 border-rose-200 p-6 sm:p-8">
+            <header className="mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-rose-600 mb-1 sm:mb-2">
+                회원 탈퇴
+              </h2>
+            </header>
 
             <p className="text-sm text-gray-600 mb-4">
               회원 탈퇴 시 모든 학습 데이터가 삭제되며 복구할 수 없습니다.
@@ -355,7 +355,7 @@ const MyPageProfile: React.FC = () => {
 
             <button
               onClick={() => setShowDeleteModal(true)}
-              className="w-full px-6 py-3 bg-white border-2 border-rose-500 text-rose-600 font-semibold rounded-xl hover:bg-rose-50 transition"
+              className="w-full rounded-lg border border-rose-500 px-4 py-3 bg-white text-sm font-semibold text-rose-600 hover:bg-rose-50 transition"
               type="button"
             >
               회원 탈퇴하기
@@ -372,7 +372,7 @@ const MyPageProfile: React.FC = () => {
           aria-modal="true"
           aria-labelledby="delete-title"
         >
-          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
+          <div className="bg-white rounded-lg p-6 sm:p-8 max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mx-auto mb-4">
               <AlertTriangle className="w-8 h-8 text-rose-600" />
             </div>
@@ -390,7 +390,7 @@ const MyPageProfile: React.FC = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition"
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
                 type="button"
                 autoFocus
               >
@@ -399,7 +399,7 @@ const MyPageProfile: React.FC = () => {
               <button
                 onClick={handleDeleteAccount}
                 disabled={loadingDelete}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-rose-500 to-rose-600 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-rose-700 transition shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 type="button"
                 aria-disabled={loadingDelete}
               >
