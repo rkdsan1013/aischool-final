@@ -25,7 +25,7 @@ function isLocState(
 // *** 원본 푸터 로직 복원 ***
 const FOOTER_BASE_HEIGHT = 64; // 버튼 영역 높이
 const SAFE_BOTTOM = 12; // 하단 여백
-const FEEDBACK_AREA_HEIGHT = 140; // 피드백 내용이 표시될 영역 높이
+const FEEDBACK_AREA_HEIGHT = 100; // 피드백 내용이 표시될 영역 높이
 const FOOTER_BUTTON_AREA_HEIGHT = FOOTER_BASE_HEIGHT + SAFE_BOTTOM; // 76px
 
 // main 태그의 padding-bottom에 사용할 전체 높이 (스크롤 방지)
@@ -476,7 +476,9 @@ const TrainingPage: React.FC = () => {
                         <div className="mt-1">
                           <div className="text-sm text-gray-600">정답은</div>
                           <div className="text-base font-bold text-gray-900 mt-1">
-                            {String(currentQuestion.correct ?? "")}
+                            {Array.isArray(currentQuestion.correct)
+                              ? currentQuestion.correct.join(" ")
+                              : String(currentQuestion.correct ?? "")}
                           </div>
                         </div>
                       )}

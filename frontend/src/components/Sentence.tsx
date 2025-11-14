@@ -71,7 +71,7 @@ function SortablePlacedItem({
       {...attributes}
       {...listeners}
       onClick={handleClick}
-      className={`flex-shrink-0 rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
+      className={`flex-shrink-0S rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
         isDragging ? "shadow-lg scale-[1.03] z-50" : ""
       }`}
       role="listitem"
@@ -222,11 +222,11 @@ const Sentence: React.FC<Props> = ({
             strategy={horizontalListSortingStrategy}
           >
             <div
-              className="min-h-[60px] sm:min-h-[72px] flex flex-wrap gap-2"
+              className="min-h-[50px] sm:min-h-[72px] flex flex-wrap gap-2"
               role="list"
             >
               {placed.length === 0 ? (
-                <div className="flex items-center h-[60px] sm:h-[72px] text-muted-foreground text-sm">
+                <div className="flex items-center h-[50px] sm:h-[72px] text-muted-foreground text-sm">
                   아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
                 </div>
               ) : (
