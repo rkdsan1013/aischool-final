@@ -1,6 +1,6 @@
 // src/pages/AITalkPageDetail.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Mic, Volume2, Languages, AlertCircle } from "lucide-react";
+import { Mic, Volume2, Languages, AlertCircle } from "lucide-react";
 import FloatingFeedbackCard from "../components/FloatingFeedbackCard";
 import type {
   FeedbackPayload,
@@ -377,26 +377,30 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     };
   }, [activeTooltipMsgId, updateCardPosition]);
 
+  const handleEndConversation = () => {
+    if (onBack) onBack();
+    else window.history.back();
+  };
+
   return (
     <div className="h-screen flex flex-col bg-white">
       <header className="w-full bg-white flex-shrink-0">
         <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
-          <button
-            type="button"
-            onClick={() => (onBack ? onBack() : window.history.back())}
-            aria-label="뒤로"
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-700 hover:bg-gray-100"
-          >
-            <ArrowLeft size={18} />
-          </button>
-
           <div className="flex-1 min-w-0">
             <h1 className="text-[19px] sm:text-[22px] font-semibold text-gray-900 truncate">
               {scenario.title}
             </h1>
-            <p className="text-[15px] sm:text-[18px] text-gray-500 mt-0.5">
-              AI와 대화 중
-            </p>
+          </div>
+
+          {/* 헤더 우측: 대화 종료 버튼 */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={handleEndConversation}
+              className="ml-3 inline-flex items-center gap-2 rounded-md bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium hover:bg-rose-100 shadow-sm"
+            >
+              대화 종료
+            </button>
           </div>
         </div>
       </header>
@@ -533,54 +537,31 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
         </div>
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm">
+      <footer className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-40">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="h-24 flex items-center justify-between gap-3">
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-3 text-[13px] text-gray-600">
-                <span className="inline-flex items-center gap-1">
-                  <span className="rounded-sm px-1 bg-blue-600/30" />
-                  WORD
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="rounded-sm px-1 bg-purple-600/30" />
-                  GRAMMAR
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="rounded-sm px-1 bg-orange-500/30" />
-                  SPELLING
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="rounded-sm px-1 bg-yellow-300" />
-                  STYLE (문장 전체)
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center">
-              <button
-                type="button"
-                onClick={toggleRecording}
-                aria-pressed={isRecording}
-                aria-label="record"
-                className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md ${
-                  isRecording ? "bg-rose-600" : "bg-rose-500 hover:bg-rose-600"
-                }`}
-                style={{ transform: "translateY(-6px)" }}
-              >
-                <Mic size={30} />
-                {isRecording && (
-                  <span
-                    className="pointer-events-none absolute inset-0 rounded-full"
-                    style={{
-                      boxShadow: "0 0 0 0 rgba(244, 63, 94, 0.4)",
-                      animation: "ringPulse 1.8s ease-out infinite",
-                      willChange: "box-shadow",
-                    }}
-                  />
-                )}
-              </button>
-            </div>
+          <div className="h-24 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={toggleRecording}
+              aria-pressed={isRecording}
+              aria-label="record"
+              className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md ${
+                isRecording ? "bg-rose-600" : "bg-rose-500 hover:bg-rose-600"
+              }`}
+              style={{ transform: "translateY(2px)" }}
+            >
+              <Mic size={30} />
+              {isRecording && (
+                <span
+                  className="pointer-events-none absolute inset-0 rounded-full"
+                  style={{
+                    boxShadow: "0 0 0 0 rgba(244, 63, 94, 0.4)",
+                    animation: "ringPulse 1.8s ease-out infinite",
+                    willChange: "box-shadow",
+                  }}
+                />
+              )}
+            </button>
           </div>
         </div>
       </footer>
