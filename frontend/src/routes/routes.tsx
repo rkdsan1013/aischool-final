@@ -15,6 +15,7 @@ import VoiceRoomDetail from "../pages/VoiceRoomDetail";
 import VoiceRoomCreate from "../pages/VoiceRoomCreate"; // [ADDED]
 import AITalkPageDetail from "../pages/AITalkPageDetail"; // [ADDED]
 import AITalkCustomScenario from "../pages/AITalkCustomScenario"; // [ADDED]
+import MyPageHistory from "../pages/MyPageHistory";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -76,6 +77,14 @@ export const routes: RouteObject[] = [
         element: (
           <ProtectedRoute redirectTo="/auth">
             <AITalkPageDetail />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/my/history",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <MyPageHistory />
           </ProtectedRoute>
         ),
       },

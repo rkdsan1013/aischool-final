@@ -1,6 +1,4 @@
-// frontend/src/pages/MyPage.tsx
-// cSpell:ignore CEFR
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Flame,
@@ -14,23 +12,61 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
 
-export default function MyPage() {
+const StatCard: React.FC<{
+  icon: React.ReactNode;
+  value: React.ReactNode;
+  label: string;
+}> = ({ icon, value, label }) => (
+  <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6">
+    <div className="flex flex-col items-center text-center">
+      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
+        {icon}
+      </div>
+      <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
+        {value}
+      </p>
+      <p className="text-xs sm:text-sm text-gray-600 font-medium">{label}</p>
+    </div>
+  </div>
+);
+
+const NavigateRow: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}> = ({ icon, title, subtitle, onClick }) => (
+  <div
+    className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group"
+    onClick={onClick}
+  >
+    <div className="flex items-center gap-3 sm:gap-4">
+      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+        {icon}
+      </div>
+      <div>
+        <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
+          {title}
+        </h3>
+        <p className="text-xs sm:text-sm text-gray-600">{subtitle}</p>
+      </div>
+    </div>
+    <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all duration-300" />
+  </div>
+);
+
+const MyPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthLoading, logout } = useAuth();
   const { profile, isProfileLoading /*, refreshProfile */ } = useProfile();
 
-  // 전체 로딩: 인증 관련 로딩 또는 프로필 로딩 중 하나라도 true면 로딩 상태로 판단
   const isLoading = isAuthLoading || isProfileLoading;
 
-  // 프로필이 비어 있고 로딩이 끝났으면 홈으로 보냅니다.
   useEffect(() => {
     if (!isLoading && profile === null) {
       navigate("/");
     }
   }, [profile, isLoading, navigate]);
-
-  // 주의: 여기서는 더 이상 mount 시 항상 refreshProfile()을 호출하지 않습니다.
-  // ProfileProvider가 자동으로 초기 fetch를 담당하므로 중복 호출을 방지합니다.
 
   if (isLoading) {
     return (
@@ -52,7 +88,6 @@ export default function MyPage() {
     nextLevelProgress: profile.level_progress ?? 0,
   };
 
-  // 로그아웃: auth에서 세션 정리 후 루트로 이동하고 전체 리프레시
   const handleLogout = async () => {
     try {
       await logout();
@@ -60,18 +95,17 @@ export default function MyPage() {
       console.error("[MyPage] logout failed:", err);
     } finally {
       navigate("/", { replace: true });
-      // 전체 페이지 새로고침 대신 ProfileProvider.setProfileLocal(null)으로 부드럽게 처리하는 것이 권장됩니다.
       window.location.reload();
     }
   };
 
-  const handleRetakeTest = () => {
-    navigate("/level-test");
-  };
+  const handleRetakeTest = () => navigate("/level-test");
+
+  // 변경된 부분: 히스토리 버튼 클릭 시 /my/history로 이동
+  const handleOpenHistory = () => navigate("/my/history");
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      {/* Header */}
       <div className="bg-rose-500 text-white p-4 sm:p-6 shadow-md">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
@@ -95,7 +129,6 @@ export default function MyPage() {
             </div>
           </div>
 
-          {/* Level Card (CEFR) */}
           <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <div className="flex items-center gap-2">
@@ -135,7 +168,6 @@ export default function MyPage() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
@@ -146,52 +178,24 @@ export default function MyPage() {
           </p>
         </div>
 
-        {/* Stat Cards */}
         <div className="grid grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
-                <Flame className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                {stats.streak}
-              </p>
-              <p className="text-xs sm:text-sm text-gray-600 font-medium">
-                연속 학습일
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
-                <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                {stats.totalStudyTime}
-              </p>
-              <p className="text-xs sm:text-sm text-gray-600 font-medium">
-                총 학습 시간
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-md">
-                <Award className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                {stats.completedLessons}
-              </p>
-              <p className="text-xs sm:text-sm text-gray-600 font-medium">
-                완료한 레슨
-              </p>
-            </div>
-          </div>
+          <StatCard
+            icon={<Flame className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
+            value={stats.streak}
+            label="연속 학습일"
+          />
+          <StatCard
+            icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
+            value={stats.totalStudyTime}
+            label="총 학습 시간"
+          />
+          <StatCard
+            icon={<Award className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
+            value={stats.completedLessons}
+            label="완료한 레슨"
+          />
         </div>
 
-        {/* Account Management */}
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
             계정 관리
@@ -202,68 +206,28 @@ export default function MyPage() {
         </div>
 
         <div className="space-y-2">
-          <div
-            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group"
-            onClick={() => navigate("/my/statistics")}
-          >
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
-                  학습 통계
-                </h3>
-                <p className="text-xs sm:text-sm text-gray-600">
-                  상세한 학습 기록을 확인하세요
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all duration-300" />
-          </div>
+          <NavigateRow
+            icon={<BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
+            title="히스토리"
+            subtitle="상세한 학습 기록을 확인하세요"
+            onClick={handleOpenHistory} // 변경된 라우트로 연결
+          />
 
-          <div
-            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group"
+          <NavigateRow
+            icon={<Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
+            title="레벨 테스트"
+            subtitle="레벨을 다시 측정해보세요"
             onClick={handleRetakeTest}
-          >
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                <Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
-                  레벨 테스트
-                </h3>
-                <p className="text-xs sm:text-sm text-gray-600">
-                  레벨을 다시 측정해보세요
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all duration-300" />
-          </div>
+          />
 
-          <div
-            className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group mb-2"
+          <NavigateRow
+            icon={<User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
+            title="프로필 관리"
+            subtitle="개인정보를 수정하세요"
             onClick={() => navigate("/profile")}
-          >
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                <User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
-                  프로필 관리
-                </h3>
-                <p className="text-xs sm:text-sm text-gray-600">
-                  개인정보를 수정하세요
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all duration-300" />
-          </div>
+          />
         </div>
 
-        {/* Logout */}
         <div className="mt-3">
           <button
             className="w-full h-12 border border-rose-500 text-rose-500 rounded-xl font-semibold hover:bg-rose-50 transition"
@@ -275,4 +239,6 @@ export default function MyPage() {
       </div>
     </div>
   );
-}
+};
+
+export default MyPage;

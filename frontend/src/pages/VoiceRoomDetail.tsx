@@ -7,7 +7,6 @@ import {
   Users,
   MessageSquare,
   Volume2,
-  Phone,
   PhoneOff,
   AlertCircle,
 } from "lucide-react";
@@ -393,22 +392,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     }
     setIsConnected(false);
     navigate("/voiceroom");
-  };
-
-  const handleJoinCall = () => {
-    setIsConnected(true);
-    const rec = recognitionRef.current;
-    if (rec && !isMuted) {
-      try {
-        rec.start();
-      } catch {
-        // intentionally empty
-      }
-    }
-  };
-
-  const handleBack = () => {
-    handleLeaveRoom();
   };
 
   const handleSend = () => {
