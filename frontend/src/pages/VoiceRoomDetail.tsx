@@ -8,7 +8,6 @@ import {
   Users,
   MessageSquare,
   Volume2,
-  Check,
   Phone,
   PhoneOff,
   AlertCircle,
@@ -421,14 +420,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
       speaker: "나",
       text,
       timestamp: new Date(),
-      feedback:
-        text.length > 20
-          ? {
-              errors: [],
-              explanation: "자연스러운 표현이에요.",
-              suggestion: text,
-            }
-          : undefined,
+      // 피드백 없이 단순 추가
     };
     setTranscript((prev) => [...prev, newTranscript]);
     setInputText("");
@@ -809,17 +801,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
                           </div>
                         )}
                       </div>
-
-                      {!item.feedback && isMe && (
-                        <div className="flex items-start gap-3 mt-1 bg-green-50 border border-green-200 rounded-xl p-3 max-w-full">
-                          <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white">
-                            <Check className="w-3 h-3" />
-                          </div>
-                          <p className="text-xs text-green-700 leading-relaxed">
-                            Good job! Keep going.
-                          </p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
