@@ -1,7 +1,7 @@
 // src/pages/VoiceRoomCreate.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown, X } from "lucide-react";
 
 type FormState = {
   name: string;
@@ -270,17 +270,19 @@ const VoiceRoomCreate: React.FC = () => {
   return (
     <div className="h-[100dvh] bg-white flex flex-col">
       <header className="w-full bg-rose-500 text-white flex-shrink-0">
-        <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">
+          {/* 좌측: 헤더 멘트 */}
+          <h1 className="text-lg font-semibold">새로운 방 만들기</h1>
+
+          {/* 우측: X 버튼 */}
           <button
             type="button"
             onClick={() => navigate("/voiceroom")}
             className="inline-flex items-center text-white hover:bg-white/10 rounded px-2 py-1"
-            aria-label="돌아가기"
+            aria-label="닫기"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
-
-          <h1 className="text-lg font-semibold">새로운 방 만들기</h1>
         </div>
       </header>
 

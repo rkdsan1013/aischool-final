@@ -1,7 +1,13 @@
 // src/pages/MyPageHistory.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronDown, Calendar, MessageCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Calendar,
+  MessageCircle,
+  X,
+} from "lucide-react";
 
 type ConversationRecord = {
   id: string;
@@ -402,26 +408,26 @@ const MyPageHistory: React.FC = () => {
   return (
     <div className="min-h-screen bg-white pb-20">
       <header className="bg-rose-500 text-white p-4 sm:p-6 shadow-md">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center justify-center text-white/90 hover:text-white transition p-2 rounded"
-              aria-label="뒤로"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-
-            <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold mb-0 leading-tight truncate">
-                학습 히스토리
-              </h1>
-              <p className="text-white/80 text-sm sm:text-base truncate">
-                지금까지의 학습 기록을 확인하세요
-              </p>
-            </div>
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          {/* 좌측: 헤더 멘트 */}
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-0 leading-tight truncate">
+              학습 히스토리
+            </h1>
+            <p className="text-white/80 text-sm sm:text-base truncate">
+              지금까지의 학습 기록을 확인하세요
+            </p>
           </div>
+
+          {/* 우측: X 버튼 */}
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center justify-center text-white/90 hover:bg-white/10 transition p-2 rounded"
+            aria-label="닫기"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
         </div>
       </header>
 
