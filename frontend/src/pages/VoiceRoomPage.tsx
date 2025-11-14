@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+// src/pages/VoiceRoomPage.tsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Lock, Plus, Radio, Sparkles } from "lucide-react";
+import { Users, Lock, Plus, Radio, Sparkles, Search } from "lucide-react";
 
 interface Room {
   id: string;
@@ -21,6 +22,7 @@ export default function VoiceRoomPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [query, setQuery] = useState<string>("");
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -29,6 +31,7 @@ export default function VoiceRoomPage() {
   }, [user, isLoading, navigate]);
 
   useEffect(() => {
+    // 초기 더미 데이터 로드
     setRooms([
       {
         id: "1",
@@ -101,11 +104,34 @@ export default function VoiceRoomPage() {
     navigate("/voiceroom/create");
   };
 
+  // 검색어에 따라 rooms 필터링 (이름, 주제, 호스트, 레벨) 및 최신순 정렬
+  const filteredRooms = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    // 1. 검색어로 먼저 필터링합니다.
+    const baseList = !q
+      ? rooms // 검색어가 없으면 전체 목록
+      : rooms.filter((r) => {
+          // 검색어가 있으면 필터링
+          return (
+            r.name.toLowerCase().includes(q) ||
+            r.topic.toLowerCase().includes(q) ||
+            r.host.toLowerCase().includes(q) ||
+            r.level.toLowerCase().includes(q)
+          );
+        });
+
+    // 2. 필터링된 결과를 ID의 내림차순(큰 값순)으로 정렬합니다.
+    //    sort()는 원본 배열을 변경할 수 있으므로, [...baseList]로 복사본을 만들어 정렬합니다.
+    return [...baseList].sort(
+      (a, b) => parseInt(b.id, 10) - parseInt(a.id, 10)
+    );
+  }, [rooms, query]);
+
   return (
     <div className="min-h-screen bg-white pb-14">
       {/* Hero Section */}
       <div className="bg-gradient-to-b from-rose-50 to-white border-b border-rose-100">
-        {/* [CHANGED] max-w-6xl, px-4 py-8 sm:py-12 -> max-w-5xl, px-4 sm:px-6 py-6 sm:py-8로 변경하여 다른 페이지와 통일 */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="text-center space-y-3 sm:space-y-4 mb-6 sm:mb-8">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 rounded-full text-xs sm:text-sm font-medium mb-1 sm:mb-2">
@@ -123,18 +149,37 @@ export default function VoiceRoomPage() {
             </p>
           </div>
 
-          <button
-            onClick={handleCreateRoom}
-            className="w-full max-w-md mx-auto flex items-center justify-center gap-2 sm:gap-3 h-12 sm:h-14 bg-rose-500 text-white text-base sm:text-lg font-semibold rounded-xl hover:bg-rose-600 transition-all active:scale-[0.98] shadow-lg shadow-rose-500/25"
-          >
-            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-            새로운 방 만들기
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={handleCreateRoom}
+              className="w-full max-w-md flex items-center justify-center gap-2 sm:gap-3 h-12 sm:h-14 bg-rose-500 text-white text-base sm:text-lg font-semibold rounded-xl hover:bg-rose-600 transition-all active:scale-[0.98] shadow-lg shadow-rose-500/25"
+            >
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+              새로운 방 만들기
+            </button>
+
+            <div className="w-full max-w-lg">
+              <label htmlFor="room-search" className="sr-only">
+                방 검색
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <Search className="w-4 h-4 text-gray-400" />
+                </span>
+                <input
+                  id="room-search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="방 이름, 주제, 호스트, 레벨로 검색하세요"
+                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 bg-white text-sm sm:text-base placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-200"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Room List Section */}
-      {/* [CHANGED] max-w-6xl, px-4 py-6 sm:py-12 -> max-w-5xl, px-4 sm:px-6 py-6 sm:py-8로 변경하여 다른 페이지와 통일 */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-6 sm:mb-8">
           <div>
@@ -142,7 +187,7 @@ export default function VoiceRoomPage() {
               활성 방 목록
             </h2>
             <p className="text-sm sm:text-base text-gray-600">
-              지금 {rooms.length}개의 방에서 대화가 진행 중입니다
+              지금 {filteredRooms.length}개의 방이 검색되었습니다
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
@@ -152,7 +197,7 @@ export default function VoiceRoomPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {rooms.map((room, index) => (
+          {filteredRooms.map((room, index) => (
             <div
               key={room.id}
               className="group bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1"
@@ -227,7 +272,28 @@ export default function VoiceRoomPage() {
           ))}
         </div>
 
-        {/* Empty State (if no rooms) */}
+        {/* Empty State (if no rooms after filtering) */}
+        {filteredRooms.length === 0 && rooms.length > 0 && (
+          <div className="text-center py-12 sm:py-16 px-4">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+              <Users className="w-7 h-7 sm:w-8 sm:h-8 text-rose-500" />
+            </div>
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
+              검색 결과가 없습니다
+            </h3>
+            <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
+              다른 키워드로 검색해보거나 새로운 방을 만들어보세요.
+            </p>
+            <button
+              onClick={handleCreateRoom}
+              className="inline-flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 bg-rose-500 text-white text-sm sm:text-base font-semibold rounded-xl hover:bg-rose-600 transition-all active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />방 만들기
+            </button>
+          </div>
+        )}
+
+        {/* Empty State (no rooms at all) */}
         {rooms.length === 0 && (
           <div className="text-center py-12 sm:py-16 px-4">
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">

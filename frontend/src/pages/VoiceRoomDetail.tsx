@@ -119,6 +119,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isMobile = isMobileUA();
 
+  // 푸터 높이 상수 (px) — 필요시 조정
+  const FOOTER_HEIGHT = 92;
+
   // initial data
   useEffect(() => {
     setParticipants([
@@ -216,13 +219,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
       {
         id: "6",
         speaker: "나",
-        text: "I didn't recieve the email yet.",
+        text: "I didn't receive the email yet.",
         timestamp: new Date(Date.now() - 60000),
         feedback: {
           errors: [
             {
               index: 3,
-              word: "recieve",
+              word: "receive",
               type: "spelling",
               message: "'receive'로 철자 수정 필요",
             },
@@ -402,7 +405,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
       speaker: "나",
       text,
       timestamp: new Date(),
-      // 피드백 없이 단순 추가
     };
     setTranscript((prev) => [...prev, newTranscript]);
     setInputText("");
@@ -465,7 +467,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (outOfView) {
       closeTooltip();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // interactions
@@ -565,31 +566,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
               )}
             </button>
 
-            {/* {isConnected ? (
-              <button
-                onClick={handleLeaveRoom}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
-                aria-label="통화 끊기"
-                title="통화 끊기"
-              >
-                <div className="w-8 h-8 rounded-full bg-red-700 flex items-center justify-center">
-                  <PhoneOff className="w-4 h-4 text-white" />
-                </div>
-                <span className="hidden sm:inline">나가기</span>
-              </button>
-            ) : (
-              <button
-                onClick={handleJoinCall}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500 text-white text-sm hover:bg-rose-600"
-                aria-label="통화 참여"
-                title="통화 참여"
-              >
-                <div className="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center">
-                  <Phone className="w-4 h-4 text-white" />
-                </div>
-                <span className="hidden sm:inline">참여</span>
-              </button>
-            )} */}
             <button
               onClick={handleLeaveRoom}
               className="flex items-center gap-1 px-4.5 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
@@ -607,7 +583,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
       {/* Main (centered content area) */}
       <main className="flex-1 flex flex-col min-h-0">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 flex-1 flex flex-col gap-4">
+        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-4 pb-0 flex-1 flex flex-col gap-4">
           {/* Participants strip */}
           <div className="w-full border-b border-gray-100">
             <div
@@ -655,9 +631,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
               </div>
             </div>
 
+            {/* transcript 컨테이너: bottom을 FOOTER_HEIGHT로 띄워 푸터와 겹치지 않게 함.
+                paddingBottom은 내부 여유만 주도록 작게 설정 (푸터와 붙어 보이게). */}
             <div
               ref={transcriptRef}
-              className="absolute inset-x-0 top-[56px] bottom-0 overflow-y-auto px-3 py-4 bg-white"
+              className="absolute inset-x-0 top-[56px] overflow-y-auto px-3"
+              style={{
+                bottom: FOOTER_HEIGHT,
+                paddingBottom: 12,
+                background: "white",
+              }}
             >
               {transcript.map((item) => {
                 const isMe = item.speaker === "나";
@@ -792,11 +775,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
                   </div>
                 );
               })}
-
-              <div style={{ height: 70 }} />
             </div>
 
-            <div className="absolute left-0 right-0 bottom-0 px-0 py-2 border-t border-gray-100 bg-white flex items-center gap-2">
+            {/* 채팅 푸터: 푸터 내부 padding-bottom/외부 마진 제거하여 화면 바닥에 딱 붙게 함 */}
+            <div
+              className="absolute left-0 right-0 bottom-0 border-t border-gray-100 bg-white flex items-center"
+              style={{ height: FOOTER_HEIGHT, padding: 0, boxShadow: "none" }}
+            >
               <div className="max-w-4xl mx-auto w-full px-0 sm:px-6 flex items-center gap-3">
                 <div className="flex-1">
                   <label htmlFor="voice-input" className="sr-only">
@@ -807,8 +792,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="메시지를 입력하세요..." /* 한국어로 변경 */
-                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200" /* 입력창을 더 넓고 여유있게 조정 */
+                    placeholder="메시지를 입력하세요..."
+                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
                     aria-label="메시지 입력"
                   />
                 </div>
@@ -847,6 +832,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         </div>
       </main>
 
+      {/* FloatingFeedbackCard는 푸터 위에 떠야 하므로 컴포넌트 내부 또는 전역 CSS에서 z-index 처리 필요 */}
       <FloatingFeedbackCard
         show={Boolean(activeTooltipMsgId)}
         top={cardPos.top}

@@ -1,5 +1,11 @@
 // src/pages/AITalkPageDetail.tsx
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+} from "react";
 import { Mic, Volume2, Languages, AlertCircle } from "lucide-react";
 import FloatingFeedbackCard from "../components/FloatingFeedbackCard";
 import type {
@@ -249,7 +255,13 @@ function isMobileUA(): boolean {
   );
 }
 
+const FOOTER_HEIGHT = 96; // 푸터 높이
+const LAST_MESSAGE_SPACING = 16; // 마지막 메시지와 푸터 사이에 둘 여백
+const TOOLTIP_GAP_BELOW = 12; // 툴팁이 아래에 있을 때 메시지와의 간격
+const TOOLTIP_GAP_ABOVE = 6; // 툴팁이 위에 있을 때 메시지와의 간격(더 가깝게)
+
 const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
+  const headerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -264,7 +276,8 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     top: number;
     left: number;
     width: number;
-  }>({ top: 0, left: 0, width: 0 });
+    preferAbove?: boolean;
+  }>({ top: 0, left: 0, width: 0, preferAbove: false });
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isMobile = isMobileUA();
 
@@ -275,8 +288,16 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
   }, [scenarioId, scenario.initialMessage]);
 
   useEffect(() => {
+    // 메시지 변경 시 마지막 메시지가 푸터에 딱 붙지 않도록 약간의 여백을 둠
     const el = listRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (!el) return;
+    setTimeout(() => {
+      // 스크롤 끝 위치에서 마지막 여백(LAST_MESSAGE_SPACING)만큼 위로 위치시킴
+      el.scrollTo({
+        top: Math.max(0, el.scrollHeight - LAST_MESSAGE_SPACING),
+        behavior: "smooth",
+      });
+    }, 30);
   }, [messages]);
 
   const toggleRecording = () => setIsRecording((s) => !s);
@@ -299,11 +320,42 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     return Boolean(feedback?.errors.find((e) => e.type === "style"));
   }
 
+  const getHeaderHeight = useCallback(() => {
+    const el = headerRef.current;
+    if (!el) return 64;
+    return el.getBoundingClientRect().height;
+  }, []);
+
+  const [listHeight, setListHeight] = useState<string>("calc(100vh - 160px)");
+  const adjustLayout = useCallback(() => {
+    const headerH = getHeaderHeight();
+    const footerH = FOOTER_HEIGHT;
+    setListHeight(`calc(100vh - ${headerH + footerH}px)`);
+    const el = listRef.current;
+    if (el) {
+      setTimeout(() => {
+        el.scrollTo({
+          top: Math.max(0, el.scrollHeight - LAST_MESSAGE_SPACING),
+          behavior: "smooth",
+        });
+      }, 30);
+    }
+  }, [getHeaderHeight]);
+
+  useEffect(() => {
+    adjustLayout();
+    const id = setTimeout(adjustLayout, 50);
+    window.addEventListener("resize", adjustLayout);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("resize", adjustLayout);
+    };
+  }, [adjustLayout]);
+
   const updateCardPosition = useCallback((msgId: string) => {
     const node = bubbleRefs.current[msgId];
     if (!node) return;
     const rect = node.getBoundingClientRect();
-    const margin = 8;
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
 
@@ -312,28 +364,42 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     let left = center - desiredWidth / 2;
     left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
 
-    const spaceBelow = viewportH - rect.bottom;
+    const estimatedCardHeight = 180;
+    const safeBottom = FOOTER_HEIGHT + 8;
+
+    const spaceBelow = viewportH - rect.bottom - safeBottom;
     const spaceAbove = rect.top;
-    const cardHeightEstimate = 160;
 
+    let preferAbove = false;
     let top: number;
-    if (spaceBelow >= cardHeightEstimate + margin) {
-      top = rect.bottom + margin;
-    } else if (spaceAbove >= cardHeightEstimate + margin) {
-      top = Math.max(8, rect.top - cardHeightEstimate - margin);
+
+    if (spaceBelow >= estimatedCardHeight + TOOLTIP_GAP_BELOW) {
+      top = rect.bottom + TOOLTIP_GAP_BELOW;
+      preferAbove = false;
+    } else if (spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE) {
+      top = rect.top - estimatedCardHeight - TOOLTIP_GAP_ABOVE;
+      preferAbove = true;
     } else {
-      top = Math.max(
-        8,
-        Math.min(rect.bottom + margin, viewportH - cardHeightEstimate - 8)
-      );
+      preferAbove = spaceAbove >= spaceBelow;
+      if (preferAbove) {
+        top = Math.max(
+          8,
+          rect.top -
+            Math.min(estimatedCardHeight, spaceAbove) -
+            TOOLTIP_GAP_ABOVE
+        );
+      } else {
+        const maxAllowedTop = Math.max(
+          8,
+          viewportH -
+            safeBottom -
+            Math.min(estimatedCardHeight, Math.max(0, spaceBelow))
+        );
+        top = Math.min(rect.bottom + TOOLTIP_GAP_BELOW, maxAllowedTop);
+      }
     }
 
-    setCardPos({ top, left, width: desiredWidth });
-
-    const outOfView = rect.bottom < 0 || rect.top > viewportH;
-    if (outOfView) {
-      closeTooltip();
-    }
+    setCardPos({ top, left, width: desiredWidth, preferAbove });
   }, []);
 
   function onWordInteract(
@@ -346,15 +412,15 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     if (errorsForWord.length === 0) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([wordIndex]);
-    updateCardPosition(msgId);
+    requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
     if (!feedback) return;
     if (!hasStyleError(feedback)) return;
     setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([]); // 스타일 전용
-    updateCardPosition(msgId);
+    setActiveTooltipWordIndexes([]);
+    requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function closeTooltip() {
@@ -363,28 +429,33 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
   }
 
   useEffect(() => {
-    function onScroll() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
-    }
     function onResize() {
       if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
+      adjustLayout();
     }
-    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     return () => {
-      window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
     };
-  }, [activeTooltipMsgId, updateCardPosition]);
+  }, [activeTooltipMsgId, updateCardPosition, adjustLayout]);
 
   const handleEndConversation = () => {
     if (onBack) onBack();
     else window.history.back();
   };
 
+  const memoizedTokens = useMemo(() => {
+    const map: Record<string, { token: string; index: number }[]> = {};
+    for (const m of messages) {
+      if (m.role === "user") map[m.id] = tokenizeWithIndices(m.content);
+      else map[m.id] = [{ token: m.content, index: -1 }];
+    }
+    return map;
+  }, [messages]);
+
   return (
     <div className="h-screen flex flex-col bg-white">
-      <header className="w-full bg-white flex-shrink-0">
+      <header ref={headerRef} className="w-full bg-white flex-shrink-0">
         <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-[19px] sm:text-[22px] font-semibold text-gray-900 truncate">
@@ -392,7 +463,6 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
             </h1>
           </div>
 
-          {/* 헤더 우측: 대화 종료 버튼 */}
           <div className="flex items-center">
             <button
               type="button"
@@ -408,14 +478,16 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
       <main className="flex-1 overflow-hidden" aria-live="polite">
         <div
           ref={listRef}
-          className="max-w-5xl mx-auto h-full px-4 sm:px-6 pt-4 pb-24 sm:pb-[128px] overflow-y-auto flex flex-col gap-6"
-          style={{ minHeight: 0 }}
+          className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 overflow-y-auto flex flex-col gap-6"
+          style={{
+            minHeight: 0,
+            height: listHeight,
+            paddingBottom: LAST_MESSAGE_SPACING,
+          }}
         >
           {messages.map((m) => {
             const isUser = m.role === "user";
-            const tokens = isUser
-              ? tokenizeWithIndices(m.content)
-              : [{ token: m.content, index: -1 }];
+            const tokens = memoizedTokens[m.id];
             const styleError = hasStyleError(m.feedback);
 
             return (
@@ -537,9 +609,13 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
         </div>
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-40">
+      <footer
+        className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-40"
+        aria-hidden={false}
+        style={{ height: FOOTER_HEIGHT }}
+      >
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="h-24 flex items-center justify-center">
+          <div className="h-full flex items-center justify-center">
             <button
               type="button"
               onClick={toggleRecording}
