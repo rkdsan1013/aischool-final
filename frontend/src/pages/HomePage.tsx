@@ -10,6 +10,7 @@ import {
   Trophy,
   Flame,
   ChevronRight,
+  Repeat,
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
 
@@ -201,14 +202,20 @@ const HomePage: React.FC = () => {
                       <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">
                         {s.title}
                       </h3>
-                      <div className="flex-shrink-0 ml-auto">
+
+                      <div className="flex-shrink-0 ml-auto flex items-center gap-2">
                         {prefetchingType === s.startType ? (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
+                            <Repeat className="w-3.5 h-3.5 text-rose-600" />
                             로딩...
                           </span>
                         ) : (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">
-                            {s.repeatsToday}회
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
+                            <Repeat className="w-3.5 h-3.5 text-rose-600" />
+                            <span className="font-semibold">
+                              {s.repeatsToday}
+                            </span>
+                            <span className="text-foreground/60">회</span>
                           </span>
                         )}
                       </div>
