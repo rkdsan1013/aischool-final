@@ -1,4 +1,4 @@
-// src/pages/Training.tsx
+// frontend/src/pages/Training.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
