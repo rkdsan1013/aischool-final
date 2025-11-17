@@ -1,3 +1,4 @@
+// backend/src/routes/userRouter.ts
 import { Router } from "express";
 import { requireAuth } from "../middlewares/auth";
 

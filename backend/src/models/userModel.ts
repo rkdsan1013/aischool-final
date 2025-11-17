@@ -1,3 +1,4 @@
+// backend/src/models/userModel.ts
 import { pool } from "../config/db";
 // ✅ ResultSetHeader 추가 (INSERT 결과에서 insertId를 얻기 위해)
 import { RowDataPacket, ResultSetHeader } from "mysql2";
