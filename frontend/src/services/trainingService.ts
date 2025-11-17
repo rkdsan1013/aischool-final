@@ -7,7 +7,7 @@ export type TrainingType =
   | "sentence"
   | "blank"
   | "writing"
-  | "speaking"; // "speakingListening"에서 "speaking"으로 변경
+  | "speaking";
 
 export interface QuestionItem {
   id: string;

@@ -12,7 +12,6 @@ interface Props {
 const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* 제목 및 설명 */}
       <div className="text-left">
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">
           빈칸 채우기
@@ -22,7 +21,6 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
         </p>
       </div>
 
-      {/* 문제 카드 (디자인 조화: bg-gray-50, border) */}
       <div className="w-full">
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6 min-h-[120px] flex items-center justify-center">
           <span className="text-lg sm:text-xl font-medium text-foreground text-center leading-relaxed">
@@ -31,10 +29,10 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
         </div>
       </div>
 
-      {/* 선택지 그리드 (디자인 조화: bg-white, border, shadow) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        {options.map((opt) => {
+        {options.map((opt, idx) => {
           const isSelected = selected === opt;
+          const indexLabel = String(idx + 1);
           return (
             <button
               key={opt}
@@ -47,21 +45,17 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
               }`}
             >
               <div className="flex items-center gap-3 sm:gap-4">
-                {/* 아이콘 (디자인 조화) */}
                 <div
                   className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold flex-shrink-0 transition-colors ${
                     isSelected
                       ? "bg-white/20 text-white"
                       : "bg-gray-100 text-gray-700 group-hover:bg-rose-100 group-hover:text-rose-600"
                   }`}
+                  aria-hidden
                 >
-                  {isSelected ? (
-                    <Check className="w-5 h-5" />
-                  ) : (
-                    opt[0]?.toUpperCase() ?? "•"
-                  )}
+                  {isSelected ? <Check className="w-5 h-5" /> : indexLabel}
                 </div>
-                {/* 텍스트 */}
+
                 <div
                   className={`text-base font-medium ${
                     isSelected ? "text-white" : "text-foreground"
