@@ -184,8 +184,8 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      <header className="bg-rose-500 text-white p-4 sm:p-6">
-        <div className="max-w-5xl mx-auto">
+      <header className="bg-rose-500 text-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-base sm:text-2xl font-bold mb-0.5 truncate">
