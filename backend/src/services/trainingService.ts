@@ -19,6 +19,7 @@ export interface QuestionItem {
 
 // DUMMY는 vocabulary가 아닌 다른 타입 요청 시 사용됩니다.
 const DUMMY: Record<TrainingType, QuestionItem[]> = {
+  // ... (DUMMY 데이터는 동일) ...
   vocabulary: [
     {
       id: "v1",
@@ -94,43 +95,78 @@ export async function getQuestionsByType(
     return DUMMY[type] ?? [];
   }
 
-  const level: string = typeof opts?.level === "string" ? opts!.level : "C2";
-  let level_progress: number =
-    typeof opts?.level_progress === "number" ? opts!.level_progress : 50;
-  if (Number.isNaN(level_progress) || level_progress < 0) level_progress = 0;
-  if (level_progress > 100) level_progress = 100;
+  const level: string | undefined =
+    typeof opts?.level === "string" ? opts.level : undefined;
+  const level_progress: number | undefined =
+    typeof opts?.level_progress === "number" ? opts.level_progress : undefined;
+
+  // --- [수정됨] ---
+  const MAX_RETRIES = 3;
+  let parsed: unknown = null;
+  let lastError: Error | null = null;
+  // --- [수정 완료] ---
 
   try {
-    const raw: string = await generateVocabularyQuestionsRaw(
-      level,
-      level_progress
-    );
+    // --- [수정됨] 재시도 루프 추가 ---
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const raw: string = await generateVocabularyQuestionsRaw(
+          level,
+          level_progress
+        );
 
-    // 파싱
-    let parsed: unknown = null;
-    try {
-      parsed = JSON.parse(String(raw));
-    } catch (err) {
-      console.warn("[TRAINING SERVICE] JSON.parse failed on raw:", err);
-      const match = String(raw).match(/\[[\s\S]*\]/);
-      if (match) {
+        // 1. 파싱 시도 (직접)
         try {
-          parsed = JSON.parse(match[0]);
-        } catch (err2) {
-          console.error(
-            "[TRAINING SERVICE] parsing extracted substring failed:",
-            err2
+          parsed = JSON.parse(String(raw));
+        } catch (err) {
+          console.warn(
+            `[TRAINING SERVICE] Attempt ${attempt}/${MAX_RETRIES}: JSON.parse failed on raw:`,
+            err
           );
-          parsed = null;
+          // 2. 파싱 시도 (서브스트링 추출)
+          const match = String(raw).match(/\[[\s\S]*\]/);
+          if (match) {
+            try {
+              parsed = JSON.parse(match[0]);
+            } catch (err2) {
+              console.error(
+                `[TRAINING SERVICE] Attempt ${attempt}/${MAX_RETRIES}: parsing extracted substring failed:`,
+                err2
+              );
+              lastError = err2 as Error;
+              parsed = null; // 실패
+            }
+          } else {
+            console.warn(
+              `[TRAINING SERVICE] Attempt ${attempt}/${MAX_RETRIES}: no JSON array substring found`
+            );
+            lastError = new Error("No JSON array substring found");
+            parsed = null; // 실패
+          }
         }
-      } else {
-        console.warn("[TRAINING SERVICE] no JSON array substring found");
+
+        // 3. 파싱 결과 확인
+        if (Array.isArray(parsed)) {
+          lastError = null; // 성공
+          break; // 재시도 루프 탈출
+        } else {
+          lastError = new Error("Parsed result is not array");
+        }
+      } catch (llmError) {
+        // LLM 호출 자체의 실패 (네트워크 오류 등)
+        console.error(
+          `[TRAINING SERVICE] Attempt ${attempt}/${MAX_RETRIES}: LLM call failed:`,
+          llmError
+        );
+        lastError = llmError as Error;
       }
     }
+    // --- [수정 완료] ---
 
     if (!Array.isArray(parsed)) {
       console.error(
-        "[TRAINING SERVICE] parsed result is not array, falling back to DUMMY"
+        `[TRAINING SERVICE] All ${MAX_RETRIES} attempts failed, falling back to DUMMY. Last error:`,
+        lastError
       );
       return DUMMY.vocabulary ?? [];
     }
