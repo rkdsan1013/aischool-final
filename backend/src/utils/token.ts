@@ -1,3 +1,4 @@
+// backend/src/utils/token.ts
 import * as jose from "jose";
 
 export interface TokenPayload extends jose.JWTPayload {

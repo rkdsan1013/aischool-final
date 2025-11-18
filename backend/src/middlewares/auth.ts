@@ -1,3 +1,4 @@
+// backend/src/middlewares/auth.ts
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/token";
 import { getUserById } from "../services/userService";

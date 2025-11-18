@@ -1,3 +1,4 @@
+// backend/src/services/userService.ts
 import { pool } from "../config/db";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 

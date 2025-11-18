@@ -1,9 +1,8 @@
-// src/pages/Training.tsx
+// frontend/src/pages/Training.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 
-// --- 경로 수정 (빌드 오류 해결) ---
 import Vocabulary from "../components/Vocabulary";
 import Sentence from "../components/Sentence";
 import Blank from "../components/Blank";
@@ -11,7 +10,6 @@ import Writing from "../components/Writing";
 import Speaking from "../components/Speaking";
 import type { QuestionItem, TrainingType } from "../services/trainingService";
 import { fetchTrainingQuestions } from "../services/trainingService";
-// --- 경로 수정 완료 ---
 
 /* location.state 타입가드 */
 function isLocState(
@@ -50,9 +48,7 @@ const TrainingPage: React.FC = () => {
     locState && (locState as Record<string, unknown>).startType;
 
   const startType =
-    typeof rawStart === "string" && rawStart === "speakingListening"
-      ? ("speaking" as TrainingType)
-      : (rawStart as TrainingType | undefined);
+    typeof rawStart === "string" ? (rawStart as TrainingType) : undefined;
 
   const [questions, setQuestions] = useState<QuestionItem[] | null>(
     locState?.questions ?? null
