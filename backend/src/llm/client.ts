@@ -18,28 +18,17 @@ export async function sendChat(options: {
 }): Promise<{ text: string; raw: unknown }> {
   const {
     messages,
-    model = "gpt-4o-mini", // 이 기본값은 vocabularyModel에서 덮어쓰므로 괜찮습니다.
+    model = "gpt-4o-mini",
     maxTokens = 800,
     temperature = 0.2,
   } = options;
 
   try {
-    console.log("[LLM CLIENT] sending chat request:", {
-      model,
-      maxTokens,
-      temperature,
-      messagesLength: messages.length,
-    });
-
     // openai SDK 호출
     const resp = await (openai as any).chat.completions.create({
       model,
       messages,
-      // --- [수정됨] ---
-      // gpt-5.1 모델의 API 규격에 맞춰 파라미터 이름 변경
       max_completion_tokens: maxTokens,
-      // max_tokens: maxTokens, // <-- 이전 코드
-      // --- [수정 완료] ---
       temperature,
     });
 
@@ -49,8 +38,6 @@ export async function sendChat(options: {
         ? String(choices[0]?.message?.content ?? "")
         : "";
 
-    console.log("[LLM CLIENT] received response text length:", text.length);
-    console.log("[LLM CLIENT] response preview:", text.slice(0, 500));
     return { text, raw: resp };
   } catch (err) {
     console.error("[LLM CLIENT] error while calling OpenAI:", err);

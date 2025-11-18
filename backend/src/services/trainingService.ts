@@ -70,63 +70,52 @@ function isStringArray(x: unknown): x is string[] {
 }
 
 /**
+ * 유틸리티 (배열 섞기)
+ */
+function shuffleArray<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = tmp;
+  }
+}
+
+/**
  * getQuestionsByType
  * - vocabulary일 때 opts로 level/level_progress를 받아 LLM 호출
  * - words 입력은 받지 않음
  */
 export async function getQuestionsByType(
   type: TrainingType,
-  opts?: { level?: string; level_progress?: number } // [수정됨] words 제거
+  opts?: { level?: string; level_progress?: number }
 ): Promise<QuestionItem[]> {
   if (type !== "vocabulary") {
     return DUMMY[type] ?? [];
   }
 
-  // [수정됨] inputWords 로직 완전 제거
-  // --- [수정됨] ---
-  // 기본값을 "C1"에서 "C2"로 변경
   const level: string = typeof opts?.level === "string" ? opts!.level : "C2";
-  // --- [수정 완료] ---
   let level_progress: number =
     typeof opts?.level_progress === "number" ? opts!.level_progress : 50;
   if (Number.isNaN(level_progress) || level_progress < 0) level_progress = 0;
   if (level_progress > 100) level_progress = 100;
 
   try {
-    console.log(
-      `[TRAINING SERVICE] requesting random vocabulary`,
-      "level:",
-      level,
-      "level_progress:",
-      level_progress
-    );
-
-    // [수정됨] 모델 호출 시 words 제거
     const raw: string = await generateVocabularyQuestionsRaw(
       level,
       level_progress
-    );
-
-    console.log("[TRAINING SERVICE] raw response length:", String(raw).length);
-    console.log(
-      "[TRAINING SERVICE] raw response preview:",
-      String(raw).slice(0, 800)
     );
 
     // 파싱
     let parsed: unknown = null;
     try {
       parsed = JSON.parse(String(raw));
-      console.log("[TRAINING SERVICE] parsed JSON directly");
     } catch (err) {
       console.warn("[TRAINING SERVICE] JSON.parse failed on raw:", err);
       const match = String(raw).match(/\[[\s\S]*\]/);
       if (match) {
         try {
           parsed = JSON.parse(match[0]);
-          console.log(
-            "[TRAINING SERVICE] parsed JSON from extracted substring"
-          );
         } catch (err2) {
           console.error(
             "[TRAINING SERVICE] parsing extracted substring failed:",
@@ -143,7 +132,6 @@ export async function getQuestionsByType(
       console.error(
         "[TRAINING SERVICE] parsed result is not array, falling back to DUMMY"
       );
-      // [수정됨] LLM 호출 실패 시 DUMMY 반환
       return DUMMY.vocabulary ?? [];
     }
 
@@ -166,11 +154,12 @@ export async function getQuestionsByType(
           ? String(item.correct).trim()
           : options[0]!;
 
+      shuffleArray(options);
+
       if (!options.includes(correctCandidate)) {
         options[0] = correctCandidate;
       }
 
-      // [수정됨] item.question이 없으면 대체 텍스트 사용
       const question =
         typeof item?.question === "string" && item.question.trim() !== ""
           ? item.question.trim()
@@ -194,7 +183,6 @@ export async function getQuestionsByType(
     if (normalized.length < 10) {
       const padded = normalized.slice();
       for (let i = padded.length; i < 10; i++) {
-        // [수정됨] 패딩 시 고정 텍스트 사용
         padded.push({
           id: nanoid(),
           type: "vocabulary",
@@ -203,24 +191,15 @@ export async function getQuestionsByType(
           correct: "(unknown1)",
         });
       }
-      console.log(
-        "[TRAINING SERVICE] returning padded items count:",
-        padded.length
-      );
       return padded;
     }
 
-    console.log(
-      "[TRAINING SERVICE] returning normalized items count:",
-      normalized.length
-    );
     return normalized;
   } catch (err) {
     console.error(
       "[TRAINING SERVICE] Error calling LLM for vocabulary questions:",
       err
     );
-    // [수정됨] 예외 발생 시 DUMMY 반환
     return DUMMY.vocabulary ?? [];
   }
 }

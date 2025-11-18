@@ -18,9 +18,6 @@ export async function callLLM(params: {
   const system = `You are a helpful assistant. When asked to produce JSON, output only valid JSON with no extra text.`;
   const user = params.prompt;
 
-  console.log("[LLM SERVICE] prompt length:", user.length);
-  console.log("[LLM SERVICE] prompt preview:", user.slice(0, 500));
-
   try {
     const res = await sendChat({
       messages: [
@@ -32,10 +29,6 @@ export async function callLLM(params: {
       temperature: params.temperature,
     });
 
-    console.log(
-      "[LLM SERVICE] callLLM success, response text length:",
-      res.text.length
-    );
     return { text: res.text, raw: res.raw };
   } catch (err) {
     console.error("[LLM SERVICE] callLLM error:", err);

@@ -66,55 +66,32 @@ function normalizeOptionsAndCorrect(item: unknown): {
  */
 export async function vocabularyHandler(req: Request, res: Response) {
   try {
-    console.log(
-      "[LLM CONTROLLER] /api/llm/vocabulary called with body:",
-      req.body
-    );
-
     const body: unknown = req.body ?? {};
-    // [수정됨] wordsRaw 및 words 유효성 검사 제거
     const levelRaw = (body as any).level;
     const levelProgressRaw = (body as any).level_progress;
 
     // 안전한 타입으로 정리: 항상 string / number
-    // --- [수정됨] ---
-    // 기본값을 "C1"에서 "C2"로 변경
     const level: string = typeof levelRaw === "string" ? levelRaw : "C2";
-    // --- [수정 완료] ---
     let level_progress: number =
       typeof levelProgressRaw === "number" ? levelProgressRaw : 50;
     if (Number.isNaN(level_progress) || level_progress < 0) level_progress = 0;
     if (level_progress > 100) level_progress = 100;
 
-    console.log(
-      `[LLM CONTROLLER] calling model (random mode)`,
-      "level:",
-      level,
-      "level_progress:",
-      level_progress
-    );
-
-    // [수정됨] 모델 호출 시 words 제거
     const raw: string = await generateVocabularyQuestionsRaw(
       level,
       level_progress
     );
 
-    console.log("[LLM CONTROLLER] received raw length:", String(raw).length);
-    console.log("[LLM CONTROLLER] raw preview:", String(raw).slice(0, 800));
-
     // 파싱 시도: 직접 parse -> 실패하면 배열 substring 추출 후 parse
     let parsed: unknown = null;
     try {
       parsed = JSON.parse(String(raw));
-      console.log("[LLM CONTROLLER] parsed JSON directly");
     } catch (err) {
       console.warn("[LLM CONTROLLER] direct JSON.parse failed:", err);
       const match = String(raw).match(/\[[\s\S]*\]/);
       if (match) {
         try {
           parsed = JSON.parse(match[0]);
-          console.log("[LLM CONTROLLER] parsed JSON from extracted substring");
         } catch (err2) {
           console.error(
             "[LLM CONTROLLER] parsing extracted substring failed:",
@@ -144,7 +121,6 @@ export async function vocabularyHandler(req: Request, res: Response) {
           ? item.id.trim()
           : nanoid();
 
-      // [수정됨] item.question이 없으면 대체 텍스트 사용
       const question =
         typeof item?.question === "string" && item.question.trim() !== ""
           ? item.question.trim()
@@ -160,7 +136,6 @@ export async function vocabularyHandler(req: Request, res: Response) {
         correct,
       };
 
-      // 보장: correct가 options에 없으면 첫 항목으로 설정
       if (!out.options.includes(out.correct)) {
         out.correct = out.options[0]!;
       }
@@ -172,7 +147,6 @@ export async function vocabularyHandler(req: Request, res: Response) {
     if (normalized.length < 10) {
       const padded = normalized.slice();
       for (let i = padded.length; i < 10; i++) {
-        // [수정됨] 패딩 시 고정 텍스트 사용
         padded.push({
           id: nanoid(),
           type: "vocabulary" as const,
@@ -181,14 +155,9 @@ export async function vocabularyHandler(req: Request, res: Response) {
           correct: "(unknown1)",
         });
       }
-      console.log(
-        "[LLM CONTROLLER] returning padded items count:",
-        padded.length
-      );
       return res.json(padded);
     }
 
-    console.log("[LLM CONTROLLER] returning items count:", normalized.length);
     return res.json(normalized);
   } catch (err) {
     console.error("[LLM CONTROLLER] unexpected error:", err);
