@@ -1,5 +1,11 @@
 // frontend/src/pages/Training.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef, // 1. useRef 추가
+  useLayoutEffect, // 2. useLayoutEffect 추가
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 
@@ -22,15 +28,15 @@ function isLocState(
   return hasStart || hasQuestions;
 }
 
-// *** 원본 푸터 로직 복원 ***
+// *** 푸터 로직 수정 ***
 const FOOTER_BASE_HEIGHT = 64; // 버튼 영역 높이
 const SAFE_BOTTOM = 12; // 하단 여백
-const FEEDBACK_AREA_HEIGHT = 100; // 피드백 내용이 표시될 영역 높이
+// 3. '최소' 높이로 이름 변경
+const FEEDBACK_AREA_MIN_HEIGHT = 100; // 피드백 내용이 표시될 *최소* 영역 높이
 const FOOTER_BUTTON_AREA_HEIGHT = FOOTER_BASE_HEIGHT + SAFE_BOTTOM; // 76px
 
-// main 태그의 padding-bottom에 사용할 전체 높이 (스크롤 방지)
-const MAIN_CONTENT_PADDING_BOTTOM =
-  FOOTER_BASE_HEIGHT + SAFE_BOTTOM + FEEDBACK_AREA_HEIGHT; // 216px
+// 4. main 태그 padding-bottom은 동적으로 계산 (아래 footerVisualHeight와 함께)
+// const MAIN_CONTENT_PADDING_BOTTOM = ...
 
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -65,6 +71,12 @@ const TrainingPage: React.FC = () => {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
+
+  // 5. 동적 피드백 높이 상태 및 ref 추가
+  const [feedbackContentHeight, setFeedbackContentHeight] = useState(
+    FEEDBACK_AREA_MIN_HEIGHT
+  );
+  const feedbackContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!startType && !questions) {
@@ -121,6 +133,8 @@ const TrainingPage: React.FC = () => {
     setRecordedBlob(null);
     setShowFeedback(false);
     setIsCorrect(false);
+    // 높이 리셋
+    setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
   const handleSelect = (option: string) => {
@@ -219,9 +233,31 @@ const TrainingPage: React.FC = () => {
     navigate("/home");
   };
 
+  // 6. 피드백 컨텐츠 높이 측정 Effect
+  useLayoutEffect(() => {
+    if (showFeedback && feedbackContentRef.current) {
+      // 피드백이 표시될 때(애니메이션 시작 시), 실제 컨텐츠의 높이를 측정
+      const currentContentHeight = feedbackContentRef.current.scrollHeight;
+      // 최소 높이(100px)와 실제 컨텐츠 높이 중 더 큰 값을 사용
+      setFeedbackContentHeight(
+        Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
+      );
+    }
+    // (else) 숨길 때는 resetQuestionState에서 최소 높이로 리셋됨
+  }, [
+    showFeedback,
+    isCorrect,
+    currentQuestion?.correct, // 정답 내용이 바뀔 때마다 재측정
+  ]);
+
+  // 7. 동적 높이 계산
   const footerVisualHeight = showFeedback
-    ? FOOTER_BUTTON_AREA_HEIGHT + FEEDBACK_AREA_HEIGHT
+    ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight // DYNAMIC
     : FOOTER_BUTTON_AREA_HEIGHT;
+
+  // 8. 메인 컨텐츠 패딩도 동적으로 계산
+  const MAIN_CONTENT_PADDING_BOTTOM =
+    FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight; // DYNAMIC
 
   const canCheck = useMemo(() => {
     if (!currentQuestion) return false;
@@ -351,7 +387,7 @@ const TrainingPage: React.FC = () => {
       {/* --- Main Content --- */}
       <main
         className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
-        style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
+        style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }} // 9. 동적 패딩 적용
       >
         {/* Interaction blocker: 피드백이 올라오면 메인 영역 인터랙션 차단 (header 버튼은 영향을 받지 않음) */}
         {showFeedback && (
@@ -379,7 +415,7 @@ const TrainingPage: React.FC = () => {
         <div
           className="max-w-4xl w-full relative overflow-hidden"
           style={{
-            height: `${footerVisualHeight}px`,
+            height: `${footerVisualHeight}px`, // 10. 동적 높이 적용
             transition: "height 260ms ease",
             pointerEvents: "auto",
           }}
@@ -394,14 +430,16 @@ const TrainingPage: React.FC = () => {
                 : "bg-rose-100 border-t border-rose-200"
             } rounded-t-2xl shadow-2xl`}
             style={{
-              height: "100%",
+              height: "100%", // 부모(wrapper)의 높이를 100% 채움
               zIndex: 5,
               pointerEvents: showFeedback ? "auto" : "none",
             }}
           >
+            {/* 11. ref 할당 및 height -> minHeight 변경 */}
             <div
+              ref={feedbackContentRef} // ref 할당
               className="max-w-4xl mx-auto w-full flex items-start gap-3 p-4"
-              style={{ height: `${FEEDBACK_AREA_HEIGHT}px` }}
+              style={{ minHeight: `${FEEDBACK_AREA_MIN_HEIGHT}px` }} // 고정 height 대신 minHeight 사용
             >
               {showFeedback && (
                 <>
@@ -466,7 +504,7 @@ const TrainingPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 버튼 컨테이너 */}
+          {/* 버튼 컨테이너 (변경 없음) */}
           <div
             className="absolute bottom-0 left-0 right-0 w-full"
             style={{

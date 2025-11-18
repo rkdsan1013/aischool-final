@@ -5,7 +5,17 @@ import { getUserById } from "../services/userService";
 
 declare module "express-serve-static-core" {
   interface Request {
-    user?: { user_id: number; email?: string; name?: string; level?: string };
+    user?: {
+      user_id: number;
+      // --- [수정됨] ---
+      // exactOptionalPropertyTypes: true 규칙을 통과하기 위해
+      // 옵셔널 타입에 | undefined를 추가합니다.
+      email?: string | undefined;
+      name?: string | undefined;
+      level?: string | undefined;
+      level_progress?: number | undefined;
+      // --- [수정 완료] ---
+    };
   }
 }
 
@@ -35,11 +45,13 @@ export async function requireAuth(
     }
 
     // req.user에 노출 가능한 최소 정보만 저장
+    // (이제 이 할당은 declare module의 타입과 일치합니다)
     req.user = {
       user_id: user.user_id,
       email: user.email,
-      name: (user as any).name ?? undefined,
-      level: (user as any).level ?? undefined,
+      name: user.name ?? undefined,
+      level: user.level ?? undefined,
+      level_progress: user.level_progress ?? 50,
     };
 
     next();

@@ -33,25 +33,17 @@ function normalizeOptionsAndCorrect(item: unknown): {
       ? String((item as any).correct).trim()
       : "";
 
-  // 중복 제거 및 순서 보존
+  // ... (중복 제거, 길이 맞추기 등) ...
   const deduped: string[] = Array.from(new Set(rawOptions));
-
-  // correct가 있고 options에 없으면 prepend
   if (correctCandidate !== "" && !deduped.includes(correctCandidate)) {
     deduped.unshift(correctCandidate);
   }
-
-  // 길이 맞추기(4개)
   let options = deduped.slice(0, 4);
   while (options.length < 4) options.push("(unknown)");
-
-  // correct 비어있으면 첫 항목 사용
   if (correctCandidate === "") correctCandidate = options[0]!;
 
-  // 섞어서 정답 위치 편향 완화
   shuffleArray(options);
 
-  // 안전 검사
   if (!options.includes(correctCandidate)) {
     options[0] = correctCandidate;
   }
@@ -61,28 +53,28 @@ function normalizeOptionsAndCorrect(item: unknown): {
 
 /**
  * POST /api/llm/vocabulary 핸들러
- * body: { level?: string, level_progress?: number }
- * (words 입력 받지 않음)
+ * (이 라우트는 requireAuth 미들웨어 뒤에 위치해야 합니다)
  */
 export async function vocabularyHandler(req: Request, res: Response) {
-  // --- [수정됨] ---
   const MAX_RETRIES = 3;
   let parsed: unknown = null;
   let lastError: Error | null = null;
   let raw: string = "";
-  // --- [수정 완료] ---
 
   try {
-    const body: unknown = req.body ?? {};
-    const levelRaw = (body as any).level;
-    const levelProgressRaw = (body as any).level_progress;
+    // --- [수정됨] ---
+    // req.body 대신 req.user에서 레벨 정보를 가져옵니다.
+    const user = req.user;
 
-    const level: string | undefined =
-      typeof levelRaw === "string" ? levelRaw : undefined;
-    const level_progress: number | undefined =
-      typeof levelProgressRaw === "number" ? levelProgressRaw : undefined;
+    // requireAuth 미들웨어를 통과했다면 req.user는 항상 존재해야 합니다.
+    if (!user) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
 
-    // --- [수정됨] 재시도 루프 추가 ---
+    const level: string | undefined = user.level;
+    const level_progress: number | undefined = user.level_progress;
+    // --- [수정 완료] ---
+
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         raw = await generateVocabularyQuestionsRaw(level, level_progress);
@@ -132,10 +124,7 @@ export async function vocabularyHandler(req: Request, res: Response) {
         );
         lastError = llmError as Error;
       }
-      // 재시도 전 잠시 대기 (선택 사항)
-      // await new Promise(resolve => setTimeout(resolve, 500));
     }
-    // --- [수정 완료] ---
 
     if (!Array.isArray(parsed)) {
       console.error(
@@ -150,10 +139,7 @@ export async function vocabularyHandler(req: Request, res: Response) {
     const items = (parsed as any[]).slice(0, 10);
 
     const normalized = items.map((item: any) => {
-      const id =
-        typeof item?.id === "string" && item.id.trim() !== ""
-          ? item.id.trim()
-          : nanoid();
+      const id = nanoid();
 
       const question =
         typeof item?.question === "string" && item.question.trim() !== ""
@@ -189,8 +175,19 @@ export async function vocabularyHandler(req: Request, res: Response) {
           correct: "(unknown1)",
         });
       }
+
+      console.log(
+        "[LLM CONTROLLER] Final JSON output (padded):\n",
+        JSON.stringify(padded, null, 2)
+      );
+
       return res.json(padded);
     }
+
+    console.log(
+      "[LLM CONTROLLER] Final JSON output (normalized):\n",
+      JSON.stringify(normalized, null, 2)
+    );
 
     return res.json(normalized);
   } catch (err) {
