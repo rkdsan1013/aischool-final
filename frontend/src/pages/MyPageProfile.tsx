@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  X, // ArrowLeft 아이콘을 X로 변경
+  X, 
   Camera,
   AlertTriangle,
   Check,

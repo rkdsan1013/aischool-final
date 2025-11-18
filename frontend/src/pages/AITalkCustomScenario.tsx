@@ -1,7 +1,7 @@
 // src/pages/AITalkCustomScenario.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
 
 interface CustomScenario {
   id: string;
@@ -20,207 +20,6 @@ function getEditIdFromSearch(search: string) {
   }
 }
 
-/**
- * CustomDropdown
- * - 디자인 유지
- * - 항상 위로 열리도록(openUpwards forced true)
- * - fade + scale 애니메이션
- * - 키보드 접근성 지원
- * - 외부 클릭/ESC 닫기
- * - TypeScript 이벤트 핸들러 타입 안정성 처리
- */
-const CustomDropdown: React.FC<{
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  id?: string;
-  label?: React.ReactNode;
-}> = ({ value, onChange, options, id, label }) => {
-  const uid = id ?? `cd-${Math.random().toString(36).slice(2, 9)}`;
-  const btnRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState<number>(() =>
-    options.findIndex((o) => o.value === value)
-  );
-
-  useEffect(() => {
-    setActiveIndex(options.findIndex((o) => o.value === value));
-  }, [value, options]);
-
-  useEffect(() => {
-    function onDocClick(e: Event) {
-      if (!btnRef.current || !panelRef.current) return;
-      const target = e.target as Node | null;
-      if (
-        target &&
-        (btnRef.current.contains(target) || panelRef.current.contains(target))
-      ) {
-        return;
-      }
-      setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("touchstart", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("touchstart", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (open && panelRef.current) {
-      const el = panelRef.current.querySelector<HTMLElement>(
-        '[data-selected="true"]'
-      ) as HTMLElement | null;
-      if (el) {
-        el.focus();
-        el.scrollIntoView({ block: "nearest" });
-      } else {
-        const first = panelRef.current.querySelector<HTMLElement>(
-          'li[role="option"]'
-        ) as HTMLElement | null;
-        first?.focus();
-      }
-    }
-  }, [open]);
-
-  const toggleOpen = () => setOpen((s) => !s);
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setOpen(true);
-      setActiveIndex((i) => {
-        const next = i + 1;
-        return next >= options.length ? options.length - 1 : next;
-      });
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setOpen(true);
-      setActiveIndex((i) => {
-        const prev = i - 1;
-        return prev < 0 ? 0 : prev;
-      });
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      setActiveIndex(0);
-    } else if (e.key === "End") {
-      e.preventDefault();
-      setActiveIndex(options.length - 1);
-    } else if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      if (!open) {
-        setOpen(true);
-      } else if (activeIndex >= 0) {
-        onChange(options[activeIndex].value);
-        setOpen(false);
-        btnRef.current?.focus();
-      }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-      btnRef.current?.focus();
-    }
-  };
-
-  useEffect(() => {
-    if (!open || !panelRef.current) return;
-    const items =
-      panelRef.current.querySelectorAll<HTMLElement>('li[role="option"]');
-    const el = items[activeIndex];
-    if (el) el.scrollIntoView({ block: "nearest" });
-  }, [activeIndex, open]);
-
-  const onOptionClick = (index: number) => {
-    onChange(options[index].value);
-    setOpen(false);
-    btnRef.current?.focus();
-  };
-
-  // Force dropdown to open upwards
-  const openUpwards = true;
-
-  return (
-    <div className="relative inline-block w-full">
-      {label}
-      <button
-        ref={btnRef}
-        id={uid}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        type="button"
-        onClick={toggleOpen}
-        onKeyDown={onKeyDown}
-        className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white border border-gray-200 text-sm transition focus:outline-none focus:ring-2 focus:ring-rose-300"
-      >
-        <span className="truncate">
-          {options.find((o) => o.value === value)?.label}
-        </span>
-
-        <ChevronDown
-          className={`w-4 h-4 text-gray-500 transition-transform duration-250 ${
-            open ? "rotate-180" : "rotate-0"
-          }`}
-          aria-hidden
-        />
-      </button>
-
-      <div
-        ref={panelRef}
-        role="listbox"
-        aria-labelledby={uid}
-        tabIndex={-1}
-        className={`absolute z-50 w-full rounded-md bg-white shadow-sm ring-1 ring-gray-100 transform transition-all duration-250 ease-out ${
-          open
-            ? "opacity-100 scale-y-100 pointer-events-auto"
-            : "opacity-0 scale-y-75 pointer-events-none"
-        } ${
-          openUpwards
-            ? "bottom-full mb-2 mt-0 origin-bottom"
-            : "top-full mt-2 origin-top"
-        }`}
-        style={{
-          transformOrigin: openUpwards ? "bottom center" : "top center",
-          maxHeight: "14rem",
-        }}
-        onKeyDown={onKeyDown}
-      >
-        <ul className="max-h-56 overflow-auto py-1">
-          {options.map((opt, i) => {
-            const selected = opt.value === value;
-            const isActive = i === activeIndex;
-            return (
-              <li
-                key={opt.value}
-                role="option"
-                aria-selected={selected}
-                tabIndex={0}
-                data-selected={selected ? "true" : "false"}
-                onClick={() => onOptionClick(i)}
-                onMouseEnter={() => setActiveIndex(i)}
-                className={`cursor-pointer px-3 py-2 text-sm transition-colors ${
-                  selected
-                    ? "bg-rose-50 text-rose-700"
-                    : isActive
-                    ? "bg-gray-100"
-                    : "bg-white"
-                }`}
-              >
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </div>
-  );
-};
-
 const AITalkCustomScenario: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -234,12 +33,6 @@ const AITalkCustomScenario: React.FC = () => {
   const [context, setContext] = useState("");
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const difficultyOptions = [
-    { value: "초급", label: "초급" },
-    { value: "중급", label: "중급" },
-    { value: "고급", label: "고급" },
-  ];
 
   useEffect(() => {
     setEditId(getEditIdFromSearch(location.search));
@@ -278,10 +71,8 @@ const AITalkCustomScenario: React.FC = () => {
   const adjustTextareaHeight = () => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "0px";
-    const scrollHeight = el.scrollHeight;
-    const max = Math.min(scrollHeight, window.innerHeight * 0.5);
-    el.style.height = `${max}px`;
+    // 고정 높이 설정: 필요 시 '12rem' 값을 조정하세요
+    el.style.height = "10rem";
   };
 
   const handleContextChange = (value: string) => {
@@ -404,17 +195,6 @@ const AITalkCustomScenario: React.FC = () => {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="예: 병원에서 증상을 설명하고 진료를 받는 상황"
               className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              난이도
-            </label>
-            <CustomDropdown
-              value={difficulty}
-              onChange={(v) => setDifficulty(v)}
-              options={difficultyOptions}
             />
           </div>
 
