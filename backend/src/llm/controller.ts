@@ -65,12 +65,10 @@ function normalizeOptionsAndCorrect(item: unknown): {
  * (words 입력 받지 않음)
  */
 export async function vocabularyHandler(req: Request, res: Response) {
-  // --- [수정됨] ---
   const MAX_RETRIES = 3;
   let parsed: unknown = null;
   let lastError: Error | null = null;
   let raw: string = "";
-  // --- [수정 완료] ---
 
   try {
     const body: unknown = req.body ?? {};
@@ -82,7 +80,6 @@ export async function vocabularyHandler(req: Request, res: Response) {
     const level_progress: number | undefined =
       typeof levelProgressRaw === "number" ? levelProgressRaw : undefined;
 
-    // --- [수정됨] 재시도 루프 추가 ---
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         raw = await generateVocabularyQuestionsRaw(level, level_progress);
@@ -132,10 +129,7 @@ export async function vocabularyHandler(req: Request, res: Response) {
         );
         lastError = llmError as Error;
       }
-      // 재시도 전 잠시 대기 (선택 사항)
-      // await new Promise(resolve => setTimeout(resolve, 500));
     }
-    // --- [수정 완료] ---
 
     if (!Array.isArray(parsed)) {
       console.error(
@@ -150,10 +144,7 @@ export async function vocabularyHandler(req: Request, res: Response) {
     const items = (parsed as any[]).slice(0, 10);
 
     const normalized = items.map((item: any) => {
-      const id =
-        typeof item?.id === "string" && item.id.trim() !== ""
-          ? item.id.trim()
-          : nanoid();
+      const id = nanoid();
 
       const question =
         typeof item?.question === "string" && item.question.trim() !== ""
@@ -189,8 +180,19 @@ export async function vocabularyHandler(req: Request, res: Response) {
           correct: "(unknown1)",
         });
       }
+
+      console.log(
+        "[LLM CONTROLLER] Final JSON output (padded):\n",
+        JSON.stringify(padded, null, 2)
+      );
+
       return res.json(padded);
     }
+
+    console.log(
+      "[LLM CONTROLLER] Final JSON output (normalized):\n",
+      JSON.stringify(normalized, null, 2)
+    );
 
     return res.json(normalized);
   } catch (err) {

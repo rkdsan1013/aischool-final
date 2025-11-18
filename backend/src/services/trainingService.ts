@@ -19,7 +19,6 @@ export interface QuestionItem {
 
 // DUMMY는 vocabulary가 아닌 다른 타입 요청 시 사용됩니다.
 const DUMMY: Record<TrainingType, QuestionItem[]> = {
-  // ... (DUMMY 데이터는 동일) ...
   vocabulary: [
     {
       id: "v1",
@@ -100,20 +99,15 @@ export async function getQuestionsByType(
   const level_progress: number | undefined =
     typeof opts?.level_progress === "number" ? opts.level_progress : undefined;
 
-  // --- [수정됨] ---
   const MAX_RETRIES = 3;
   let parsed: unknown = null;
   let lastError: Error | null = null;
-  // --- [수정 완료] ---
+  let raw: string = "";
 
   try {
-    // --- [수정됨] 재시도 루프 추가 ---
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const raw: string = await generateVocabularyQuestionsRaw(
-          level,
-          level_progress
-        );
+        raw = await generateVocabularyQuestionsRaw(level, level_progress);
 
         // 1. 파싱 시도 (직접)
         try {
@@ -161,7 +155,6 @@ export async function getQuestionsByType(
         lastError = llmError as Error;
       }
     }
-    // --- [수정 완료] ---
 
     if (!Array.isArray(parsed)) {
       console.error(
@@ -202,10 +195,7 @@ export async function getQuestionsByType(
           : "(unknown question)";
 
       const q: QuestionItem = {
-        id:
-          typeof item?.id === "string" && item.id.trim() !== ""
-            ? item.id.trim()
-            : nanoid(),
+        id: nanoid(),
         type: "vocabulary",
         question: question,
         options,

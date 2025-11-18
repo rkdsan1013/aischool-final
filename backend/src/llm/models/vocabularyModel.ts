@@ -1,8 +1,6 @@
 // backend/src/llm/models/vocabularyModel.ts
 import { callLLM } from "../llmService";
 
-// [삭제됨] randomSeedWords 및 getRandomSeedWord() 함수
-
 /**
  * [수정됨] CEFR 레벨별 오답 생성 규칙 (예시 단어/범주 제거)
  */
@@ -29,7 +27,7 @@ function getDistractorRule(level: string): string {
     case "C2":
     default:
       return `4. **(핵심 규칙: C1/C2)** 4개의 'options' 중 **오직 하나만**이 'question'의 정확한 번역이어야 합니다.
-5. 나머지 3개의 오답은, 'question'의 번역으로는 **명백히 틀리지만**, (A) 정답과 철자/발음이 비슷하거나 (B) 정답과 미묘한 뉘앙스 차이가 있는 유의어/반의어 등, \`${level}\` 수준에서 헷갈릴 수 있는 단어들로 **정교하게 복합 구성**하세요.`;
+5. 나머지 3개의 오답은, 'question'의 번역으로는 **명백히 틀리지만**, (A) 정답과 철자/발음이 비슷하거나 (B) 정답과 미묘한 뉘앙스 차이가 있는 유의어/반의어 등, \`${level}\` 수준에서 헷갈릴 수 있는 단어들로 **정교하게 복합 구성**하세요. (정답이 될 수 있는 유의어를 오답에 포함하지 마세요.)`;
   }
 }
 
@@ -38,13 +36,14 @@ function getDistractorRule(level: string): string {
  * gpt-5.1+ 등급의 상위 모델에 최적화된 프롬프트 사용
  */
 export async function generateVocabularyQuestionsRaw(
-  level: string = "B2",
+  level: string = "C2",
   level_progress: number = 50 // 파라미터는 받지만, 프롬프트에서 의도적으로 무시
 ): Promise<string> {
   const allowedLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+  // 상위 파일에서 undefined를 보낼 경우를 대비해 기본값/폴백 모두 "C2"로 설정
   const normalizedLevel = allowedLevels.includes(String(level).toUpperCase())
     ? String(level).toUpperCase()
-    : "C2"; // <-- fallback
+    : "C2";
 
   let lp = Number(level_progress);
   if (Number.isNaN(lp) || lp < 0) lp = 0;
@@ -65,17 +64,14 @@ export async function generateVocabularyQuestionsRaw(
     // 동적으로 생성된 규칙 삽입
     distractorRule,
 
-    // --- [수정됨] ---
-    // '사과' 반복 문제를 피하기 위해 다양성/무작위성을 명시적으로 지시
     `6. **(다양성 규칙)** 10개의 'question' 단어는 서로 중복되지 않아야 하며, 다양한 주제(명사, 동사, 형용사 등)에서 골고루 선정해야 합니다.`,
     `7. **(무작위성 규칙)** 매번 요청 시마다, 가장 흔하고 예측 가능한 단어로 시작하지 말고, 창의적이고 무작위적인 새로운 단어 조합을 생성하세요.`,
-    // --- [수정 완료] ---
-
     `8. 오직 JSON 배열 단일 파일로만 출력하세요. (설명 금지)`,
-    `9. JSON 구조: {"id": "v1", "type": "vocabulary", "question": "...", "options": ["...", "...", "...", "..."], "correct": "..."}`,
+    `9. JSON 구조: {"question": "...", "options": ["...", "...", "...", "..."], "correct": "..."}`,
   ].join("\n");
 
-  console.log("[VOCAB MODEL] Full prompt:\n", prompt);
+  // [수정됨] 로그 제거
+  // console.log("[VOCAB MODEL] Full prompt:\n", prompt);
 
   const res = await callLLM({
     prompt,
@@ -85,7 +81,9 @@ export async function generateVocabularyQuestionsRaw(
   });
 
   const rawOutput = String(res.text ?? "");
-  console.log("[VOCAB MODEL] Full raw output:\n", rawOutput);
+
+  // [수정됨] 로그 제거
+  // console.log("[VOCAB MODEL] Full raw output:\n", rawOutput);
 
   return rawOutput;
 }
