@@ -1,8 +1,7 @@
 // backend/src/services/trainingService.ts
 import { nanoid } from "nanoid";
 import { generateVocabularyQuestionsRaw } from "../llm/models/vocabularyModel";
-// (나중에 추가될 다른 모델들)
-// import { generateSentenceQuestionsRaw } from "../llm/models/sentenceModel";
+import { generateSentenceQuestionsRaw } from "../llm/models/sentenceModel";
 
 export type TrainingType =
   | "vocabulary"
@@ -15,11 +14,11 @@ export interface QuestionItem {
   id: string;
   type: TrainingType;
   question: string;
-  options?: string[] | undefined; // | undefined 추가
+  options?: string[] | undefined;
   correct?: string | string[] | undefined;
 }
 
-// DUMMY는 vocabulary가 아닌 다른 타입 요청 시 사용됩니다.
+// ... (DUMMY 데이터는 동일) ...
 const DUMMY: Record<TrainingType, QuestionItem[]> = {
   vocabulary: [
     {
@@ -34,37 +33,14 @@ const DUMMY: Record<TrainingType, QuestionItem[]> = {
     {
       id: "s1",
       type: "sentence",
-      question: "배고파 I am",
-      options: ["I", "am", "hungry"],
+      question: "나는 배고프다",
+      options: ["I", "hungry", "am", "is", "happy"], // 오답이 포함된 DUMMY 예시
       correct: ["I", "am", "hungry"],
     },
   ],
-  blank: [
-    {
-      id: "b1",
-      type: "blank",
-      question: "She ____ to school every day. (go)",
-      options: ["go", "goes", "going", "went"],
-      correct: "goes",
-    },
-  ],
-  writing: [
-    {
-      id: "w1",
-      type: "writing",
-      question: "자기소개를 영어로 한 문장으로 작성하세요.",
-      options: [],
-      correct: "",
-    },
-  ],
-  speaking: [
-    {
-      id: "sp1",
-      type: "speaking",
-      question: "따라 말해보세요: How's the weather today?",
-      correct: "",
-    },
-  ],
+  blank: [],
+  writing: [],
+  speaking: [],
 };
 
 // --- [헬퍼 함수] ---
@@ -77,21 +53,23 @@ function shuffleArray<T>(arr: T[]): void {
   }
 }
 
+/**
+ * 'vocabulary'와 'blank' 전용 정규화 함수
+ */
 function normalizeOptionsAndCorrect(item: unknown): {
   options: string[];
   correct: string;
 } {
+  // ... (이 함수는 수정 없이 그대로 사용) ...
   const rawOptions: string[] = Array.isArray((item as any)?.options)
     ? (item as any).options
         .map((o: any) => String(o ?? "").trim())
         .filter((s: string) => s !== "")
     : [];
-
   let correctCandidate: string =
     typeof (item as any)?.correct === "string"
       ? String((item as any).correct).trim()
       : "";
-
   const deduped: string[] = Array.from(new Set(rawOptions));
   if (correctCandidate !== "" && !deduped.includes(correctCandidate)) {
     deduped.unshift(correctCandidate);
@@ -99,9 +77,7 @@ function normalizeOptionsAndCorrect(item: unknown): {
   let options = deduped.slice(0, 4);
   while (options.length < 4) options.push("(unknown)");
   if (correctCandidate === "") correctCandidate = options[0]!;
-
-  shuffleArray(options); // <--- 셔플!
-
+  shuffleArray(options);
   if (!options.includes(correctCandidate)) {
     options[0] = correctCandidate;
   }
@@ -115,10 +91,7 @@ function normalizeOptionsAndCorrect(item: unknown): {
  */
 export async function getQuestionsByType(
   type: TrainingType,
-  // --- [수정됨] ---
-  // exactOptionalPropertyTypes: true 규칙을 위해 | undefined 추가
   opts?: { level?: string | undefined; level_progress?: number | undefined }
-  // --- [수정 완료] ---
 ): Promise<QuestionItem[]> {
   const level: string | undefined =
     typeof opts?.level === "string" ? opts.level : undefined;
@@ -138,17 +111,16 @@ export async function getQuestionsByType(
           case "vocabulary":
             raw = await generateVocabularyQuestionsRaw(level, level_progress);
             break;
-          // case "sentence":
-          //   raw = await generateSentenceQuestionsRaw(level, level_progress);
-          //   break;
+          case "sentence":
+            raw = await generateSentenceQuestionsRaw(level, level_progress);
+            break;
           // (다른 유형들...)
           default:
-            // 지원하지 않는 유형이거나, LLM 호출이 필요 없는 유형 (writing, speaking 등)
             return DUMMY[type] ?? [];
         }
         // --- 호출 완료 ---
 
-        // 1. 파싱 시도 (직접)
+        // ... (파싱 및 재시도 로직은 동일) ...
         try {
           parsed = JSON.parse(String(raw));
         } catch (err) {
@@ -156,7 +128,6 @@ export async function getQuestionsByType(
             `[TRAINING SERVICE] Attempt ${attempt}/${MAX_RETRIES}: JSON.parse failed on raw:`,
             err
           );
-          // 2. 파싱 시도 (서브스트링 추출)
           const match = String(raw).match(/\[[\s\S]*\]/);
           if (match) {
             try {
@@ -167,21 +138,19 @@ export async function getQuestionsByType(
                 err2
               );
               lastError = err2 as Error;
-              parsed = null; // 실패
+              parsed = null;
             }
           } else {
             console.warn(
               `[TRAINING SERVICE] Attempt ${attempt}/${MAX_RETRIES}: no JSON array substring found`
             );
             lastError = new Error("No JSON array substring found");
-            parsed = null; // 실패
+            parsed = null;
           }
         }
-
-        // 3. 파싱 결과 확인
         if (Array.isArray(parsed)) {
-          lastError = null; // 성공
-          break; // 재시도 루프 탈출
+          lastError = null;
+          break;
         } else {
           lastError = new Error("Parsed result is not array");
         }
@@ -201,48 +170,79 @@ export async function getQuestionsByType(
       );
       return DUMMY[type] ?? [];
     }
+    // ... (파싱 완료) ...
 
     const items = (parsed as any[]).slice(0, 10);
 
-    // --- 정규화 로직 ---
-    const normalized: QuestionItem[] = items.map((item: any) => {
-      const id = nanoid();
+    // --- [수정됨] 유형별 정규화 로직 분리 ---
+    let normalized: QuestionItem[];
 
-      const question =
-        typeof item?.question === "string" && item.question.trim() !== ""
-          ? item.question.trim()
-          : "(unknown question)";
+    if (type === "vocabulary" || type === "blank") {
+      normalized = items.map((item: any) => {
+        const id = nanoid();
+        const question =
+          typeof item?.question === "string" && item.question.trim() !== ""
+            ? item.question.trim()
+            : "(unknown question)";
 
-      // 'vocabulary'와 'blank'는 이 정규화 로직을 공유할 수 있습니다.
-      // 'sentence'는 다른 정규화 함수가 필요할 수 있습니다.
-      const { options, correct } = normalizeOptionsAndCorrect(item);
+        const { options, correct } = normalizeOptionsAndCorrect(item);
 
-      const q: QuestionItem = {
-        id,
-        type: type, // 'vocabulary' 하드코딩 대신 'type' 변수 사용
-        question: question,
-        options,
-        correct: correct,
-      };
+        return {
+          id,
+          type: type,
+          question: question,
+          options,
+          correct: correct,
+        };
+      });
+    } else if (type === "sentence") {
+      normalized = items.map((item: any) => {
+        const id = nanoid();
+        const question =
+          typeof item?.question === "string" && item.question.trim() !== ""
+            ? item.question.trim()
+            : "(unknown question)";
 
-      if (!q.options?.includes(q.correct as string)) {
-        q.correct = q.options?.[0];
-      }
+        // 1. 'correct' 배열 (정답)
+        const correctWords: string[] = Array.isArray(item?.correct)
+          ? item.correct.map(String).filter((s: string) => s !== "")
+          : [];
 
-      return q;
-    });
-    // --- 정규화 완료 ---
+        // 2. 'options' 배열 (LLM이 준 '오답'만)
+        const distractorWords: string[] = Array.isArray(item?.options)
+          ? item.options.map(String).filter((s: string) => s !== "")
+          : [];
+
+        // 3. 정답 단어 + 오답 단어 병합
+        const finalOptions = [...correctWords, ...distractorWords];
+
+        // 4. 최종 단어 뱅크 셔플
+        shuffleArray(finalOptions);
+
+        return {
+          id,
+          type: "sentence",
+          question: question,
+          options: finalOptions, // 셔플된 전체 단어 뱅크
+          correct: correctWords, // 정답 순서의 배열
+        };
+      });
+    } else {
+      return DUMMY[type] ?? [];
+    }
+    // --- [수정 완료] ---
 
     // 패딩 보장 (모델이 10개 미만 반환 시)
     if (normalized.length < 10) {
       const padded = normalized.slice();
       for (let i = padded.length; i < 10; i++) {
+        const isSentence = type === "sentence";
         padded.push({
           id: nanoid(),
           type: type,
-          question: `(random word ${i + 1})`,
-          options: ["(unknown1)", "(unknown2)", "(unknown3)", "(unknown4)"],
-          correct: "(unknown1)",
+          question: `(random pad ${i + 1})`,
+          options: isSentence ? [] : ["(pad1)", "(pad2)", "(pad3)", "(pad4)"],
+          correct: isSentence ? [] : "(pad1)",
         });
       }
       return padded;

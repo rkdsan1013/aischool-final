@@ -1,22 +1,21 @@
-// src/components/Sentence.tsx
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
-  closestCenter,
+  pointerWithin,
   DragOverlay,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
   type DragStartEvent,
   type UniqueIdentifier,
+  type DragOverEvent, // DragOverEvent 추가
 } from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   useSortable,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -29,10 +28,12 @@ interface Props {
   onReorder?: (order: string[]) => void;
 }
 
-// 공통 텍스트 스타일: 카드 너비는 내용에 맞게 자동, 줄바꿈 금지로 높이 변화 방지
 const CARD_TEXT_CLASS =
   "text-base font-medium whitespace-nowrap overflow-hidden";
 
+/**
+ * SortablePlacedItem
+ */
 function SortablePlacedItem({
   id,
   value,
@@ -40,7 +41,7 @@ function SortablePlacedItem({
 }: {
   id: UniqueIdentifier;
   value: string;
-  onRemove?: (v: string) => void;
+  onRemove?: (id: string) => void;
 }) {
   const {
     attributes,
@@ -51,18 +52,21 @@ function SortablePlacedItem({
     isDragging,
   } = useSortable({ id });
 
+  // 실시간 재정렬 시 부드러운 이동을 위해 transition 유지
+  // 공간은 차지하되 보이지 않게 하여(visibility: hidden)
+  // 드래그 중인 아이템(Overlay)이 그 자리에 있는 것처럼 느끼게 함
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     touchAction: "none",
-    zIndex: isDragging ? 40 : undefined,
     userSelect: "none",
     WebkitUserSelect: "none",
+    visibility: isDragging ? "hidden" : "visible",
   };
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isDragging && e.detail > 0 && onRemove) {
-      onRemove(String(value));
+      onRemove(String(id));
     }
   };
 
@@ -75,11 +79,11 @@ function SortablePlacedItem({
       onClick={handleClick}
       role="listitem"
       aria-label={`선택된 단어 ${value}`}
+      // isDragging일 때 스타일 간소화 (Overlay가 시각적 역할 담당)
       className={`flex-none rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
-        isDragging ? "shadow-lg scale-[1.03] z-50" : ""
+        isDragging ? "z-50" : ""
       }`}
     >
-      {/* inline-flex으로 너비가 내용에 맞게 결정되며 padding으로 카드 크기 보정 */}
       <div
         className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
       >
@@ -89,19 +93,22 @@ function SortablePlacedItem({
   );
 }
 
+/**
+ * PoolItem
+ */
 function PoolItem({
   value,
   onAdd,
   disabled,
 }: {
   value: string;
-  onAdd: (v: string) => void;
+  onAdd: () => void;
   disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={() => !disabled && onAdd(value)}
+      onClick={() => !disabled && onAdd()}
       disabled={disabled}
       aria-pressed={disabled}
       className={`flex-none text-left rounded-2xl transition-all duration-200 inline-flex items-center ${
@@ -121,6 +128,26 @@ function PoolItem({
   );
 }
 
+function mapWordsToIds(
+  words: string[],
+  uniqueOptions: { id: string; word: string }[]
+): string[] {
+  if (!words || words.length === 0) {
+    return [];
+  }
+  const idPool = [...uniqueOptions];
+  const resultIds: string[] = [];
+
+  for (const word of words) {
+    const poolIndex = idPool.findIndex((item) => item.word === word);
+    if (poolIndex !== -1) {
+      const foundItem = idPool.splice(poolIndex, 1)[0];
+      resultIds.push(foundItem.id);
+    }
+  }
+  return resultIds;
+}
+
 const Sentence: React.FC<Props> = ({
   question,
   options = [],
@@ -129,11 +156,24 @@ const Sentence: React.FC<Props> = ({
   onRemove,
   onReorder,
 }) => {
-  const [placed, setPlaced] = React.useState<string[]>(() =>
-    selectedOrder ? selectedOrder.slice() : []
+  const { uniqueOptions, wordMap } = useMemo(() => {
+    const map = new Map<string, string>();
+    const optionsWithIds = options.map((word, index) => {
+      const id = `${word}-${index}`;
+      map.set(id, word);
+      return { id, word };
+    });
+    return { uniqueOptions: optionsWithIds, wordMap: map };
+  }, [options]);
+
+  const [placedIds, setPlacedIds] = useState<string[]>(() =>
+    mapWordsToIds(selectedOrder, uniqueOptions)
   );
-  const [activeId, setActiveId] = React.useState<UniqueIdentifier | null>(null);
-  const mountedRef = useRef(false);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+
+  useEffect(() => {
+    setPlacedIds(mapWordsToIds(selectedOrder, uniqueOptions));
+  }, [selectedOrder, uniqueOptions]);
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -142,51 +182,62 @@ const Sentence: React.FC<Props> = ({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  useEffect(() => {
-    if (!mountedRef.current) {
-      setPlaced(selectedOrder ? selectedOrder.slice() : []);
-      mountedRef.current = true;
-      return;
-    }
-    setPlaced(selectedOrder ? selectedOrder.slice() : []);
-  }, [selectedOrder]);
+  const handleAdd = (id: string) => {
+    if (placedIds.includes(id)) return;
+    const nextIds = [...placedIds, id];
+    setPlacedIds(nextIds);
 
-  const handleAdd = (word: string) => {
-    if (placed.includes(word)) return;
-    const next = [...placed, word];
-    setPlaced(next);
-    onPick?.(word);
-    onReorder?.(next);
+    const word = wordMap.get(id);
+    if (word) {
+      onPick?.(word);
+    }
+    onReorder?.(nextIds.map((pid) => wordMap.get(pid)!));
   };
 
-  const handleRemove = (word: string) => {
-    const next = placed.filter((p) => p !== word);
-    setPlaced(next);
-    onRemove?.(word);
-    onReorder?.(next);
+  const handleRemove = (id: string) => {
+    const nextIds = placedIds.filter((p) => p !== id);
+    setPlacedIds(nextIds);
+
+    const word = wordMap.get(id);
+    if (word) {
+      onRemove?.(word);
+    }
+    onReorder?.(nextIds.map((pid) => wordMap.get(pid)!));
   };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  // --- 💡 변경된 부분: onDragOver 구현 ---
+  // 드래그하는 도중에 다른 아이템 위로 지나가면 즉시 순서를 바꿉니다.
+  // 이로 인해 가변 너비 아이템들이 즉각적으로 재배치되어 레이아웃 깨짐이 방지됩니다.
+  const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    setActiveId(null);
-    if (!over) return;
+    if (!over || active.id === over.id) return;
+
     const activeIdStr = String(active.id);
     const overIdStr = String(over.id);
-    const oldIndex = placed.indexOf(activeIdStr);
-    const newIndex = placed.indexOf(overIdStr);
-    if (oldIndex === -1 || newIndex === -1) return;
-    if (oldIndex !== newIndex) {
-      const next = arrayMove(placed, oldIndex, newIndex);
-      setPlaced(next);
-      onReorder?.(next);
-    }
+
+    setPlacedIds((items) => {
+      const oldIndex = items.indexOf(activeIdStr);
+      const newIndex = items.indexOf(overIdStr);
+
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        return arrayMove(items, oldIndex, newIndex);
+      }
+      return items;
+    });
   };
 
-  const pool = options.slice();
+  const handleDragEnd = () => {
+    setActiveId(null);
+    // DragOver에서 이미 상태가 업데이트되었으므로
+    // 여기서는 최종 순서를 부모에게 알리기만 합니다.
+    if (placedIds.length > 0) {
+      onReorder?.(placedIds.map((id) => wordMap.get(id)!));
+    }
+  };
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -207,7 +258,7 @@ const Sentence: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 배열된 단어 영역: 충분한 여유 높이로 레이아웃 고정. 카드 너비는 내용 기반 */}
+      {/* 배열된 단어 영역 */}
       <div
         className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5"
         style={{ touchAction: "none" }}
@@ -220,41 +271,39 @@ const Sentence: React.FC<Props> = ({
 
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={pointerWithin}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver} // DragOver 이벤트 연결
           onDragEnd={handleDragEnd}
         >
-          <SortableContext
-            items={placed}
-            strategy={horizontalListSortingStrategy}
+          <div
+            className="min-h-[88px] sm:min-h-[88px] flex gap-2 py-2"
+            role="list"
+            style={{ alignItems: "flex-start", overflow: "visible" }}
           >
-            {/* min-h를 넉넉하게 잡아 항목 추가로 인한 부모 레이아웃 변화 억제 */}
-            <div
-              className="min-h-[88px] sm:min-h-[88px] flex items-center gap-2 overflow-x-auto py-2"
-              role="list"
-            >
+            <SortableContext items={placedIds} strategy={rectSortingStrategy}>
               <div
                 className="flex items-center gap-2"
-                style={{ flexWrap: "nowrap" }}
+                style={{ flexWrap: "wrap", alignItems: "center" }}
               >
-                {placed.length === 0 ? (
+                {placedIds.length === 0 ? (
                   <div className="flex items-center h-[56px] sm:h-[56px] text-muted-foreground text-sm px-2">
                     아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
                   </div>
                 ) : (
-                  placed.map((part) => (
+                  placedIds.map((id) => (
                     <SortablePlacedItem
-                      key={part}
-                      id={part}
-                      value={part}
+                      key={id}
+                      id={id}
+                      value={wordMap.get(id)!}
                       onRemove={handleRemove}
                     />
                   ))
                 )}
                 <div aria-hidden style={{ width: 12 }} />
               </div>
-            </div>
-          </SortableContext>
+            </SortableContext>
+          </div>
 
           <DragOverlay dropAnimation={{ duration: 160 }}>
             {activeId ? (
@@ -262,7 +311,7 @@ const Sentence: React.FC<Props> = ({
                 <div
                   className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
                 >
-                  {String(activeId)}
+                  {wordMap.get(String(activeId)) ?? ""}
                 </div>
               </div>
             ) : null}
@@ -270,19 +319,16 @@ const Sentence: React.FC<Props> = ({
         </DndContext>
       </div>
 
+      {/* 단어 풀 영역 */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5">
         <div className="flex flex-wrap gap-2 sm:gap-3">
-          {pool.map((part, idx) => {
-            const disabled = placed.includes(part);
-            return (
-              <PoolItem
-                key={`${part}-${idx}`}
-                value={part}
-                onAdd={handleAdd}
-                disabled={disabled}
-              />
-            );
-          })}
+          {uniqueOptions
+            .filter(({ id }) => !placedIds.includes(id))
+            .map(({ id, word }) => {
+              return (
+                <PoolItem key={id} value={word} onAdd={() => handleAdd(id)} />
+              );
+            })}
         </div>
       </div>
     </div>
