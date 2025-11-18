@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   pointerWithin,
+  closestCenter,
   DragOverlay,
   PointerSensor,
   TouchSensor,
@@ -9,7 +10,9 @@ import {
   useSensors,
   type DragStartEvent,
   type UniqueIdentifier,
-  type DragOverEvent, // DragOverEvent 추가
+  type DragOverEvent,
+  type CollisionDetection,
+  // 💡 사용하지 않는 DragEndEvent, DroppableContainer 제거
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -31,9 +34,6 @@ interface Props {
 const CARD_TEXT_CLASS =
   "text-base font-medium whitespace-nowrap overflow-hidden";
 
-/**
- * SortablePlacedItem
- */
 function SortablePlacedItem({
   id,
   value,
@@ -52,9 +52,6 @@ function SortablePlacedItem({
     isDragging,
   } = useSortable({ id });
 
-  // 실시간 재정렬 시 부드러운 이동을 위해 transition 유지
-  // 공간은 차지하되 보이지 않게 하여(visibility: hidden)
-  // 드래그 중인 아이템(Overlay)이 그 자리에 있는 것처럼 느끼게 함
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -79,7 +76,6 @@ function SortablePlacedItem({
       onClick={handleClick}
       role="listitem"
       aria-label={`선택된 단어 ${value}`}
-      // isDragging일 때 스타일 간소화 (Overlay가 시각적 역할 담당)
       className={`flex-none rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
         isDragging ? "z-50" : ""
       }`}
@@ -93,9 +89,6 @@ function SortablePlacedItem({
   );
 }
 
-/**
- * PoolItem
- */
 function PoolItem({
   value,
   onAdd,
@@ -205,35 +198,58 @@ const Sentence: React.FC<Props> = ({
     onReorder?.(nextIds.map((pid) => wordMap.get(pid)!));
   };
 
+  // --- 맞춤형 충돌 감지 전략 ---
+  const customCollisionStrategy: CollisionDetection = (args) => {
+    // 1. 커서가 아이템 위에 있는지 확인
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+
+    // 2. 커서가 빈 공간에 있을 경우, 가장 가까운 아이템을 찾음 (Fallback)
+    const droppableContainers = args.droppableContainers.filter(
+      (container) =>
+        container.id !== "pool" && placedIds.includes(String(container.id))
+    );
+
+    return closestCenter({
+      ...args,
+      droppableContainers: droppableContainers,
+    });
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id);
   };
 
-  // --- 💡 변경된 부분: onDragOver 구현 ---
-  // 드래그하는 도중에 다른 아이템 위로 지나가면 즉시 순서를 바꿉니다.
-  // 이로 인해 가변 너비 아이템들이 즉각적으로 재배치되어 레이아웃 깨짐이 방지됩니다.
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
+
     if (!over || active.id === over.id) return;
 
-    const activeIdStr = String(active.id);
     const overIdStr = String(over.id);
+    if (!placedIds.includes(overIdStr)) {
+      return;
+    }
 
-    setPlacedIds((items) => {
-      const oldIndex = items.indexOf(activeIdStr);
-      const newIndex = items.indexOf(overIdStr);
+    const activeIdStr = String(active.id);
+    const oldIndex = placedIds.indexOf(activeIdStr);
+    const newIndex = placedIds.indexOf(overIdStr);
 
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        return arrayMove(items, oldIndex, newIndex);
-      }
-      return items;
-    });
+    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+      setPlacedIds((items) => {
+        const currentOldIndex = items.indexOf(activeIdStr);
+        const currentNewIndex = items.indexOf(overIdStr);
+        if (currentOldIndex !== currentNewIndex) {
+          return arrayMove(items, currentOldIndex, currentNewIndex);
+        }
+        return items;
+      });
+    }
   };
 
   const handleDragEnd = () => {
     setActiveId(null);
-    // DragOver에서 이미 상태가 업데이트되었으므로
-    // 여기서는 최종 순서를 부모에게 알리기만 합니다.
     if (placedIds.length > 0) {
       onReorder?.(placedIds.map((id) => wordMap.get(id)!));
     }
@@ -271,9 +287,9 @@ const Sentence: React.FC<Props> = ({
 
         <DndContext
           sensors={sensors}
-          collisionDetection={pointerWithin}
+          collisionDetection={customCollisionStrategy}
           onDragStart={handleDragStart}
-          onDragOver={handleDragOver} // DragOver 이벤트 연결
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
           <div
