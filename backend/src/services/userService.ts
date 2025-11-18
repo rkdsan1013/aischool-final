@@ -1,5 +1,6 @@
 // backend/src/services/userService.ts
 import { pool } from "../config/db";
+// ✅ ResultSetHeader 추가 (INSERT 결과에서 insertId를 얻기 위해)
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 
 /**
@@ -8,20 +9,24 @@ import { RowDataPacket, ResultSetHeader } from "mysql2";
 export type UserRow = {
   user_id: number;
   email: string;
-  password?: string;
-  created_at?: string;
-  updated_at?: string;
+  // --- [수정됨] ---
+  // exactOptionalPropertyTypes: true 규칙을 위해 | undefined 추가
+  password?: string | undefined;
+  created_at?: string | undefined;
+  updated_at?: string | undefined;
+  // --- [수정 완료] ---
 
   // profile fields (joined)
-  name?: string | null;
-  level?: "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | null;
-  level_progress?: number | null;
-  profile_img?: string | null;
+  // (null은 DB에서 오는 값이므로 | null은 그대로 둡니다)
+  name?: string | null | undefined;
+  level?: "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | null | undefined;
+  level_progress?: number | null | undefined;
+  profile_img?: string | null | undefined;
 
   // stats stored in user_profiles per current schema
-  streak_count?: number | null;
-  total_study_time?: number | null;
-  completed_lessons?: number | null;
+  streak_count?: number | null | undefined;
+  total_study_time?: number | null | undefined;
+  completed_lessons?: number | null | undefined;
 };
 
 /**
@@ -44,20 +49,20 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
 export async function getUserById(userId: number): Promise<UserRow | null> {
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT
-       u.user_id,
-       u.email,
-       u.created_at,
-       u.updated_at,
-       p.name,
-       p.level,
-       p.level_progress,
-       p.profile_img,
-       p.streak_count,
-       p.total_study_time,
-       p.completed_lessons
-     FROM users u
-     LEFT JOIN user_profiles p ON u.user_id = p.user_id
-     WHERE u.user_id = ?`,
+        u.user_id,
+        u.email,
+        u.created_at,
+        u.updated_at,
+        p.name,
+        p.level,
+        p.level_progress,
+        p.profile_img,
+        p.streak_count,
+        p.total_study_time,
+        p.completed_lessons
+      FROM users u
+      LEFT JOIN user_profiles p ON u.user_id = p.user_id
+      WHERE u.user_id = ?`,
     [userId]
   );
 

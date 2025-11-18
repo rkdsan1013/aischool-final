@@ -1,6 +1,8 @@
 // backend/src/services/trainingService.ts
 import { nanoid } from "nanoid";
 import { generateVocabularyQuestionsRaw } from "../llm/models/vocabularyModel";
+// (나중에 추가될 다른 모델들)
+// import { generateSentenceQuestionsRaw } from "../llm/models/sentenceModel";
 
 export type TrainingType =
   | "vocabulary"
@@ -13,7 +15,7 @@ export interface QuestionItem {
   id: string;
   type: TrainingType;
   question: string;
-  options?: string[];
+  options?: string[] | undefined; // | undefined 추가
   correct?: string | string[] | undefined;
 }
 
@@ -65,13 +67,7 @@ const DUMMY: Record<TrainingType, QuestionItem[]> = {
   ],
 };
 
-function isStringArray(x: unknown): x is string[] {
-  return Array.isArray(x) && x.every((v) => typeof v === "string");
-}
-
-/**
- * 유틸리티 (배열 섞기)
- */
+// --- [헬퍼 함수] ---
 function shuffleArray<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -81,19 +77,49 @@ function shuffleArray<T>(arr: T[]): void {
   }
 }
 
+function normalizeOptionsAndCorrect(item: unknown): {
+  options: string[];
+  correct: string;
+} {
+  const rawOptions: string[] = Array.isArray((item as any)?.options)
+    ? (item as any).options
+        .map((o: any) => String(o ?? "").trim())
+        .filter((s: string) => s !== "")
+    : [];
+
+  let correctCandidate: string =
+    typeof (item as any)?.correct === "string"
+      ? String((item as any).correct).trim()
+      : "";
+
+  const deduped: string[] = Array.from(new Set(rawOptions));
+  if (correctCandidate !== "" && !deduped.includes(correctCandidate)) {
+    deduped.unshift(correctCandidate);
+  }
+  let options = deduped.slice(0, 4);
+  while (options.length < 4) options.push("(unknown)");
+  if (correctCandidate === "") correctCandidate = options[0]!;
+
+  shuffleArray(options); // <--- 셔플!
+
+  if (!options.includes(correctCandidate)) {
+    options[0] = correctCandidate;
+  }
+  return { options, correct: correctCandidate };
+}
+// --- [헬퍼 함수 완료] ---
+
 /**
  * getQuestionsByType
- * - vocabulary일 때 opts로 level/level_progress를 받아 LLM 호출
- * - words 입력은 받지 않음
+ * LLM 호출, 재시도, 파싱, 정규화, 패딩을 모두 담당
  */
 export async function getQuestionsByType(
   type: TrainingType,
-  opts?: { level?: string; level_progress?: number }
+  // --- [수정됨] ---
+  // exactOptionalPropertyTypes: true 규칙을 위해 | undefined 추가
+  opts?: { level?: string | undefined; level_progress?: number | undefined }
+  // --- [수정 완료] ---
 ): Promise<QuestionItem[]> {
-  if (type !== "vocabulary") {
-    return DUMMY[type] ?? [];
-  }
-
   const level: string | undefined =
     typeof opts?.level === "string" ? opts.level : undefined;
   const level_progress: number | undefined =
@@ -107,7 +133,20 @@ export async function getQuestionsByType(
   try {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        raw = await generateVocabularyQuestionsRaw(level, level_progress);
+        // --- type에 따라 다른 모델 호출 ---
+        switch (type) {
+          case "vocabulary":
+            raw = await generateVocabularyQuestionsRaw(level, level_progress);
+            break;
+          // case "sentence":
+          //   raw = await generateSentenceQuestionsRaw(level, level_progress);
+          //   break;
+          // (다른 유형들...)
+          default:
+            // 지원하지 않는 유형이거나, LLM 호출이 필요 없는 유형 (writing, speaking 등)
+            return DUMMY[type] ?? [];
+        }
+        // --- 호출 완료 ---
 
         // 1. 파싱 시도 (직접)
         try {
@@ -147,7 +186,6 @@ export async function getQuestionsByType(
           lastError = new Error("Parsed result is not array");
         }
       } catch (llmError) {
-        // LLM 호출 자체의 실패 (네트워크 오류 등)
         console.error(
           `[TRAINING SERVICE] Attempt ${attempt}/${MAX_RETRIES}: LLM call failed:`,
           llmError
@@ -161,49 +199,39 @@ export async function getQuestionsByType(
         `[TRAINING SERVICE] All ${MAX_RETRIES} attempts failed, falling back to DUMMY. Last error:`,
         lastError
       );
-      return DUMMY.vocabulary ?? [];
+      return DUMMY[type] ?? [];
     }
 
     const items = (parsed as any[]).slice(0, 10);
 
+    // --- 정규화 로직 ---
     const normalized: QuestionItem[] = items.map((item: any) => {
-      // 안전한 옵션 배열 생성
-      const rawOptions: string[] = Array.isArray(item?.options)
-        ? (item.options as any[])
-            .map((o: any) => String(o ?? "").trim())
-            .filter((s: string) => s !== "")
-        : [];
-
-      const deduped = Array.from(new Set(rawOptions));
-      let options = deduped.slice(0, 4);
-      while (options.length < 4) options.push("(unknown)");
-
-      const correctCandidate: string =
-        typeof item?.correct === "string" && String(item.correct).trim() !== ""
-          ? String(item.correct).trim()
-          : options[0]!;
-
-      shuffleArray(options);
-
-      if (!options.includes(correctCandidate)) {
-        options[0] = correctCandidate;
-      }
+      const id = nanoid();
 
       const question =
         typeof item?.question === "string" && item.question.trim() !== ""
           ? item.question.trim()
           : "(unknown question)";
 
+      // 'vocabulary'와 'blank'는 이 정규화 로직을 공유할 수 있습니다.
+      // 'sentence'는 다른 정규화 함수가 필요할 수 있습니다.
+      const { options, correct } = normalizeOptionsAndCorrect(item);
+
       const q: QuestionItem = {
-        id: nanoid(),
-        type: "vocabulary",
+        id,
+        type: type, // 'vocabulary' 하드코딩 대신 'type' 변수 사용
         question: question,
         options,
-        correct: correctCandidate,
+        correct: correct,
       };
+
+      if (!q.options?.includes(q.correct as string)) {
+        q.correct = q.options?.[0];
+      }
 
       return q;
     });
+    // --- 정규화 완료 ---
 
     // 패딩 보장 (모델이 10개 미만 반환 시)
     if (normalized.length < 10) {
@@ -211,7 +239,7 @@ export async function getQuestionsByType(
       for (let i = padded.length; i < 10; i++) {
         padded.push({
           id: nanoid(),
-          type: "vocabulary",
+          type: type,
           question: `(random word ${i + 1})`,
           options: ["(unknown1)", "(unknown2)", "(unknown3)", "(unknown4)"],
           correct: "(unknown1)",
@@ -223,9 +251,9 @@ export async function getQuestionsByType(
     return normalized;
   } catch (err) {
     console.error(
-      "[TRAINING SERVICE] Error calling LLM for vocabulary questions:",
+      `[TRAINING SERVICE] Error in getQuestionsByType (${type}):`,
       err
     );
-    return DUMMY.vocabulary ?? [];
+    return DUMMY[type] ?? [];
   }
 }

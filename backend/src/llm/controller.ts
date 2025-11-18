@@ -33,25 +33,17 @@ function normalizeOptionsAndCorrect(item: unknown): {
       ? String((item as any).correct).trim()
       : "";
 
-  // 중복 제거 및 순서 보존
+  // ... (중복 제거, 길이 맞추기 등) ...
   const deduped: string[] = Array.from(new Set(rawOptions));
-
-  // correct가 있고 options에 없으면 prepend
   if (correctCandidate !== "" && !deduped.includes(correctCandidate)) {
     deduped.unshift(correctCandidate);
   }
-
-  // 길이 맞추기(4개)
   let options = deduped.slice(0, 4);
   while (options.length < 4) options.push("(unknown)");
-
-  // correct 비어있으면 첫 항목 사용
   if (correctCandidate === "") correctCandidate = options[0]!;
 
-  // 섞어서 정답 위치 편향 완화
   shuffleArray(options);
 
-  // 안전 검사
   if (!options.includes(correctCandidate)) {
     options[0] = correctCandidate;
   }
@@ -61,8 +53,7 @@ function normalizeOptionsAndCorrect(item: unknown): {
 
 /**
  * POST /api/llm/vocabulary 핸들러
- * body: { level?: string, level_progress?: number }
- * (words 입력 받지 않음)
+ * (이 라우트는 requireAuth 미들웨어 뒤에 위치해야 합니다)
  */
 export async function vocabularyHandler(req: Request, res: Response) {
   const MAX_RETRIES = 3;
@@ -71,14 +62,18 @@ export async function vocabularyHandler(req: Request, res: Response) {
   let raw: string = "";
 
   try {
-    const body: unknown = req.body ?? {};
-    const levelRaw = (body as any).level;
-    const levelProgressRaw = (body as any).level_progress;
+    // --- [수정됨] ---
+    // req.body 대신 req.user에서 레벨 정보를 가져옵니다.
+    const user = req.user;
 
-    const level: string | undefined =
-      typeof levelRaw === "string" ? levelRaw : undefined;
-    const level_progress: number | undefined =
-      typeof levelProgressRaw === "number" ? levelProgressRaw : undefined;
+    // requireAuth 미들웨어를 통과했다면 req.user는 항상 존재해야 합니다.
+    if (!user) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const level: string | undefined = user.level;
+    const level_progress: number | undefined = user.level_progress;
+    // --- [수정 완료] ---
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
