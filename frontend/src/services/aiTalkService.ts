@@ -1,4 +1,3 @@
-// frontend/src/services/aiTalkService.ts
 import { apiClient, handleApiError } from "../api";
 
 // --- 타입 정의 ---
@@ -62,12 +61,48 @@ export interface SendMessageResponse {
   aiMessage: AIMessage;
 }
 
-// --- 서비스 함수 ---
+// --- 개별 함수 (컴포넌트에서 직접 import 가능하도록 named export 추가) ---
+
+/**
+ * 나만의 시나리오 생성 (named export)
+ */
+export async function createScenario(
+  payload: CreateScenarioRequest
+): Promise<AIScenario> {
+  try {
+    const { data } = await apiClient.post<AIScenario>(
+      "/ai-talk/scenarios",
+      payload
+    );
+    return data;
+  } catch (error) {
+    return handleApiError(error, "시나리오 생성");
+  }
+}
+
+/**
+ * 나만의 시나리오 수정 (named export)
+ */
+export async function updateScenario(
+  scenarioId: number,
+  payload: UpdateScenarioRequest
+): Promise<AIScenario> {
+  try {
+    const { data } = await apiClient.put<AIScenario>(
+      `/ai-talk/scenarios/${scenarioId}`,
+      payload
+    );
+    return data;
+  } catch (error) {
+    return handleApiError(error, "시나리오 수정");
+  }
+}
+
+// --- 서비스 객체 (기존 메서드명 유지 + 호환성 매핑) ---
 
 export const aiTalkService = {
   /**
    * 모든 시나리오 목록 조회
-   * [수정됨] 경로: /scenarios -> /ai-talk/scenarios
    */
   async getScenarios(): Promise<AIScenario[]> {
     try {
@@ -186,4 +221,10 @@ export const aiTalkService = {
       return handleApiError(error, "대화 종료");
     }
   },
+
+  // --- 호환성 별칭 ---
+  createScenario,
+  updateScenario,
 };
+
+export default aiTalkService;

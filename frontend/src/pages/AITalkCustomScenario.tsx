@@ -2,9 +2,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { X } from "lucide-react";
+// 변경
+import { aiTalkService } from "../services/aiTalkService";
+import type { AIScenario } from "../services/aiTalkService";
 
 interface CustomScenario {
-  id: string;
+  id: string; // 로컬/프론트엔드에서 사용하는 id (백엔드의 scenario_id를 문자열로 변환)
   title: string;
   description: string;
   context: string;
@@ -29,6 +32,8 @@ const AITalkCustomScenario: React.FC = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [context, setContext] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -36,7 +41,7 @@ const AITalkCustomScenario: React.FC = () => {
     setEditId(getEditIdFromSearch(location.search));
   }, [location.search]);
 
-  // 초기화 및 기존 데이터 로드 로직
+  // 초기화 및 기존 데이터 로드 (로컬 캐시에서 먼저 불러옴)
   useEffect(() => {
     if (!editId) {
       setTitle("");
@@ -56,7 +61,7 @@ const AITalkCustomScenario: React.FC = () => {
         setContext(found.context ?? "");
       }
     } catch {
-      // ignore parse errors
+      // parse error 무시
     }
   }, [editId]);
 
@@ -67,7 +72,10 @@ const AITalkCustomScenario: React.FC = () => {
   const adjustTextareaHeight = () => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "10rem";
+    // 기본 높이 리셋 후 컨텐츠에 맞춰 자동 확장(간단한 방식)
+    el.style.height = "6rem";
+    const scrollHeight = el.scrollHeight;
+    el.style.height = `${Math.max(6 * 16, scrollHeight)}px`;
   };
 
   const handleContextChange = (value: string) => {
@@ -75,47 +83,78 @@ const AITalkCustomScenario: React.FC = () => {
     requestAnimationFrame(adjustTextareaHeight);
   };
 
-  const handleSave = () => {
-    if (!title.trim() || !description.trim() || !context.trim()) {
-      console.warn("모든 필드를 입력해주세요");
-      return;
-    }
-
-    let scenarios: CustomScenario[] = [];
-    try {
-      const saved = localStorage.getItem("customScenarios");
-      scenarios = saved ? JSON.parse(saved) : [];
-    } catch {
-      scenarios = [];
-    }
-
-    if (editId) {
-      const idx = scenarios.findIndex((s) => s.id === editId);
-      const payload: CustomScenario = {
-        id: editId,
-        title: title.trim(),
-        description: description.trim(),
-        context: context.trim(),
-      };
-      if (idx !== -1) scenarios[idx] = payload;
-      else scenarios.push(payload);
-    } else {
-      const newScenario: CustomScenario = {
-        id: `custom-${Date.now()}`,
-        title: title.trim(),
-        description: description.trim(),
-        context: context.trim(),
-      };
-      scenarios.push(newScenario);
-    }
-
+  const persistLocal = (scenarios: CustomScenario[]) => {
     try {
       localStorage.setItem("customScenarios", JSON.stringify(scenarios));
     } catch {
       // ignore
     }
+  };
 
-    navigate("/ai-talk");
+  const handleSave = async () => {
+    setError(null);
+    if (!title.trim() || !description.trim() || !context.trim()) {
+      setError("모든 필드를 입력해주세요");
+      return;
+    }
+
+    setLoading(true);
+    const payload = {
+      title: title.trim(),
+      description: description.trim(),
+      context: context.trim(),
+    };
+
+    try {
+      // 백엔드에 저장 (aiTalkService의 createCustomScenario / updateCustomScenario 사용)
+      let savedScenario: AIScenario;
+
+      if (editId) {
+        // editId는 string (URL) -> 숫자로 변환해서 백엔드에 전달
+        const scenarioIdNum = Number(editId);
+        if (Number.isNaN(scenarioIdNum)) {
+          throw new Error("유효하지 않은 시나리오 ID입니다");
+        }
+        savedScenario = await aiTalkService.updateCustomScenario(
+          scenarioIdNum,
+          payload
+        );
+      } else {
+        savedScenario = await aiTalkService.createCustomScenario(payload);
+      }
+
+      // 백엔드 응답(AIScenario)의 scenario_id를 프론트 id로 변환
+      const savedId = String(savedScenario.scenario_id);
+
+      // 백엔드 저장 성공 시 로컬 캐시 업데이트
+      let scenarios: CustomScenario[] = [];
+      try {
+        const saved = localStorage.getItem("customScenarios");
+        scenarios = saved ? JSON.parse(saved) : [];
+      } catch {
+        scenarios = [];
+      }
+
+      const idx = scenarios.findIndex((s) => s.id === savedId);
+      const newEntry: CustomScenario = {
+        id: savedId,
+        title: savedScenario.title,
+        description: savedScenario.description,
+        context: savedScenario.context,
+      };
+      if (idx !== -1) scenarios[idx] = newEntry;
+      else scenarios.push(newEntry);
+      persistLocal(scenarios);
+
+      navigate("/ai-talk");
+    } catch (err: any) {
+      console.error("save error:", err);
+      const msg =
+        err?.message || (err?.statusText ? String(err.statusText) : null);
+      setError(msg || "저장 중 오류가 발생했습니다");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -157,6 +196,8 @@ const AITalkCustomScenario: React.FC = () => {
             </p>
           </header>
 
+          {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
+
           <div className="mb-4">
             <label
               htmlFor="title"
@@ -171,6 +212,7 @@ const AITalkCustomScenario: React.FC = () => {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: 병원에서 진료 받기"
               className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+              disabled={loading}
             />
           </div>
 
@@ -188,6 +230,7 @@ const AITalkCustomScenario: React.FC = () => {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="예: 병원에서 증상을 설명하고 진료를 받는 상황"
               className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+              disabled={loading}
             />
           </div>
 
@@ -209,6 +252,7 @@ const AITalkCustomScenario: React.FC = () => {
               rows={4}
               className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 overflow-auto"
               onInput={adjustTextareaHeight}
+              disabled={loading}
             />
             <p className="text-sm text-gray-500 mt-2">
               AI의 역할, 상황, 대화 스타일 등을 구체적으로 작성하면 더 좋은
@@ -225,6 +269,7 @@ const AITalkCustomScenario: React.FC = () => {
               type="button"
               onClick={handleCancel}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              disabled={loading}
             >
               취소
             </button>
@@ -232,8 +277,11 @@ const AITalkCustomScenario: React.FC = () => {
               type="button"
               onClick={handleSave}
               className="flex-1 rounded-lg bg-rose-500 text-white px-4 py-3 inline-flex items-center justify-center gap-2 hover:bg-rose-600 text-sm font-semibold"
+              disabled={loading}
             >
-              <span>{editId ? "수정하기" : "저장하기"}</span>
+              <span>
+                {loading ? "저장 중..." : editId ? "수정하기" : "저장하기"}
+              </span>
             </button>
           </div>
         </div>
