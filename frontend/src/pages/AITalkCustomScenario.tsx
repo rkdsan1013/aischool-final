@@ -7,7 +7,6 @@ interface CustomScenario {
   id: string;
   title: string;
   description: string;
-  difficulty: string;
   context: string;
 }
 
@@ -29,7 +28,6 @@ const AITalkCustomScenario: React.FC = () => {
   );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [difficulty, setDifficulty] = useState("초급");
   const [context, setContext] = useState("");
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -38,11 +36,11 @@ const AITalkCustomScenario: React.FC = () => {
     setEditId(getEditIdFromSearch(location.search));
   }, [location.search]);
 
+  // 초기화 및 기존 데이터 로드 로직
   useEffect(() => {
     if (!editId) {
       setTitle("");
       setDescription("");
-      setDifficulty("초급");
       setContext("");
       return;
     }
@@ -55,7 +53,6 @@ const AITalkCustomScenario: React.FC = () => {
       if (found) {
         setTitle(found.title ?? "");
         setDescription(found.description ?? "");
-        setDifficulty(found.difficulty ?? "중급");
         setContext(found.context ?? "");
       }
     } catch {
@@ -65,13 +62,11 @@ const AITalkCustomScenario: React.FC = () => {
 
   useEffect(() => {
     adjustTextareaHeight();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const adjustTextareaHeight = () => {
     const el = textareaRef.current;
     if (!el) return;
-    // 고정 높이 설정: 필요 시 '12rem' 값을 조정하세요
     el.style.height = "10rem";
   };
 
@@ -100,7 +95,6 @@ const AITalkCustomScenario: React.FC = () => {
         id: editId,
         title: title.trim(),
         description: description.trim(),
-        difficulty,
         context: context.trim(),
       };
       if (idx !== -1) scenarios[idx] = payload;
@@ -110,7 +104,6 @@ const AITalkCustomScenario: React.FC = () => {
         id: `custom-${Date.now()}`,
         title: title.trim(),
         description: description.trim(),
-        difficulty,
         context: context.trim(),
       };
       scenarios.push(newScenario);
