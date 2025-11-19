@@ -1,13 +1,12 @@
-// src/pages/AITalkCustomScenario.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { X } from "lucide-react";
-// 변경
+// 외부 서비스 임포트
 import { aiTalkService } from "../services/aiTalkService";
 import type { AIScenario } from "../services/aiTalkService";
 
 interface CustomScenario {
-  id: string; // 로컬/프론트엔드에서 사용하는 id (백엔드의 scenario_id를 문자열로 변환)
+  id: string;
   title: string;
   description: string;
   context: string;
@@ -20,6 +19,37 @@ function getEditIdFromSearch(search: string) {
   } catch {
     return null;
   }
+}
+
+function parseError(err: unknown): string {
+  if (typeof err === "string") return err;
+  if (err instanceof Error && err.message) return err.message;
+
+  if (typeof err === "object" && err !== null) {
+    const e = err as Record<string, unknown>;
+
+    if (typeof e.message === "string") return e.message;
+    if (typeof e.statusText === "string") return e.statusText;
+
+    const response = e.response;
+    if (typeof response === "object" && response !== null) {
+      const r = response as Record<string, unknown>;
+      const data = r.data;
+      if (typeof data === "object" && data !== null) {
+        const d = data as Record<string, unknown>;
+        if (typeof d.message === "string") return d.message;
+        if (Array.isArray(d.errors) && d.errors.length > 0) {
+          const first = d.errors[0];
+          if (typeof first === "object" && first !== null) {
+            const f = first as Record<string, unknown>;
+            if (typeof f.message === "string") return f.message;
+          }
+        }
+      }
+    }
+  }
+
+  return "저장 중 오류가 발생했습니다";
 }
 
 const AITalkCustomScenario: React.FC = () => {
@@ -41,7 +71,6 @@ const AITalkCustomScenario: React.FC = () => {
     setEditId(getEditIdFromSearch(location.search));
   }, [location.search]);
 
-  // 초기화 및 기존 데이터 로드 (로컬 캐시에서 먼저 불러옴)
   useEffect(() => {
     if (!editId) {
       setTitle("");
@@ -65,23 +94,24 @@ const AITalkCustomScenario: React.FC = () => {
     }
   }, [editId]);
 
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, []);
-
-  const adjustTextareaHeight = () => {
+  const adjustTextareaHeight = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
-    // 기본 높이 리셋 후 컨텐츠에 맞춰 자동 확장(간단한 방식)
-    el.style.height = "6rem";
-    const scrollHeight = el.scrollHeight;
-    el.style.height = `${Math.max(6 * 16, scrollHeight)}px`;
-  };
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
 
-  const handleContextChange = (value: string) => {
-    setContext(value);
-    requestAnimationFrame(adjustTextareaHeight);
-  };
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [adjustTextareaHeight, context]);
+
+  const handleContextChange = useCallback(
+    (value: string) => {
+      setContext(value);
+      requestAnimationFrame(adjustTextareaHeight);
+    },
+    [adjustTextareaHeight]
+  );
 
   const persistLocal = (scenarios: CustomScenario[]) => {
     try {
@@ -99,18 +129,40 @@ const AITalkCustomScenario: React.FC = () => {
     }
 
     setLoading(true);
-    const payload = {
+    const payload: { title: string; description: string; context: string } = {
       title: title.trim(),
       description: description.trim(),
       context: context.trim(),
     };
 
     try {
-      // 백엔드에 저장 (aiTalkService의 createCustomScenario / updateCustomScenario 사용)
+      // editId가 존재하지만 숫자가 아닌 경우(로컬 전용 id: 예 UUID) -> 로컬만 업데이트
+      if (editId && Number.isNaN(Number(editId))) {
+        let scenarios: CustomScenario[] = [];
+        try {
+          const saved = localStorage.getItem("customScenarios");
+          scenarios = saved ? JSON.parse(saved) : [];
+        } catch {
+          scenarios = [];
+        }
+
+        const idx = scenarios.findIndex((s) => s.id === editId);
+        const newEntry: CustomScenario = {
+          id: editId,
+          title: payload.title,
+          description: payload.description,
+          context: payload.context,
+        };
+        if (idx !== -1) scenarios[idx] = newEntry;
+        else scenarios.push(newEntry);
+        persistLocal(scenarios);
+        navigate("/ai-talk");
+        return;
+      }
+
       let savedScenario: AIScenario;
 
       if (editId) {
-        // editId는 string (URL) -> 숫자로 변환해서 백엔드에 전달
         const scenarioIdNum = Number(editId);
         if (Number.isNaN(scenarioIdNum)) {
           throw new Error("유효하지 않은 시나리오 ID입니다");
@@ -123,10 +175,8 @@ const AITalkCustomScenario: React.FC = () => {
         savedScenario = await aiTalkService.createCustomScenario(payload);
       }
 
-      // 백엔드 응답(AIScenario)의 scenario_id를 프론트 id로 변환
       const savedId = String(savedScenario.scenario_id);
 
-      // 백엔드 저장 성공 시 로컬 캐시 업데이트
       let scenarios: CustomScenario[] = [];
       try {
         const saved = localStorage.getItem("customScenarios");
@@ -147,11 +197,9 @@ const AITalkCustomScenario: React.FC = () => {
       persistLocal(scenarios);
 
       navigate("/ai-talk");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("save error:", err);
-      const msg =
-        err?.message || (err?.statusText ? String(err.statusText) : null);
-      setError(msg || "저장 중 오류가 발생했습니다");
+      setError(parseError(err));
     } finally {
       setLoading(false);
     }
@@ -162,46 +210,53 @@ const AITalkCustomScenario: React.FC = () => {
   };
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col">
-      <header className="bg-rose-500 text-white flex-shrink-0">
+    <div className="h-[100dvh] bg-white flex flex-col font-sans">
+      <header className="bg-rose-500 text-white flex-shrink-0 shadow-md">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {/* 헤더 멘트 영역 */}
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
               {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
             </h1>
-            <p className="text-white/90">원하는 대화 상황을 직접 설정하세요</p>
+            <p className="text-white/90 text-sm sm:text-base">
+              원하는 대화 상황을 직접 설정하세요
+            </p>
           </div>
 
-          {/* 상단 우측 X 버튼 */}
           <button
             type="button"
             onClick={() => navigate("/ai-talk")}
-            className="inline-flex items-center text-white hover:bg-white/10 px-2 py-1 rounded"
+            className="inline-flex items-center text-white hover:bg-white/20 p-2 rounded-full transition duration-150"
             aria-label="닫기"
           >
-            <X className="w-5 h-5" aria-hidden="true" />
+            <X className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
       </header>
 
       <main className="w-full flex-1 overflow-y-auto">
         <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-20">
-          <header className="mb-4 sm:mb-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
-              시나리오 정보
+          <header className="mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+              시나리오 정보 입력
             </h2>
             <p className="text-sm sm:text-base text-gray-600 text-pretty">
-              AI와 대화할 상황을 자세히 설명해주세요
+              AI와 대화할 상황을 자세히 설명해주세요 (모든 필드 필수)
             </p>
           </header>
 
-          {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
+          {error && (
+            <div
+              className="mb-4 p-3 bg-red-100 border border-red-300 text-sm text-red-700 rounded-lg"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
 
-          <div className="mb-4">
+          <div className="mb-6">
             <label
               htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-base font-semibold text-gray-700 mb-2"
             >
               시나리오 제목 *
             </label>
@@ -211,15 +266,15 @@ const AITalkCustomScenario: React.FC = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: 병원에서 진료 받기"
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:outline-none focus:ring-4 focus:ring-rose-200 transition duration-150"
               disabled={loading}
             />
           </div>
 
-          <div className="mb-4">
+          <div className="mb-6">
             <label
               htmlFor="description"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-base font-semibold text-gray-700 mb-2"
             >
               간단한 설명 *
             </label>
@@ -229,15 +284,15 @@ const AITalkCustomScenario: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="예: 병원에서 증상을 설명하고 진료를 받는 상황"
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:outline-none focus:ring-4 focus:ring-rose-200 transition duration-150"
               disabled={loading}
             />
           </div>
 
-          <div className="mb-4">
+          <div className="mb-6">
             <label
               htmlFor="context"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-base font-semibold text-gray-700 mb-2"
             >
               상황 설명 *
             </label>
@@ -250,7 +305,7 @@ const AITalkCustomScenario: React.FC = () => {
                 "AI가 어떤 역할을 하고, 어떤 상황인지 자세히 설명해주세요.\n\n예시:\n당신은 병원 접수처 직원입니다. 환자가 처음 방문했고, 증상을 듣고 적절한 진료과를 안내해주세요. 친절하고 전문적인 태도로 대화하며, 필요한 서류나 절차에 대해서도 안내해주세요."
               }
               rows={4}
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 overflow-auto"
+              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white resize-none focus:outline-none focus:ring-4 focus:ring-rose-200 overflow-auto transition duration-150"
               onInput={adjustTextareaHeight}
               disabled={loading}
             />
@@ -262,13 +317,13 @@ const AITalkCustomScenario: React.FC = () => {
         </section>
       </main>
 
-      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
+      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0 shadow-lg">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex flex-row gap-3">
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="flex-1 rounded-xl border border-gray-300 px-4 py-3 bg-white text-base font-semibold text-gray-700 hover:bg-gray-100 transition duration-150"
               disabled={loading}
             >
               취소
@@ -276,8 +331,9 @@ const AITalkCustomScenario: React.FC = () => {
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 rounded-lg bg-rose-500 text-white px-4 py-3 inline-flex items-center justify-center gap-2 hover:bg-rose-600 text-sm font-semibold"
+              className="flex-1 rounded-xl bg-rose-500 text-white px-4 py-3 inline-flex items-center justify-center gap-2 hover:bg-rose-600 active:bg-rose-700 disabled:bg-rose-300 text-base font-semibold transition duration-150"
               disabled={loading}
+              aria-busy={loading}
             >
               <span>
                 {loading ? "저장 중..." : editId ? "수정하기" : "저장하기"}
