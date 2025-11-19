@@ -17,6 +17,15 @@ import Speaking from "../components/Speaking";
 import type { QuestionItem, TrainingType } from "../services/trainingService";
 import { fetchTrainingQuestions } from "../services/trainingService";
 
+/*
+ * ESLint 오류 해결을 위해 QuestionItem 타입을 확장합니다.
+ * writing 유형에서 사용되는 추가 필드를 포함합니다.
+ */
+type ExtendedQuestionItem = QuestionItem & {
+  canonical_preferred?: string;
+  preferred?: string;
+};
+
 /* location.state 타입가드 */
 function isLocState(
   obj: unknown
@@ -114,8 +123,11 @@ const TrainingPage: React.FC = () => {
     }
   }, [startType, questions, navigate]);
 
-  const currentQuestion = useMemo(
-    () => (questions && questions[index] ? questions[index] : null),
+  const currentQuestion: ExtendedQuestionItem | null = useMemo(
+    () =>
+      questions && questions[index]
+        ? (questions[index] as ExtendedQuestionItem)
+        : null,
     [questions, index]
   );
 
@@ -223,16 +235,16 @@ const TrainingPage: React.FC = () => {
       case "writing": {
         // 우선순위: generator가 제공한 canonical_preferred 필드 사용 시 그것을 우선,
         // 없으면 currentQuestion.correct 또는 currentQuestion.preferred 사용
-        const anyQ = currentQuestion as any;
         const canonical =
-          typeof anyQ.canonical_preferred === "string" &&
-          anyQ.canonical_preferred.trim() !== ""
-            ? anyQ.canonical_preferred
+          typeof currentQuestion.canonical_preferred === "string" &&
+          currentQuestion.canonical_preferred.trim() !== ""
+            ? currentQuestion.canonical_preferred
             : typeof currentQuestion.correct === "string" &&
               String(currentQuestion.correct).trim() !== ""
             ? String(currentQuestion.correct)
-            : typeof anyQ.preferred === "string" && anyQ.preferred.trim() !== ""
-            ? anyQ.preferred
+            : typeof currentQuestion.preferred === "string" &&
+              currentQuestion.preferred.trim() !== ""
+            ? currentQuestion.preferred
             : "";
 
         // 디버그 로그
@@ -258,7 +270,11 @@ const TrainingPage: React.FC = () => {
             correct = false;
             // 피드백에는 사람이 읽을 수 있는 preferred(원문)를 보여줌
             setAnswerToShow(
-              String(anyQ.preferred ?? currentQuestion.correct ?? canonical)
+              String(
+                currentQuestion.preferred ??
+                  currentQuestion.correct ??
+                  canonical
+              )
             );
           }
         }
