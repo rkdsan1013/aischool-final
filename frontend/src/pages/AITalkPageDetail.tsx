@@ -6,12 +6,20 @@ import React, {
   useMemo,
 } from "react";
 import { Mic, Volume2, Languages, AlertCircle } from "lucide-react";
-// ✅ [중요] 백엔드 데이터 타입(AIFeedback)을 import하여 any 제거
-import { aiTalkService, type AIFeedback } from "../services/aiTalkService";
+// ✅ useLocation과 useNavigate를 import하여 state를 읽고 목록으로 복귀
+import { useLocation, useNavigate } from "react-router-dom";
 import FloatingFeedbackCard, {
   type FeedbackPayload,
   type ErrorType,
 } from "../components/FloatingFeedbackCard";
+
+// ✅ [수정] ErrorType을 명시적으로 사용하여 타입 오류 해결
+type DummyErrorInput = {
+  index?: number;
+  word?: string;
+  type: ErrorType;
+  message: string;
+};
 
 // 프론트엔드 표시용 메시지 타입
 type Message = {
@@ -23,30 +31,154 @@ type Message = {
   feedback?: FeedbackPayload;
 };
 
-// ✅ URL 파라미터가 아닌 부모로부터 ID를 받음 (SPA 방식)
+// 기존 하드코딩 데이터 구조
+const STATIC_SCENARIOS = {
+  "1": {
+    id: "free",
+    title: "자유 대화",
+    initialMessage:
+      "Hello! I'm your AI conversation partner. What would you like to talk about today?",
+    context: "You are a friendly AI assistant ready to discuss any topic.",
+  },
+  "2": {
+    id: "smalltalk",
+    title: "스몰토크",
+    initialMessage: "Hi! How's the weather today?",
+    context:
+      "You are a friendly person interested in chatting about hobbies and weather.",
+  },
+  "3": {
+    id: "cafe",
+    title: "카페에서 주문하기",
+    initialMessage:
+      "Hello! Welcome to our coffee shop. What can I get for you today?",
+    context: "You are a friendly barista at a coffee shop.",
+  },
+  "4": {
+    id: "shopping",
+    title: "쇼핑하기",
+    initialMessage: "Hi there! Are you looking for something specific today?",
+    context: "You are a helpful sales assistant.",
+  },
+  "5": {
+    id: "study",
+    title: "학교 생활",
+    initialMessage: "Hi! What class do you have next?",
+    context: "You are a friendly classmate.",
+  },
+  "6": {
+    id: "travel",
+    title: "여행 대화",
+    initialMessage: "Welcome! How can I help you with your travel plans today?",
+    context: "You are a travel agent.",
+  },
+  "7": {
+    id: "dating",
+    title: "데이트 대화",
+    initialMessage:
+      "It's nice meeting you here. What do you enjoy doing for fun?",
+    context: "You are a friendly date partner.",
+  },
+  "8": {
+    id: "interview",
+    title: "면접 연습",
+    initialMessage:
+      "Good morning! Thank you for coming in today. Please tell me about yourself.",
+    context: "You are a hiring manager conducting an interview.",
+  },
+};
+
+// ✅ [수정] feedbackErrors: type 캐스팅 및 word null 처리로 타입 오류 해결
+function buildDummyMessages(initial: string): Message[] {
+  const feedbackErrors = (errors: DummyErrorInput[]) =>
+    errors.map((e) => ({
+      ...e,
+      index: e.index ?? null,
+      word: e.word ?? null,
+    }));
+  const now = () => new Date();
+
+  return [
+    { id: "ai-0", role: "ai", content: initial, timestamp: now() },
+    {
+      id: "user-1",
+      role: "user",
+      content: "He ain't coming to the meeting.",
+      timestamp: now(),
+      feedback: {
+        errors: feedbackErrors([
+          {
+            index: 1,
+            word: "ain't",
+            type: "word" as ErrorType,
+            message: "비표준적이고 구어체적인 표현",
+          },
+        ]),
+        explanation: "공식적 맥락에서는 'isn't' 또는 'is not'을 사용합니다.",
+        suggestion: "He isn't coming to the meeting.",
+      },
+    },
+    {
+      id: "ai-1",
+      role: "ai",
+      content:
+        "Thanks for letting me know. Is there a reason he can't make it?",
+      timestamp: now(),
+    },
+    {
+      id: "user-2",
+      role: "user",
+      content: "She go to the office every day.",
+      timestamp: now(),
+      feedback: {
+        errors: feedbackErrors([
+          {
+            index: 1,
+            word: "go",
+            type: "grammar" as ErrorType,
+            message: "주어 'She'에 맞게 현재형 동사에 -s 필요",
+          },
+        ]),
+        explanation: "3인칭 단수 주어에는 현재형 동사에 -s를 붙입니다.",
+        suggestion: "She goes to the office every day.",
+      },
+    },
+    {
+      id: "ai-2",
+      role: "ai",
+      content: "Got it. What does she usually do there?",
+      timestamp: now(),
+    },
+    {
+      id: "user-3",
+      role: "user",
+      content: "I didn't receive the email yet.",
+      timestamp: now(),
+      feedback: {
+        errors: feedbackErrors([
+          {
+            index: 3,
+            word: "receive",
+            type: "spelling" as ErrorType,
+            message: "'receive'로 철자 수정 필요",
+          },
+        ]),
+        explanation: "'receive'가 올바른 철자입니다.",
+        suggestion: "I didn't receive the email yet.",
+      },
+    },
+  ];
+}
+
+// Props 정의를 비활성화합니다. 라우터 State에서 정보를 가져옵니다.
+/*
 type Props = {
   scenarioId: number;
   onBack: () => void;
 };
+*/
 
-// ✅ [핵심] 백엔드 피드백 데이터를 프론트엔드 포맷으로 변환 (any 제거됨)
-const transformFeedback = (
-  backendFeedbackData: AIFeedback["feedback_data"]
-): FeedbackPayload | undefined => {
-  if (!backendFeedbackData) return undefined;
-
-  return {
-    explanation: backendFeedbackData.explanation,
-    suggestion: backendFeedbackData.suggestion,
-    errors: backendFeedbackData.errors.map((e) => ({
-      index: e.index ?? null, // undefined -> null 변환 (TypeScript 에러 해결)
-      word: e.word ?? null,
-      type: e.type as ErrorType,
-      message: e.message,
-    })),
-  };
-};
-
+// --- 유틸리티 함수들 (변화 없음) ---
 function tokenizeWithIndices(text: string): { token: string; index: number }[] {
   const parts = text.split(/(\s+)/);
   const tokens: { token: string; index: number }[] = [];
@@ -75,76 +207,56 @@ const LAST_MESSAGE_SPACING = 16;
 const TOOLTIP_GAP_BELOW = 12;
 const TOOLTIP_GAP_ABOVE = 6;
 
-const AITalkPageDetail: React.FC<Props> = ({ scenarioId, onBack }) => {
+// ✅ [수정] Props 제거
+const AITalkPageDetail: React.FC = () => {
+  // 라우터 훅을 사용하여 State에서 데이터를 가져옵니다.
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // URL State에서 scenarioId 추출
+  const scenarioId = location.state?.scenarioId as number | undefined;
+
   const headerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const [scenarioTitle, setScenarioTitle] = useState("");
-  const [sessionId, setSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [isRecording, setIsRecording] = useState(false);
 
-  // 툴팁 관련 상태
+  // 툴팁 관련 상태 (이전과 동일)
   const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
     null
   );
   const [activeTooltipWordIndexes, setActiveTooltipWordIndexes] = useState<
     number[]
   >([]);
-  const [cardPos, setCardPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    preferAbove?: boolean;
-  }>({ top: 0, left: 0, width: 0, preferAbove: false });
+  const [cardPos, setCardPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    preferAbove: false,
+  });
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isMobile = isMobileUA();
 
-  // ✅ 초기 세션 로드 (scenarioId 변경 시 실행)
+  // ✅ [수정] 데이터 로드 로직: scenarioId를 문자열 키로 변환하여 접근
   useEffect(() => {
-    if (!scenarioId) return;
+    // scenarioId가 없으면 목록으로 복귀
+    if (!scenarioId) {
+      navigate("/ai-talk", { replace: true });
+      return;
+    }
 
-    const initSession = async () => {
-      try {
-        setIsLoading(true);
+    // 1. scenarioId(number)를 string으로 변환하여 객체 접근
+    const scenarioKey = String(scenarioId) as keyof typeof STATIC_SCENARIOS;
 
-        // 1. 시나리오 정보 가져오기 (제목 표시용)
-        const scenarioData = await aiTalkService.getScenarioById(scenarioId);
-        setScenarioTitle(scenarioData.title);
+    // 2. 안전한 접근 (키가 없으면 기본값인 1번(자유 대화) 사용)
+    const scenario = STATIC_SCENARIOS[scenarioKey] || STATIC_SCENARIOS["1"];
 
-        // 2. 대화 세션 시작 (첫 인사말 가져오기)
-        const { session, initialMessages } = await aiTalkService.startSession(
-          scenarioId
-        );
-        setSessionId(session.session_id);
-
-        // 3. 메시지 포맷 변환 및 적용
-        const formattedMessages: Message[] = initialMessages.map((m) => ({
-          id: String(m.message_id),
-          role: m.sender_role,
-          content: m.content,
-          timestamp: new Date(m.created_at),
-          audioUrl: m.audio_url,
-          // 백엔드 데이터 변환 적용
-          feedback: m.feedback
-            ? transformFeedback(m.feedback.feedback_data)
-            : undefined,
-        }));
-
-        setMessages(formattedMessages);
-      } catch (error) {
-        console.error("세션 시작 실패:", error);
-        alert("대화를 시작할 수 없습니다.");
-        onBack(); // 실패 시 목록으로 복귀
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initSession();
-  }, [scenarioId, onBack]);
+    setScenarioTitle(scenario.title);
+    setMessages(buildDummyMessages(scenario.initialMessage));
+  }, [scenarioId, navigate]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -158,64 +270,37 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId, onBack }) => {
     }, 100);
   }, [messages]);
 
-  // --- 메시지 전송 로직 ---
-  const handleSendMessage = async (text: string) => {
-    if (!sessionId || !text.trim()) return;
-
-    // 임시 메시지 추가 (Optimistic UI)
-    const tempId = "temp-" + Date.now();
-    const userMsg: Message = {
-      id: tempId,
-      role: "user",
-      content: text,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    try {
-      // API 호출
-      const response = await aiTalkService.sendMessage(sessionId, text);
-
-      const serverUserMsg = response.userMessage;
-      const serverAiMsg = response.aiMessage;
-
-      // 실제 서버 데이터로 교체
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== tempId),
-        {
-          id: String(serverUserMsg.message_id),
-          role: "user",
-          content: serverUserMsg.content,
-          timestamp: new Date(serverUserMsg.created_at),
-          feedback: serverUserMsg.feedback
-            ? transformFeedback(serverUserMsg.feedback.feedback_data)
-            : undefined,
-        },
-        {
-          id: String(serverAiMsg.message_id),
-          role: "ai",
-          content: serverAiMsg.content,
-          timestamp: new Date(serverAiMsg.created_at),
-          audioUrl: serverAiMsg.audio_url,
-        },
-      ]);
-    } catch (error) {
-      console.error("메시지 전송 실패:", error);
-      alert("메시지 전송에 실패했습니다.");
-    }
-  };
-
+  // --- 메시지 전송 로직 (더미) ---
   const toggleRecording = () => {
     if (isRecording) {
-      // TODO: 실제 녹음 중지 및 STT 처리 후 handleSendMessage 호출
+      // 녹음 중지 시 더미 응답 추가
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${prev.length}`,
+          role: "user",
+          content: "Just a dummy user message for testing.",
+          timestamp: new Date(),
+        },
+        {
+          id: `ai-${prev.length + 1}`,
+          role: "ai",
+          content: "Thank you. This is a dummy AI response.",
+          timestamp: new Date(),
+        },
+      ]);
       setIsRecording(false);
-      handleSendMessage("Hello, I would like to order an iced americano."); // 테스트용 더미 메시지
     } else {
       setIsRecording(true);
     }
   };
 
-  // --- UI 헬퍼 함수들 ---
+  // ✅ [수정] 대화 종료 버튼 핸들러: 목록 페이지로 복귀
+  const handleEndConversation = () => {
+    navigate("/ai-talk");
+  };
+
+  // --- UI 헬퍼 함수들 (이전과 동일) ---
   const playAIVoice = (text: string) =>
     console.log("[v0] Playing AI voice:", text);
   const translateText = (text: string) =>
@@ -345,14 +430,6 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId, onBack }) => {
     return map;
   }, [messages]);
 
-  if (isLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center text-gray-500">
-        대화 세션을 불러오는 중입니다...
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen flex flex-col bg-white">
       {/* 헤더 */}
@@ -370,7 +447,7 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId, onBack }) => {
           <div className="flex items-center">
             <button
               type="button"
-              onClick={onBack}
+              onClick={handleEndConversation} // ✅ 수정된 함수 사용
               className="ml-3 inline-flex items-center gap-2 rounded-md bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium hover:bg-rose-100 shadow-sm"
             >
               대화 종료

@@ -16,12 +16,11 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-// ✅ 서비스 파일 import (경로 확인 필요)
 import { aiTalkService } from "../services/aiTalkService";
 
-// 프론트엔드 표시용 인터페이스
+// 화면 표시용 데이터 타입
 interface DisplayScenario {
-  id: string | number;
+  id: number;
   title: string;
   description: string;
   icon: React.ReactNode;
@@ -105,11 +104,10 @@ const AITalkPage: React.FC = () => {
     };
   };
 
-  // ✅ DB 데이터 Fetching (Service 사용)
+  // DB 데이터 Fetching
   useEffect(() => {
     const fetchScenarios = async () => {
       try {
-        // [수정됨] 직접 fetch 대신 서비스 호출 (내부적으로 /api/ai-talk/scenarios 호출)
         const data = await aiTalkService.getScenarios();
 
         const official: DisplayScenario[] = [];
@@ -144,13 +142,10 @@ const AITalkPage: React.FC = () => {
     fetchScenarios();
   }, []);
 
-  // ... (모달 초기값 세팅 useEffect는 그대로 유지) ...
+  // 모달 초기값 세팅
   useEffect(() => {
     if (!modalScenario) {
       setEditForm({});
-      if (titleRef.current) titleRef.current.value = "";
-      if (descRef.current) descRef.current.value = "";
-      if (ctxRef.current) ctxRef.current.value = "";
       return;
     }
 
@@ -160,16 +155,11 @@ const AITalkPage: React.FC = () => {
       description: s.description,
       context: s.context,
     });
-
-    setTimeout(() => {
-      if (titleRef.current) titleRef.current.value = s.title ?? "";
-      if (descRef.current) descRef.current.value = s.description ?? "";
-      if (ctxRef.current) ctxRef.current.value = s.context ?? "";
-    }, 0);
   }, [modalScenario]);
 
-  const handleScenarioClick = (id: string | number) => {
-    navigate(`/ai-talk/${id}`);
+  // 시나리오 클릭 핸들러: State와 함께 고정 경로로 navigate
+  const handleScenarioClick = (id: number) => {
+    navigate("/ai-talk/chat", { state: { scenarioId: id } });
   };
 
   const handleCreateNavigate = () => navigate("/ai-talk/custom-scenario");
@@ -187,17 +177,16 @@ const AITalkPage: React.FC = () => {
     document.body.style.overflow = "";
   };
 
+  // 모달 내 '대화 시작' 버튼 핸들러
   const startConversation = (s: DisplayScenario) => {
     closeModal();
-    navigate(`/ai-talk/${s.id}`);
+    navigate("/ai-talk/chat", { state: { scenarioId: s.id } });
   };
 
-  // ✅ 삭제 로직 (Service 사용)
-  const deleteScenario = async (id: string | number) => {
+  const deleteScenario = async (id: number) => {
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
     try {
-      // [수정됨] 서비스 호출
-      await aiTalkService.deleteCustomScenario(Number(id));
+      await aiTalkService.deleteCustomScenario(id);
       setCustomScenarios((prev) => prev.filter((c) => c.id !== id));
       closeModal();
     } catch (error) {
@@ -208,19 +197,25 @@ const AITalkPage: React.FC = () => {
   const startEditing = () => {
     if (!modalScenario) return;
     setIsEditing(true);
+    // ref 값 초기화 (defaultValue가 아닌 value에 직접 할당해야 함)
+    setTimeout(() => {
+      if (titleRef.current) titleRef.current.value = modalScenario.title;
+      if (descRef.current) descRef.current.value = modalScenario.description;
+      if (ctxRef.current) ctxRef.current.value = modalScenario.context || "";
+    }, 0);
   };
 
-  // ✅ 수정 로직 (Service 사용)
+  // Null check 경고 해결 (Optional chaining 사용)
   const saveEdit = async () => {
     if (!modalScenario) return;
+    // Null 체크를 강화하여 경고 해결
     const title = (titleRef.current?.value ?? "").trim();
     if (!title) return;
     const description = (descRef.current?.value ?? "").trim();
     const context = (ctxRef.current?.value ?? "").trim();
 
     try {
-      // [수정됨] 서비스 호출
-      await aiTalkService.updateCustomScenario(Number(modalScenario.id), {
+      await aiTalkService.updateCustomScenario(modalScenario.id, {
         title,
         description,
         context,
@@ -411,7 +406,6 @@ const AITalkPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* 공식 시나리오 섹션 */}
         <section className="mb-8 sm:mb-12">
           <div className="mb-4 sm:mb-6">
             <h2 className="text-xl sm:text-2xl font-bold mb-1 sm:mb-2">
@@ -421,7 +415,6 @@ const AITalkPage: React.FC = () => {
               상황에 맞는 시나리오를 선택하여 AI와 대화를 시작하세요
             </p>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             {officialScenarios.map((s) => (
               <button
