@@ -1,3 +1,4 @@
+// frontend/src/pages/AITalkPage.tsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   Coffee,
@@ -18,7 +19,20 @@ import {
 import { useNavigate } from "react-router-dom";
 import { aiTalkService } from "../services/aiTalkService";
 
-// 화면 표시용 데이터 타입
+/**
+ * 변경 요약
+ * - 오버레이 색상: 사용자가 처음 준 코드와 동일한 반투명 검정 (`bg-black/40`)으로 적용하고
+ *   overlay를 fixed inset-0로 설정해 푸터까지 완전히 가립니다.
+ * - 모달은 화면 중앙에 fixed로 고정되어 스크롤/레이아웃 이동과 무관하게 유지됩니다.
+ * - 입력창(textarea)은 사용자가 resize 할 수 없도록 `resize-none`로 고정하고,
+ *   내부에서 스크롤되도록 높이/overflow를 설정했습니다.
+ * - 입력 상태가 임의로 초기화되는 문제를 방지하기 위해 form 상태는 오직 modalScenario가
+ *   변경될 때만 초기화되도록 했고, onChange는 순수하게 로컬 상태만 변경합니다.
+ * - 오버레이 클릭 시에만 모달이 닫히며, 모달 내부 클릭은 전파를 막아 다른 페이지로 이동되는
+ *   문제를 방지합니다.
+ */
+
+/* 화면 표시용 데이터 타입 */
 interface DisplayScenario {
   id: number;
   title: string;
@@ -40,13 +54,19 @@ const AITalkPage: React.FC = () => {
     null
   );
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<DisplayScenario>>({});
 
+  // Controlled form state (모달 편집용)
+  const [formState, setFormState] = useState({
+    title: "",
+    description: "",
+    context: "",
+  });
+
+  // Refs
   const titleRef = useRef<HTMLInputElement | null>(null);
   const descRef = useRef<HTMLInputElement | null>(null);
   const ctxRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // 스타일 매핑 헬퍼
   const getScenarioStyle = (title: string) => {
     if (title.includes("카페")) {
       return {
@@ -104,7 +124,7 @@ const AITalkPage: React.FC = () => {
     };
   };
 
-  // DB 데이터 Fetching
+  // DB 데이터 Fetching (마운트 시 한 번)
   useEffect(() => {
     const fetchScenarios = async () => {
       try {
@@ -142,22 +162,33 @@ const AITalkPage: React.FC = () => {
     fetchScenarios();
   }, []);
 
-  // 모달 초기값 세팅
+  // modalScenario가 변경될 때만 form 초기화 — typing 중 불필요한 초기화를 방지
   useEffect(() => {
     if (!modalScenario) {
-      setEditForm({});
+      setFormState({ title: "", description: "", context: "" });
+      setIsEditing(false);
       return;
     }
-
-    const s = modalScenario;
-    setEditForm({
-      title: s.title,
-      description: s.description,
-      context: s.context,
+    setFormState({
+      title: modalScenario.title ?? "",
+      description: modalScenario.description ?? "",
+      context: modalScenario.context ?? "",
     });
+    setIsEditing(false);
   }, [modalScenario]);
 
-  // 시나리오 클릭 핸들러: State와 함께 고정 경로로 navigate
+  // 모달 열림/닫힘 시 body 스크롤 제어
+  useEffect(() => {
+    if (modalScenario) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev || "";
+      };
+    }
+    return;
+  }, [modalScenario]);
+
   const handleScenarioClick = (id: number) => {
     navigate("/ai-talk/chat", { state: { scenarioId: id } });
   };
@@ -166,18 +197,12 @@ const AITalkPage: React.FC = () => {
 
   const openModal = (s: DisplayScenario) => {
     setModalScenario(s);
-    setIsEditing(false);
-    document.body.style.overflow = "hidden";
   };
 
   const closeModal = () => {
     setModalScenario(null);
-    setIsEditing(false);
-    setEditForm({});
-    document.body.style.overflow = "";
   };
 
-  // 모달 내 '대화 시작' 버튼 핸들러
   const startConversation = (s: DisplayScenario) => {
     closeModal();
     navigate("/ai-talk/chat", { state: { scenarioId: s.id } });
@@ -197,24 +222,21 @@ const AITalkPage: React.FC = () => {
   const startEditing = () => {
     if (!modalScenario) return;
     setIsEditing(true);
-    // ref 값 초기화 (defaultValue가 아닌 value에 직접 할당해야 함)
+    // 포커스는 modalScenario가 세팅된 이후에만 실행
     setTimeout(() => {
-      if (titleRef.current) titleRef.current.value = modalScenario.title;
-      if (descRef.current) descRef.current.value = modalScenario.description;
-      if (ctxRef.current) ctxRef.current.value = modalScenario.context || "";
+      titleRef.current?.focus();
     }, 0);
   };
 
-  // Null check 경고 해결 (Optional chaining 사용)
   const saveEdit = async () => {
     if (!modalScenario) return;
-    // Null 체크를 강화하여 경고 해결
-    const title = (titleRef.current?.value ?? "").trim();
+    const title = (formState.title ?? "").trim();
     if (!title) return;
-    const description = (descRef.current?.value ?? "").trim();
-    const context = (ctxRef.current?.value ?? "").trim();
+    const description = (formState.description ?? "").trim();
+    const context = (formState.context ?? "").trim();
 
     try {
+      // 서비스 시그니처에 맞춰 호출 (scenarioId, data)
       await aiTalkService.updateCustomScenario(modalScenario.id, {
         title,
         description,
@@ -232,7 +254,8 @@ const AITalkPage: React.FC = () => {
         prev.map((c) => (c.id === updated.id ? updated : c))
       );
 
-      setEditForm({ title, description, context });
+      // modalScenario를 업데이트하되, 이로 인해 formState가 초기화되지 않도록
+      // modalScenario 변경은 의도적이며 useEffect에서 동일한 값으로만 덮어씌워짐
       setModalScenario(updated);
       setIsEditing(false);
     } catch (error) {
@@ -240,26 +263,34 @@ const AITalkPage: React.FC = () => {
     }
   };
 
+  // Modal component: fixed, overlay bg-black/40 (처음 준 코드 색상과 동일), inputs non-resizable
   const ModalCard: React.FC = () => {
     if (!modalScenario) return null;
     const s = modalScenario;
 
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:px-6"
+        className="fixed inset-0 z-[9999] flex items-center justify-center px-4 sm:px-6"
         role="dialog"
         aria-modal="true"
       >
+        {/* overlay: 처음 주신 코드와 동일한 색상 (bg-black/40)로 전체 화면을 덮음 */}
         <div
-          className="absolute inset-0 bg-black/40"
+          className="fixed inset-0 bg-black/40"
           onClick={closeModal}
           aria-hidden="true"
         />
 
+        {/* Modal container: fixed, centered, 스크롤 가능한 내부, max-height로 푸터까지 가려짐 */}
         <div
-          className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-4 sm:p-5 z-10"
+          className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl p-4 sm:p-5"
           onClick={(e) => e.stopPropagation()}
-          style={{ border: "1px solid rgba(0,0,0,0.06)" }}
+          style={{
+            border: "1px solid rgba(0,0,0,0.06)",
+            maxHeight: "80vh",
+            overflow: "auto",
+            position: "relative",
+          }}
         >
           <div className="flex items-start gap-3">
             <div
@@ -273,18 +304,22 @@ const AITalkPage: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2 min-w-0">
                   <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">
-                    {editForm.title ?? s.title}
+                    {isEditing ? formState.title || "제목 없음" : s.title}
                   </h3>
                 </div>
 
                 <div className="mt-1">
                   <p className="text-sm text-muted-foreground truncate">
-                    {editForm.description ?? s.description}
+                    {isEditing
+                      ? formState.description || s.description
+                      : s.description}
                   </p>
                   <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap line-clamp-3">
-                    {editForm.context ??
-                      s.context ??
-                      "상세 컨텍스트가 없습니다."}
+                    {isEditing
+                      ? formState.context ||
+                        s.context ||
+                        "상세 컨텍스트가 없습니다."
+                      : s.context || "상세 컨텍스트가 없습니다."}
                   </p>
                 </div>
               </div>
@@ -305,7 +340,10 @@ const AITalkPage: React.FC = () => {
               <div className="w-full bg-white rounded-xl p-3 space-y-3">
                 <input
                   ref={titleRef}
-                  defaultValue={editForm.title ?? s.title ?? ""}
+                  value={formState.title}
+                  onChange={(e) =>
+                    setFormState((prev) => ({ ...prev, title: e.target.value }))
+                  }
                   name="title"
                   className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-foreground"
                   placeholder="시나리오 제목"
@@ -313,19 +351,38 @@ const AITalkPage: React.FC = () => {
 
                 <input
                   ref={descRef}
-                  defaultValue={editForm.description ?? s.description ?? ""}
+                  value={formState.description}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
                   name="description"
                   className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-sm"
                   placeholder="간단한 설명"
                 />
 
+                {/* textarea: 사용자가 resize 불가, 내부 스크롤 허용, 고정 높이 */}
                 <textarea
                   ref={ctxRef}
-                  defaultValue={editForm.context ?? s.context ?? ""}
+                  value={formState.context}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      context: e.target.value,
+                    }))
+                  }
                   name="context"
-                  className="w-full bg-white border border-gray-200 rounded-md p-3 text-sm"
-                  rows={6}
+                  className="w-full bg-white border border-gray-200 rounded-md p-3 text-sm resize-none"
+                  rows={8}
                   placeholder="시나리오 상세 컨텍스트"
+                  style={{
+                    lineHeight: 1.5,
+                    height: "160px",
+                    maxHeight: "320px",
+                    overflowY: "auto",
+                  }}
                 />
 
                 <div className="flex gap-2">
@@ -338,18 +395,13 @@ const AITalkPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
-                      if (titleRef.current)
-                        titleRef.current.value = s.title ?? "";
-                      if (descRef.current)
-                        descRef.current.value = s.description ?? "";
-                      if (ctxRef.current)
-                        ctxRef.current.value = s.context ?? "";
-                      setIsEditing(false);
-                      setEditForm({
+                      // 변경 취소: formState를 modalScenario 값으로 되돌림
+                      setFormState({
                         title: s.title,
                         description: s.description,
-                        context: s.context,
+                        context: s.context ?? "",
                       });
+                      setIsEditing(false);
                     }}
                     className="flex-1 bg-white border px-3 py-2 rounded-lg"
                     type="button"
@@ -447,7 +499,7 @@ const AITalkPage: React.FC = () => {
           </div>
         </section>
 
-        {/* 커스텀 시나리오 섹션 */}
+        {/* Custom scenarios */}
         <section>
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
@@ -455,7 +507,7 @@ const AITalkPage: React.FC = () => {
                 나만의 시나리오
               </h2>
               <p className="text-sm sm:text-base text-muted-foreground text-pretty">
-                원하는 상황을 직접 만들어 연습하세요
+                원하는 상황을 직접 만들어 연습해보세요
               </p>
             </div>
             <button
