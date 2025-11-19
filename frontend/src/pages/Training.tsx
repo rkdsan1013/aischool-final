@@ -3,8 +3,8 @@ import React, {
   useEffect,
   useMemo,
   useState,
-  useRef, // 1. useRef 추가
-  useLayoutEffect, // 2. useLayoutEffect 추가
+  useRef,
+  useLayoutEffect,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
@@ -28,15 +28,22 @@ function isLocState(
   return hasStart || hasQuestions;
 }
 
-// *** 푸터 로직 수정 ***
+// 푸터 / 피드백 관련 상수
 const FOOTER_BASE_HEIGHT = 64; // 버튼 영역 높이
 const SAFE_BOTTOM = 12; // 하단 여백
-// 3. '최소' 높이로 이름 변경
-const FEEDBACK_AREA_MIN_HEIGHT = 100; // 피드백 내용이 표시될 *최소* 영역 높이
+const FEEDBACK_AREA_MIN_HEIGHT = 100; // 피드백 내용이 표시될 최소 영역 높이
 const FOOTER_BUTTON_AREA_HEIGHT = FOOTER_BASE_HEIGHT + SAFE_BOTTOM; // 76px
 
-// 4. main 태그 padding-bottom은 동적으로 계산 (아래 footerVisualHeight와 함께)
-// const MAIN_CONTENT_PADDING_BOTTOM = ...
+// 문자열 정규화: 프론트에서 deterministic 비교에 사용
+function normalizeForCompare(s: string) {
+  return s
+    .normalize("NFKC") // 유니코드 정규화
+    .replace(/[\u2018\u2019\u201C\u201D]/g, "'") // 스마트 따옴표 치환
+    .replace(/\u00A0/g, " ") // NBSP 치환
+    .replace(/\s+/g, " ") // 연속 공백 축소
+    .trim()
+    .toLowerCase();
+}
 
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -49,7 +56,7 @@ const TrainingPage: React.FC = () => {
       })
     : undefined;
 
-  // 안전한 rawStart 처리 (unknown)
+  // 안전한 rawStart 처리
   const rawStart: unknown =
     locState && (locState as Record<string, unknown>).startType;
 
@@ -72,7 +79,10 @@ const TrainingPage: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
-  // 5. 동적 피드백 높이 상태 및 ref 추가
+  // writing 오답 시 피드백에 보여줄 정답
+  const [answerToShow, setAnswerToShow] = useState<string | null>(null);
+
+  // 동적 피드백 높이 상태 및 ref
   const [feedbackContentHeight, setFeedbackContentHeight] = useState(
     FEEDBACK_AREA_MIN_HEIGHT
   );
@@ -109,10 +119,12 @@ const TrainingPage: React.FC = () => {
     [questions, index]
   );
 
-  const stableOptions = useMemo(
-    () => (currentQuestion?.options ? [...currentQuestion.options] : []),
-    [currentQuestion?.options]
-  );
+  // stableOptions는 writing이면 빈 배열 반환
+  const stableOptions = useMemo(() => {
+    if (!currentQuestion) return [];
+    if (currentQuestion.type === "writing") return [];
+    return currentQuestion.options ? [...currentQuestion.options] : [];
+  }, [currentQuestion]);
 
   const totalSteps = questions?.length ?? 0;
   const overallProgress =
@@ -121,7 +133,7 @@ const TrainingPage: React.FC = () => {
       : ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
   const isLastQuestion = index === (questions?.length ?? 1) - 1;
 
-  // 닫기 버튼은 피드백 여부와 상관없이 항상 동작
+  // 닫기 버튼
   const handleClose = () => {
     navigate("/home");
   };
@@ -133,7 +145,7 @@ const TrainingPage: React.FC = () => {
     setRecordedBlob(null);
     setShowFeedback(false);
     setIsCorrect(false);
-    // 높이 리셋
+    setAnswerToShow(null);
     setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
@@ -176,9 +188,11 @@ const TrainingPage: React.FC = () => {
     a.length === b.length &&
     a.every((v, i) => v.trim() === (b[i] ?? "").trim());
 
+  // writing은 프론트에서 deterministic 비교 (LLM 의존 제거)
   const handleCheckAnswer = () => {
     if (!currentQuestion) return;
     let correct = false;
+    setAnswerToShow(null);
 
     switch (currentQuestion.type) {
       case "vocabulary":
@@ -207,7 +221,47 @@ const TrainingPage: React.FC = () => {
         break;
       }
       case "writing": {
-        correct = writingValue.trim().length > 0;
+        // 우선순위: generator가 제공한 canonical_preferred 필드 사용 시 그것을 우선,
+        // 없으면 currentQuestion.correct 또는 currentQuestion.preferred 사용
+        const anyQ = currentQuestion as any;
+        const canonical =
+          typeof anyQ.canonical_preferred === "string" &&
+          anyQ.canonical_preferred.trim() !== ""
+            ? anyQ.canonical_preferred
+            : typeof currentQuestion.correct === "string" &&
+              String(currentQuestion.correct).trim() !== ""
+            ? String(currentQuestion.correct)
+            : typeof anyQ.preferred === "string" && anyQ.preferred.trim() !== ""
+            ? anyQ.preferred
+            : "";
+
+        // 디버그 로그
+        console.debug("[writing compare] userInput:", writingValue);
+        console.debug("[writing compare] canonical/preferred:", canonical);
+
+        if (canonical === "") {
+          // 정답 데이터가 없으면 안전하게 오답 처리하고 원문(correct)을 보여줌
+          correct = false;
+          setAnswerToShow(String(currentQuestion.correct ?? ""));
+        } else {
+          const userNorm = normalizeForCompare(writingValue);
+          const prefNorm = normalizeForCompare(canonical);
+          console.debug(
+            "[writing compare] userNorm:",
+            userNorm,
+            "prefNorm:",
+            prefNorm
+          );
+          if (userNorm === prefNorm) {
+            correct = true;
+          } else {
+            correct = false;
+            // 피드백에는 사람이 읽을 수 있는 preferred(원문)를 보여줌
+            setAnswerToShow(
+              String(anyQ.preferred ?? currentQuestion.correct ?? canonical)
+            );
+          }
+        }
         break;
       }
       default:
@@ -233,31 +287,24 @@ const TrainingPage: React.FC = () => {
     navigate("/home");
   };
 
-  // 6. 피드백 컨텐츠 높이 측정 Effect
+  // 피드백 컨텐츠 높이 측정 Effect
   useLayoutEffect(() => {
     if (showFeedback && feedbackContentRef.current) {
-      // 피드백이 표시될 때(애니메이션 시작 시), 실제 컨텐츠의 높이를 측정
       const currentContentHeight = feedbackContentRef.current.scrollHeight;
-      // 최소 높이(100px)와 실제 컨텐츠 높이 중 더 큰 값을 사용
       setFeedbackContentHeight(
         Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
       );
     }
-    // (else) 숨길 때는 resetQuestionState에서 최소 높이로 리셋됨
-  }, [
-    showFeedback,
-    isCorrect,
-    currentQuestion?.correct, // 정답 내용이 바뀔 때마다 재측정
-  ]);
+  }, [showFeedback, isCorrect, currentQuestion?.correct]);
 
-  // 7. 동적 높이 계산
+  // 동적 높이 계산
   const footerVisualHeight = showFeedback
-    ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight // DYNAMIC
+    ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight
     : FOOTER_BUTTON_AREA_HEIGHT;
 
-  // 8. 메인 컨텐츠 패딩도 동적으로 계산
+  // 메인 컨텐츠 패딩도 동적으로 계산
   const MAIN_CONTENT_PADDING_BOTTOM =
-    FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight; // DYNAMIC
+    FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight;
 
   const canCheck = useMemo(() => {
     if (!currentQuestion) return false;
@@ -329,11 +376,11 @@ const TrainingPage: React.FC = () => {
           />
         );
       case "writing":
-        // Writing 컴포넌트가 "sentence" (한국어 원문) prop을 기대하므로 prop 이름을 맞춤
+        // Writing 컴포넌트는 controlled 방식으로 value/onChange를 사용
         return (
           <Writing
             sentence={String(item.question ?? "")}
-            initialValue={writingValue}
+            value={writingValue}
             onChange={handleWritingChange}
             disabled={showFeedback}
           />
@@ -357,10 +404,10 @@ const TrainingPage: React.FC = () => {
 
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
-      {/* --- Header --- */}
+      {/* Header */}
       <header className="flex-none border-b border-gray-200 bg-white">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* 좌측: Progress Bar */}
+          {/* Progress */}
           <div className="flex-1 px-3">
             <div className="mt-2">
               <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
@@ -372,7 +419,7 @@ const TrainingPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 우측: 닫기 버튼 */}
+          {/* Close */}
           <button
             onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
@@ -384,12 +431,12 @@ const TrainingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* --- Main Content --- */}
+      {/* Main */}
       <main
         className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
-        style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }} // 9. 동적 패딩 적용
+        style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
       >
-        {/* Interaction blocker: 피드백이 올라오면 메인 영역 인터랙션 차단 (header 버튼은 영향을 받지 않음) */}
+        {/* Interaction blocker when feedback shown */}
         {showFeedback && (
           <div
             className="absolute inset-0 bg-transparent"
@@ -407,7 +454,7 @@ const TrainingPage: React.FC = () => {
         </fieldset>
       </main>
 
-      {/* --- Footer (원본 슬라이딩 로직 복원) --- */}
+      {/* Footer / Feedback */}
       <div
         className="fixed left-0 right-0 bottom-0 z-50 flex justify-center"
         style={{ pointerEvents: "none" }}
@@ -415,12 +462,12 @@ const TrainingPage: React.FC = () => {
         <div
           className="max-w-4xl w-full relative overflow-hidden"
           style={{
-            height: `${footerVisualHeight}px`, // 10. 동적 높이 적용
+            height: `${footerVisualHeight}px`,
             transition: "height 260ms ease",
             pointerEvents: "auto",
           }}
         >
-          {/* 피드백 카드 */}
+          {/* Feedback card */}
           <div
             className={`absolute bottom-0 left-0 right-0 transition-transform duration-300 ease-out ${
               showFeedback ? "translate-y-0" : "translate-y-full"
@@ -430,16 +477,15 @@ const TrainingPage: React.FC = () => {
                 : "bg-rose-100 border-t border-rose-200"
             } rounded-t-2xl shadow-2xl`}
             style={{
-              height: "100%", // 부모(wrapper)의 높이를 100% 채움
+              height: "100%",
               zIndex: 5,
               pointerEvents: showFeedback ? "auto" : "none",
             }}
           >
-            {/* 11. ref 할당 및 height -> minHeight 변경 */}
             <div
-              ref={feedbackContentRef} // ref 할당
+              ref={feedbackContentRef}
               className="max-w-4xl mx-auto w-full flex items-start gap-3 p-4"
-              style={{ minHeight: `${FEEDBACK_AREA_MIN_HEIGHT}px` }} // 고정 height 대신 minHeight 사용
+              style={{ minHeight: `${FEEDBACK_AREA_MIN_HEIGHT}px` }}
             >
               {showFeedback && (
                 <>
@@ -478,6 +524,7 @@ const TrainingPage: React.FC = () => {
                       </svg>
                     )}
                   </div>
+
                   <div className="flex-1">
                     <div
                       className={`text-lg font-semibold ${
@@ -486,25 +533,30 @@ const TrainingPage: React.FC = () => {
                     >
                       {isCorrect ? "정답입니다!" : "아쉬워요!"}
                     </div>
-                    {!isCorrect &&
-                      currentQuestion.type !== "writing" &&
-                      currentQuestion.type !== "speaking" && (
-                        <div className="mt-1">
-                          <div className="text-sm text-gray-600">정답</div>
-                          <div className="text-base font-bold text-gray-900 mt-1">
-                            {Array.isArray(currentQuestion.correct)
-                              ? currentQuestion.correct.join(" ")
-                              : String(currentQuestion.correct ?? "")}
-                          </div>
+
+                    {/* 오답일 때 speaking을 제외하고 정답 텍스트 노출
+                        writing의 경우 프론트에서 결정한 answerToShow를 우선 사용 */}
+                    {!isCorrect && currentQuestion.type !== "speaking" && (
+                      <div className="mt-1">
+                        <div className="text-sm text-gray-600">정답</div>
+                        <div className="text-base font-bold text-gray-900 mt-1">
+                          {currentQuestion.type === "writing"
+                            ? String(
+                                answerToShow ?? currentQuestion.correct ?? ""
+                              )
+                            : Array.isArray(currentQuestion.correct)
+                            ? currentQuestion.correct.join(" ")
+                            : String(currentQuestion.correct ?? "")}
                         </div>
-                      )}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
             </div>
           </div>
 
-          {/* 버튼 컨테이너 (변경 없음) */}
+          {/* Buttons */}
           <div
             className="absolute bottom-0 left-0 right-0 w-full"
             style={{

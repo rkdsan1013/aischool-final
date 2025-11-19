@@ -1,10 +1,13 @@
 // backend/src/llm/controller.ts
 import { Request, Response } from "express";
-import { generateVocabularyQuestionsRaw } from "./models/vocabularyModel";
 import { nanoid } from "nanoid";
+import { generateVocabularyQuestionsRaw } from "./models/vocabularyModel";
+import { generateSentenceQuestionsRaw } from "./models/sentenceModel";
+import { generateBlankQuestionsRaw } from "./models/blankModel";
+import { generateWritingQuestionsRaw } from "./models/writingModel";
 
 /**
- * 유틸리티
+ * 유틸리티: 배열 셔플
  */
 function shuffleArray<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -33,7 +36,6 @@ function normalizeOptionsAndCorrect(item: unknown): {
       ? String((item as any).correct).trim()
       : "";
 
-  // ... (중복 제거, 길이 맞추기 등) ...
   const deduped: string[] = Array.from(new Set(rawOptions));
   if (correctCandidate !== "" && !deduped.includes(correctCandidate)) {
     deduped.unshift(correctCandidate);
@@ -52,95 +54,84 @@ function normalizeOptionsAndCorrect(item: unknown): {
 }
 
 /**
- * POST /api/llm/vocabulary 핸들러
- * (이 라우트는 requireAuth 미들웨어 뒤에 위치해야 합니다)
+ * 공통 LLM 호출 및 파싱 유틸
+ * - generator: LLM 호출 함수 that returns raw string
+ * - maxItems: 최대 문제 개수 to slice to (default 10)
  */
-export async function vocabularyHandler(req: Request, res: Response) {
+async function callAndParseLLM(
+  generator: (level?: string, level_progress?: number) => Promise<string>,
+  level?: string,
+  level_progress?: number,
+  maxItems = 10
+): Promise<unknown[] | { raw: string; error?: Error }> {
   const MAX_RETRIES = 3;
   let parsed: unknown = null;
   let lastError: Error | null = null;
   let raw: string = "";
 
-  try {
-    // --- [수정됨] ---
-    // req.body 대신 req.user에서 레벨 정보를 가져옵니다.
-    const user = req.user;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      raw = await generator(level, level_progress);
 
-    // requireAuth 미들웨어를 통과했다면 req.user는 항상 존재해야 합니다.
-    if (!user) {
-      return res.status(401).json({ message: "User not authenticated" });
-    }
-
-    const level: string | undefined = user.level;
-    const level_progress: number | undefined = user.level_progress;
-    // --- [수정 완료] ---
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        raw = await generateVocabularyQuestionsRaw(level, level_progress);
-
-        // 1. 파싱 시도 (직접)
-        try {
-          parsed = JSON.parse(String(raw));
-        } catch (err) {
-          console.warn(
-            `[LLM CONTROLLER] Attempt ${attempt}/${MAX_RETRIES}: direct JSON.parse failed:`,
-            err
-          );
-          // 2. 파싱 시도 (서브스트링 추출)
-          const match = String(raw).match(/\[[\s\S]*\]/);
-          if (match) {
-            try {
-              parsed = JSON.parse(match[0]);
-            } catch (err2) {
-              console.error(
-                `[LLM CONTROLLER] Attempt ${attempt}/${MAX_RETRIES}: parsing extracted substring failed:`,
-                err2
-              );
-              lastError = err2 as Error;
-              parsed = null; // 실패
-            }
-          } else {
-            console.warn(
-              `[LLM CONTROLLER] Attempt ${attempt}/${MAX_RETRIES}: no JSON array substring found`
-            );
-            lastError = new Error("No JSON array substring found");
-            parsed = null; // 실패
+        parsed = JSON.parse(String(raw));
+      } catch (err) {
+        // Try to extract first JSON array substring
+        const match = String(raw).match(/\[[\s\S]*\]/);
+        if (match) {
+          try {
+            parsed = JSON.parse(match[0]);
+          } catch (err2) {
+            lastError = err2 as Error;
+            parsed = null;
           }
-        }
-
-        // 3. 파싱 결과 확인
-        if (Array.isArray(parsed)) {
-          lastError = null; // 성공
-          break; // 재시도 루프 탈출
         } else {
-          lastError = new Error("Parsed result is not array");
+          lastError = err as Error;
+          parsed = null;
         }
-      } catch (llmError) {
-        // LLM 호출 자체의 실패 (네트워크 오류 등)
-        console.error(
-          `[LLM CONTROLLER] Attempt ${attempt}/${MAX_RETRIES}: LLM call failed:`,
-          llmError
-        );
-        lastError = llmError as Error;
       }
-    }
 
+      if (Array.isArray(parsed)) {
+        return (parsed as any[]).slice(0, maxItems);
+      } else {
+        lastError = new Error("Parsed result is not array");
+      }
+    } catch (llmError) {
+      lastError = llmError as Error;
+    }
+  }
+
+  return { raw, error: lastError ?? new Error("LLM parse failed") };
+}
+
+/**
+ * POST /api/llm/vocabulary
+ */
+export async function vocabularyHandler(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user)
+      return res.status(401).json({ message: "User not authenticated" });
+
+    const level: string | undefined = (user as any).level;
+    const level_progress: number | undefined = (user as any).level_progress;
+
+    const parsed = await callAndParseLLM(
+      generateVocabularyQuestionsRaw,
+      level,
+      level_progress
+    );
     if (!Array.isArray(parsed)) {
-      console.error(
-        `[LLM CONTROLLER] All ${MAX_RETRIES} attempts failed. Last error:`,
-        lastError
-      );
+      const { raw, error } = parsed as any;
+      console.error("[LLM CONTROLLER][vocabulary] failed:", error);
       return res
         .status(502)
         .json({ error: "LLM returned invalid JSON (expected array).", raw });
     }
 
     const items = (parsed as any[]).slice(0, 10);
-
     const normalized = items.map((item: any) => {
       const id = nanoid();
-
       const question =
         typeof item?.question === "string" && item.question.trim() !== ""
           ? item.question.trim()
@@ -151,7 +142,7 @@ export async function vocabularyHandler(req: Request, res: Response) {
       const out = {
         id,
         type: "vocabulary" as const,
-        question: question,
+        question,
         options,
         correct,
       };
@@ -163,7 +154,7 @@ export async function vocabularyHandler(req: Request, res: Response) {
       return out;
     });
 
-    // 패딩: 모델이 10개 미만 반환 시
+    // Padding if less than 10
     if (normalized.length < 10) {
       const padded = normalized.slice();
       for (let i = padded.length; i < 10; i++) {
@@ -175,23 +166,245 @@ export async function vocabularyHandler(req: Request, res: Response) {
           correct: "(unknown1)",
         });
       }
-
-      console.log(
-        "[LLM CONTROLLER] Final JSON output (padded):\n",
-        JSON.stringify(padded, null, 2)
-      );
-
       return res.json(padded);
     }
 
-    console.log(
-      "[LLM CONTROLLER] Final JSON output (normalized):\n",
-      JSON.stringify(normalized, null, 2)
+    return res.json(normalized);
+  } catch (err) {
+    console.error("[LLM CONTROLLER][vocabulary] unexpected error:", err);
+    return res.status(500).json({ error: "LLM generation failed" });
+  }
+}
+
+/**
+ * POST /api/llm/sentence
+ * 문장 구성 문제: LLM은 { question: "한글 문장", options: [...distractors], correct: [...] } 배열 반환 예상
+ */
+export async function sentenceHandler(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user)
+      return res.status(401).json({ message: "User not authenticated" });
+
+    const level: string | undefined = (user as any).level;
+    const level_progress: number | undefined = (user as any).level_progress;
+
+    const parsed = await callAndParseLLM(
+      generateSentenceQuestionsRaw,
+      level,
+      level_progress
     );
+    if (!Array.isArray(parsed)) {
+      const { raw, error } = parsed as any;
+      console.error("[LLM CONTROLLER][sentence] failed:", error);
+      return res
+        .status(502)
+        .json({ error: "LLM returned invalid JSON (expected array).", raw });
+    }
+
+    const items = (parsed as any[]).slice(0, 10);
+    const normalized = items.map((item: any) => {
+      const id = nanoid();
+      const question =
+        typeof item?.question === "string" && item.question.trim() !== ""
+          ? item.question.trim()
+          : "(unknown question)";
+
+      const correctWords: string[] = Array.isArray(item?.correct)
+        ? item.correct.map(String).filter((s: string) => s !== "")
+        : [];
+
+      const distractorWords: string[] = Array.isArray(item?.options)
+        ? item.options.map(String).filter((s: string) => s !== "")
+        : [];
+
+      const finalOptions = [...correctWords, ...distractorWords];
+      // Remove duplicates while preserving order then shuffle
+      const uniq = Array.from(new Set(finalOptions));
+      shuffleArray(uniq);
+
+      return {
+        id,
+        type: "sentence" as const,
+        question,
+        options: uniq,
+        correct: correctWords,
+      };
+    });
+
+    if (normalized.length < 10) {
+      const padded = normalized.slice();
+      for (let i = padded.length; i < 10; i++) {
+        padded.push({
+          id: nanoid(),
+          type: "sentence" as const,
+          question: `(random pad ${i + 1})`,
+          options: [],
+          correct: [],
+        });
+      }
+      return res.json(padded);
+    }
 
     return res.json(normalized);
   } catch (err) {
-    console.error("[LLM CONTROLLER] unexpected error:", err);
+    console.error("[LLM CONTROLLER][sentence] unexpected error:", err);
+    return res.status(500).json({ error: "LLM generation failed" });
+  }
+}
+
+/**
+ * POST /api/llm/blank
+ * 빈칸 문제: LLM은 { question: "문장 ___", options: [...4 items], correct: "one" } 배열 반환 예상
+ */
+export async function blankHandler(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user)
+      return res.status(401).json({ message: "User not authenticated" });
+
+    const level: string | undefined = (user as any).level;
+    const level_progress: number | undefined = (user as any).level_progress;
+
+    const parsed = await callAndParseLLM(
+      generateBlankQuestionsRaw,
+      level,
+      level_progress
+    );
+    if (!Array.isArray(parsed)) {
+      const { raw, error } = parsed as any;
+      console.error("[LLM CONTROLLER][blank] failed:", error);
+      return res
+        .status(502)
+        .json({ error: "LLM returned invalid JSON (expected array).", raw });
+    }
+
+    const items = (parsed as any[]).slice(0, 10);
+    const normalized = items.map((item: any) => {
+      const id = nanoid();
+      const question =
+        typeof item?.question === "string" && item.question.trim() !== ""
+          ? item.question.trim()
+          : "(unknown question)";
+
+      const { options, correct } = normalizeOptionsAndCorrect(item);
+
+      const out = {
+        id,
+        type: "blank" as const,
+        question,
+        options,
+        correct,
+      };
+
+      if (!out.options.includes(out.correct)) {
+        out.correct = out.options[0]!;
+      }
+
+      return out;
+    });
+
+    if (normalized.length < 10) {
+      const padded = normalized.slice();
+      for (let i = padded.length; i < 10; i++) {
+        padded.push({
+          id: nanoid(),
+          type: "blank" as const,
+          question: `(random blank ${i + 1})`,
+          options: ["(unknown1)", "(unknown2)", "(unknown3)", "(unknown4)"],
+          correct: "(unknown1)",
+        });
+      }
+      return res.json(padded);
+    }
+
+    return res.json(normalized);
+  } catch (err) {
+    console.error("[LLM CONTROLLER][blank] unexpected error:", err);
+    return res.status(500).json({ error: "LLM generation failed" });
+  }
+}
+
+/**
+ * POST /api/llm/writing
+ * 작문 학습 문제: LLM은
+ * { korean, answers: [...], preferred, alternate|null, alt_reason } 배열 반환 예상
+ *
+ * For UI: we return normalized list with question=korean, options=answers, correct=preferred
+ * NOTE: alternate and alt_reason are not embedded into QuestionItem here; if UI needs them,
+ * consider exposing a raw endpoint or storing the full LLM response for banner feedback.
+ */
+export async function writingHandler(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user)
+      return res.status(401).json({ message: "User not authenticated" });
+
+    const level: string | undefined = (user as any).level;
+    const level_progress: number | undefined = (user as any).level_progress;
+
+    const parsed = await callAndParseLLM(
+      generateWritingQuestionsRaw,
+      level,
+      level_progress
+    );
+    if (!Array.isArray(parsed)) {
+      const { raw, error } = parsed as any;
+      console.error("[LLM CONTROLLER][writing] failed:", error);
+      return res
+        .status(502)
+        .json({ error: "LLM returned invalid JSON (expected array).", raw });
+    }
+
+    const items = (parsed as any[]).slice(0, 10);
+    const normalized = items.map((item: any) => {
+      const id = nanoid();
+
+      const korean =
+        typeof item?.korean === "string" && item.korean.trim() !== ""
+          ? item.korean.trim()
+          : "(unknown korean)";
+
+      const answers: string[] = Array.isArray(item?.answers)
+        ? item.answers.map(String).filter((s: string) => s !== "")
+        : [];
+
+      const preferred: string =
+        typeof item?.preferred === "string" && item.preferred.trim() !== ""
+          ? item.preferred.trim()
+          : answers.length > 0
+          ? answers[0]!
+          : "(unknown preferred)";
+
+      const uniqueAnswers = Array.from(new Set(answers));
+      const options = uniqueAnswers.length > 0 ? uniqueAnswers : ["(unknown)"];
+
+      return {
+        id,
+        type: "writing" as const,
+        question: korean,
+        options,
+        correct: preferred,
+      };
+    });
+
+    if (normalized.length < 10) {
+      const padded = normalized.slice();
+      for (let i = padded.length; i < 10; i++) {
+        padded.push({
+          id: nanoid(),
+          type: "writing" as const,
+          question: `(random writing ${i + 1})`,
+          options: ["(unknown)"],
+          correct: "(unknown)",
+        });
+      }
+      return res.json(padded);
+    }
+
+    return res.json(normalized);
+  } catch (err) {
+    console.error("[LLM CONTROLLER][writing] unexpected error:", err);
     return res.status(500).json({ error: "LLM generation failed" });
   }
 }
