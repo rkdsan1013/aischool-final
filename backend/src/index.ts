@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import authRouter from "./routes/authRouter";
 import userRouter from "./routes/userRouter";
 import trainingRouter from "./routes/trainingRouter";
+import aiTalkRoutes from "./routes/aiTalkRouter";
 import llmRouter from "./llm/router";
 
 dotenv.config();
@@ -26,6 +27,8 @@ app.use(
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/training", trainingRouter);
+app.use("/api/ai-talk", aiTalkRoutes);
+
 app.use("/api/llm", llmRouter);
 
 const PORT = Number(process.env.PORT || 3000);

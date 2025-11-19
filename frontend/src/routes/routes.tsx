@@ -1,4 +1,4 @@
-// src/routes/routes.tsx
+// frontend/src/routes/routes.tsx
 import type { RouteObject } from "react-router-dom";
 
 import LayoutWithoutNav from "../layouts/LayoutWithoutNav";
@@ -54,7 +54,7 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // [ADDED] VoiceRoom 생성 페이지
+      // VoiceRoom 생성 페이지
       {
         path: "/voiceroom/create",
         element: (
@@ -63,7 +63,7 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // [ADDED] AITalk 커스텀 시나리오 생성/수정 페이지
+      // [ADDED] AITalk 커스텀 시나리오 생성/수정 페이지 (유지)
       {
         path: "/ai-talk/custom-scenario",
         element: (
@@ -72,9 +72,19 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // [ADDED] AITalk 상세 (채팅) 페이지 - :id가 custom-scenario보다 뒤에 와야 함
+      // ❌ [삭제] AITalk 상세 페이지는 AITalkPage 내부에서 상태로 처리됩니다.
+      /*
       {
         path: "/ai-talk/:id",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <AITalkPageDetail />
+          </ProtectedRoute>
+        ),
+      },
+      */
+      {
+        path: "/ai-talk/chat",
         element: (
           <ProtectedRoute redirectTo="/auth">
             <AITalkPageDetail />
@@ -100,7 +110,7 @@ export const routes: RouteObject[] = [
     ],
   },
 
-  // 네비게이션 있는 레이아웃 그룹
+  // --- 네비게이션 있는 레이아웃 그룹 ---
   {
     element: <LayoutWithNav />,
     children: [
@@ -116,6 +126,7 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
+      // ✅ [중요] AITalk 페이지가 이제 상세 페이지까지 처리합니다.
       {
         path: "/ai-talk",
         element: (

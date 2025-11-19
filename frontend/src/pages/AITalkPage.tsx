@@ -1,4 +1,3 @@
-// frontend/src/pages/AITalkPage.tsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   Coffee,
@@ -17,63 +16,136 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { aiTalkService } from "../services/aiTalkService";
 
-interface Scenario {
-  id: string;
+// 화면 표시용 데이터 타입
+interface DisplayScenario {
+  id: number;
   title: string;
   description: string;
   icon: React.ReactNode;
   colorClass: string;
   colorHex: string;
-}
-
-interface CustomScenario {
-  id: string;
-  title: string;
-  description: string;
-  context: string;
+  context?: string;
 }
 
 const AITalkPage: React.FC = () => {
   const navigate = useNavigate();
 
-  const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
-  const [modalScenario, setModalScenario] = useState<CustomScenario | null>(
+  const [officialScenarios, setOfficialScenarios] = useState<DisplayScenario[]>(
+    []
+  );
+  const [customScenarios, setCustomScenarios] = useState<DisplayScenario[]>([]);
+  const [modalScenario, setModalScenario] = useState<DisplayScenario | null>(
     null
   );
   const [isEditing, setIsEditing] = useState(false);
-  // keep editForm for display and save, but inputs will be uncontrolled refs
-  const [editForm, setEditForm] = useState<Partial<CustomScenario>>({});
+  const [editForm, setEditForm] = useState<Partial<DisplayScenario>>({});
 
-  // refs for uncontrolled inputs
   const titleRef = useRef<HTMLInputElement | null>(null);
   const descRef = useRef<HTMLInputElement | null>(null);
   const ctxRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // ensure we initialize refs once when modalScenario changes
-  useEffect(() => {
-    const saved = localStorage.getItem("customScenarios");
-    if (saved) {
-      try {
-        setCustomScenarios(JSON.parse(saved));
-      } catch {
-        setCustomScenarios([]);
-      }
+  // 스타일 매핑 헬퍼
+  const getScenarioStyle = (title: string) => {
+    if (title.includes("카페")) {
+      return {
+        icon: <Coffee className="w-5 h-5 sm:w-6 sm:h-6" />,
+        colorClass: "bg-amber-500",
+        colorHex: "#f59e0b",
+      };
     }
+    if (title.includes("면접")) {
+      return {
+        icon: <Briefcase className="w-5 h-5 sm:w-6 sm:h-6" />,
+        colorClass: "bg-rose-500",
+        colorHex: "#fb7185",
+      };
+    }
+    if (title.includes("여행")) {
+      return {
+        icon: <Plane className="w-5 h-5 sm:w-6 sm:h-6" />,
+        colorClass: "bg-blue-500",
+        colorHex: "#3b82f6",
+      };
+    }
+    if (title.includes("쇼핑")) {
+      return {
+        icon: <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />,
+        colorClass: "bg-pink-500",
+        colorHex: "#ec4899",
+      };
+    }
+    if (title.includes("학교")) {
+      return {
+        icon: <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />,
+        colorClass: "bg-indigo-500",
+        colorHex: "#6366f1",
+      };
+    }
+    if (title.includes("데이트")) {
+      return {
+        icon: <Heart className="w-5 h-5 sm:w-6 sm:h-6" />,
+        colorClass: "bg-red-500",
+        colorHex: "#ef4444",
+      };
+    }
+    if (title.includes("스몰토크")) {
+      return {
+        icon: <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />,
+        colorClass: "bg-orange-500",
+        colorHex: "#f97316",
+      };
+    }
+    return {
+      icon: <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />,
+      colorClass: "bg-gradient-to-br from-rose-500 to-pink-500",
+      colorHex: "#fb7185",
+    };
+  };
+
+  // DB 데이터 Fetching
+  useEffect(() => {
+    const fetchScenarios = async () => {
+      try {
+        const data = await aiTalkService.getScenarios();
+
+        const official: DisplayScenario[] = [];
+        const custom: DisplayScenario[] = [];
+
+        data.forEach((item) => {
+          const style = getScenarioStyle(item.title);
+          const formatted: DisplayScenario = {
+            id: item.scenario_id,
+            title: item.title,
+            description: item.description,
+            context: item.context,
+            icon: style.icon,
+            colorClass: style.colorClass,
+            colorHex: style.colorHex,
+          };
+
+          if (item.user_id === null) {
+            official.push(formatted);
+          } else {
+            custom.push(formatted);
+          }
+        });
+
+        setOfficialScenarios(official);
+        setCustomScenarios(custom);
+      } catch (error) {
+        console.error("시나리오 로딩 실패:", error);
+      }
+    };
+
+    fetchScenarios();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("customScenarios", JSON.stringify(customScenarios));
-  }, [customScenarios]);
-
-  // When modalScenario changes, seed editForm AND populate uncontrolled inputs once
+  // 모달 초기값 세팅
   useEffect(() => {
     if (!modalScenario) {
       setEditForm({});
-      // clear refs values
-      if (titleRef.current) titleRef.current.value = "";
-      if (descRef.current) descRef.current.value = "";
-      if (ctxRef.current) ctxRef.current.value = "";
       return;
     }
 
@@ -83,87 +155,16 @@ const AITalkPage: React.FC = () => {
       description: s.description,
       context: s.context,
     });
-
-    // Populate uncontrolled inputs (if they exist)
-    // setTimeout ensures DOM nodes exist (they will for this modal structure)
-    setTimeout(() => {
-      if (titleRef.current) titleRef.current.value = s.title ?? "";
-      if (descRef.current) descRef.current.value = s.description ?? "";
-      if (ctxRef.current) ctxRef.current.value = s.context ?? "";
-    }, 0);
   }, [modalScenario]);
 
-  const scenarios: Scenario[] = [
-    {
-      id: "cafe",
-      title: "카페에서 주문하기",
-      description: "커피숍에서 음료를 주문하는 상황을 연습하세요",
-      icon: <Coffee className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-amber-500",
-      colorHex: "#f59e0b",
-    },
-    {
-      id: "interview",
-      title: "면접 연습",
-      description: "영어 면접 상황을 시뮬레이션합니다",
-      icon: <Briefcase className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-rose-500",
-      colorHex: "#fb7185",
-    },
-    {
-      id: "travel",
-      title: "여행 대화",
-      description: "공항, 호텔, 관광지에서의 대화를 연습하세요",
-      icon: <Plane className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-blue-500",
-      colorHex: "#3b82f6",
-    },
-    {
-      id: "shopping",
-      title: "쇼핑하기",
-      description: "매장에서 물건을 구매하는 상황을 연습하세요",
-      icon: <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-pink-500",
-      colorHex: "#ec4899",
-    },
-    {
-      id: "study",
-      title: "학교 생활",
-      description: "학교에서의 다양한 대화를 연습하세요",
-      icon: <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-indigo-500",
-      colorHex: "#6366f1",
-    },
-    {
-      id: "dating",
-      title: "데이트 대화",
-      description: "친구나 연인과의 일상 대화를 연습하세요",
-      icon: <Heart className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-red-500",
-      colorHex: "#ef4444",
-    },
-    {
-      id: "smalltalk",
-      title: "스몰토크",
-      description: "날씨, 취미 등 가벼운 대화를 연습하세요",
-      icon: <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-orange-500",
-      colorHex: "#f97316",
-    },
-    {
-      id: "free",
-      title: "자유 대화",
-      description: "AI와 자유롭게 대화하며 실력을 향상시키세요",
-      icon: <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />,
-      colorClass: "bg-gradient-to-br from-rose-500 to-pink-500",
-      colorHex: "#fb7185",
-    },
-  ];
+  // 시나리오 클릭 핸들러: State와 함께 고정 경로로 navigate
+  const handleScenarioClick = (id: number) => {
+    navigate("/ai-talk/chat", { state: { scenarioId: id } });
+  };
 
-  const handleScenarioClick = (id: string) => navigate(`/ai-talk/${id}`);
   const handleCreateNavigate = () => navigate("/ai-talk/custom-scenario");
 
-  const openModal = (s: CustomScenario) => {
+  const openModal = (s: DisplayScenario) => {
     setModalScenario(s);
     setIsEditing(false);
     document.body.style.overflow = "hidden";
@@ -173,55 +174,70 @@ const AITalkPage: React.FC = () => {
     setModalScenario(null);
     setIsEditing(false);
     setEditForm({});
-    // clear refs as well
-    if (titleRef.current) titleRef.current.value = "";
-    if (descRef.current) descRef.current.value = "";
-    if (ctxRef.current) ctxRef.current.value = "";
     document.body.style.overflow = "";
   };
 
-  const startConversation = (s: CustomScenario) => {
+  // 모달 내 '대화 시작' 버튼 핸들러
+  const startConversation = (s: DisplayScenario) => {
     closeModal();
-    navigate(`/ai-talk/${s.id}`, { state: { customScenario: s } });
+    navigate("/ai-talk/chat", { state: { scenarioId: s.id } });
   };
 
-  const deleteScenario = (id: string) => {
-    setCustomScenarios((prev) => prev.filter((c) => c.id !== id));
-    closeModal();
+  const deleteScenario = async (id: number) => {
+    if (!window.confirm("정말 삭제하시겠습니까?")) return;
+    try {
+      await aiTalkService.deleteCustomScenario(id);
+      setCustomScenarios((prev) => prev.filter((c) => c.id !== id));
+      closeModal();
+    } catch (error) {
+      console.error("삭제 실패:", error);
+    }
   };
 
   const startEditing = () => {
     if (!modalScenario) return;
     setIsEditing(true);
-    // ensure uncontrolled inputs are seeded (they already are on modal open via useEffect)
+    // ref 값 초기화 (defaultValue가 아닌 value에 직접 할당해야 함)
+    setTimeout(() => {
+      if (titleRef.current) titleRef.current.value = modalScenario.title;
+      if (descRef.current) descRef.current.value = modalScenario.description;
+      if (ctxRef.current) ctxRef.current.value = modalScenario.context || "";
+    }, 0);
   };
 
-  // On save, read from refs (uncontrolled) and persist to state
-  const saveEdit = () => {
+  // Null check 경고 해결 (Optional chaining 사용)
+  const saveEdit = async () => {
     if (!modalScenario) return;
+    // Null 체크를 강화하여 경고 해결
     const title = (titleRef.current?.value ?? "").trim();
     if (!title) return;
     const description = (descRef.current?.value ?? "").trim();
     const context = (ctxRef.current?.value ?? "").trim();
 
-    const updated: CustomScenario = {
-      id: modalScenario.id,
-      title,
-      description,
-      context,
-    };
+    try {
+      await aiTalkService.updateCustomScenario(modalScenario.id, {
+        title,
+        description,
+        context,
+      });
 
-    setCustomScenarios((prev) =>
-      prev.map((c) => (c.id === updated.id ? updated : c))
-    );
-    // update editForm and modalScenario so top read-only area reflects saved values
-    setEditForm({
-      title: updated.title,
-      description: updated.description,
-      context: updated.context,
-    });
-    setModalScenario(updated);
-    setIsEditing(false);
+      const updated: DisplayScenario = {
+        ...modalScenario,
+        title,
+        description,
+        context,
+      };
+
+      setCustomScenarios((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c))
+      );
+
+      setEditForm({ title, description, context });
+      setModalScenario(updated);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("수정 실패:", error);
+    }
   };
 
   const ModalCard: React.FC = () => {
@@ -254,7 +270,6 @@ const AITalkPage: React.FC = () => {
             </div>
 
             <div className="min-w-0 flex-1">
-              {/* 상단: 항상 저장된(초기) 내용을 보여주는 읽기 전용 영역 */}
               <div>
                 <div className="flex items-center gap-2 min-w-0">
                   <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">
@@ -266,7 +281,7 @@ const AITalkPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground truncate">
                     {editForm.description ?? s.description}
                   </p>
-                  <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap">
+                  <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap line-clamp-3">
                     {editForm.context ??
                       s.context ??
                       "상세 컨텍스트가 없습니다."}
@@ -288,7 +303,6 @@ const AITalkPage: React.FC = () => {
           <div className="mt-4">
             {isEditing ? (
               <div className="w-full bg-white rounded-xl p-3 space-y-3">
-                {/* uncontrolled inputs: value not controlled by React; ref keeps DOM value */}
                 <input
                   ref={titleRef}
                   defaultValue={editForm.title ?? s.title ?? ""}
@@ -324,7 +338,6 @@ const AITalkPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
-                      // cancel: revert uncontrolled inputs to the currently saved modalScenario values
                       if (titleRef.current)
                         titleRef.current.value = s.title ?? "";
                       if (descRef.current)
@@ -332,7 +345,6 @@ const AITalkPage: React.FC = () => {
                       if (ctxRef.current)
                         ctxRef.current.value = s.context ?? "";
                       setIsEditing(false);
-                      // keep editForm as saved
                       setEditForm({
                         title: s.title,
                         description: s.description,
@@ -403,9 +415,8 @@ const AITalkPage: React.FC = () => {
               상황에 맞는 시나리오를 선택하여 AI와 대화를 시작하세요
             </p>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {scenarios.map((s) => (
+            {officialScenarios.map((s) => (
               <button
                 key={s.id}
                 onClick={() => handleScenarioClick(s.id)}
@@ -436,6 +447,7 @@ const AITalkPage: React.FC = () => {
           </div>
         </section>
 
+        {/* 커스텀 시나리오 섹션 */}
         <section>
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>

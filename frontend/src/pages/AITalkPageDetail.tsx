@@ -1,4 +1,3 @@
-// src/pages/AITalkPageDetail.tsx
 import React, {
   useCallback,
   useEffect,
@@ -7,12 +6,22 @@ import React, {
   useMemo,
 } from "react";
 import { Mic, Volume2, Languages, AlertCircle } from "lucide-react";
-import FloatingFeedbackCard from "../components/FloatingFeedbackCard";
-import type {
-  FeedbackPayload,
-  ErrorType,
+// ✅ useLocation과 useNavigate를 import하여 state를 읽고 목록으로 복귀
+import { useLocation, useNavigate } from "react-router-dom";
+import FloatingFeedbackCard, {
+  type FeedbackPayload,
+  type ErrorType,
 } from "../components/FloatingFeedbackCard";
 
+// ✅ [수정] ErrorType을 명시적으로 사용하여 타입 오류 해결
+type DummyErrorInput = {
+  index?: number;
+  word?: string;
+  type: ErrorType;
+  message: string;
+};
+
+// 프론트엔드 표시용 메시지 타입
 type Message = {
   id: string;
   role: "user" | "ai";
@@ -22,68 +31,89 @@ type Message = {
   feedback?: FeedbackPayload;
 };
 
-type Props = {
-  scenarioId?: string;
-  onBack?: () => void;
-};
-
-const scenarioData: Record<
-  string,
-  { title: string; initialMessage: string; context: string }
-> = {
-  cafe: {
-    title: "카페에서 주문하기",
-    initialMessage:
-      "Hello! Welcome to our coffee shop. What can I get for you today?",
-    context: "You are a friendly barista at a coffee shop.",
-  },
-  shopping: {
-    title: "쇼핑하기",
-    initialMessage: "Hi there! Are you looking for something specific today?",
-    context: "You are a helpful sales assistant.",
-  },
-  interview: {
-    title: "면접 연습",
-    initialMessage:
-      "Good morning! Thank you for coming in today. Please tell me about yourself.",
-    context: "You are a hiring manager conducting an interview.",
-  },
-  travel: {
-    title: "여행 대화",
-    initialMessage: "Welcome! How can I help you with your travel plans today?",
-    context: "You are a travel agent.",
-  },
-  study: {
-    title: "학교 생활",
-    initialMessage: "Hi! What class do you have next?",
-    context: "You are a friendly classmate.",
-  },
-  free: {
+// 기존 하드코딩 데이터 구조
+const STATIC_SCENARIOS = {
+  "1": {
+    id: "free",
     title: "자유 대화",
     initialMessage:
       "Hello! I'm your AI conversation partner. What would you like to talk about today?",
     context: "You are a friendly AI assistant ready to discuss any topic.",
   },
+  "2": {
+    id: "smalltalk",
+    title: "스몰토크",
+    initialMessage: "Hi! How's the weather today?",
+    context:
+      "You are a friendly person interested in chatting about hobbies and weather.",
+  },
+  "3": {
+    id: "cafe",
+    title: "카페에서 주문하기",
+    initialMessage:
+      "Hello! Welcome to our coffee shop. What can I get for you today?",
+    context: "You are a friendly barista at a coffee shop.",
+  },
+  "4": {
+    id: "shopping",
+    title: "쇼핑하기",
+    initialMessage: "Hi there! Are you looking for something specific today?",
+    context: "You are a helpful sales assistant.",
+  },
+  "5": {
+    id: "study",
+    title: "학교 생활",
+    initialMessage: "Hi! What class do you have next?",
+    context: "You are a friendly classmate.",
+  },
+  "6": {
+    id: "travel",
+    title: "여행 대화",
+    initialMessage: "Welcome! How can I help you with your travel plans today?",
+    context: "You are a travel agent.",
+  },
+  "7": {
+    id: "dating",
+    title: "데이트 대화",
+    initialMessage:
+      "It's nice meeting you here. What do you enjoy doing for fun?",
+    context: "You are a friendly date partner.",
+  },
+  "8": {
+    id: "interview",
+    title: "면접 연습",
+    initialMessage:
+      "Good morning! Thank you for coming in today. Please tell me about yourself.",
+    context: "You are a hiring manager conducting an interview.",
+  },
 };
 
+// ✅ [수정] feedbackErrors: type 캐스팅 및 word null 처리로 타입 오류 해결
 function buildDummyMessages(initial: string): Message[] {
+  const feedbackErrors = (errors: DummyErrorInput[]) =>
+    errors.map((e) => ({
+      ...e,
+      index: e.index ?? null,
+      word: e.word ?? null,
+    }));
+  const now = () => new Date();
+
   return [
-    { id: "ai-0", role: "ai", content: initial, timestamp: new Date() },
+    { id: "ai-0", role: "ai", content: initial, timestamp: now() },
     {
       id: "user-1",
       role: "user",
       content: "He ain't coming to the meeting.",
-      timestamp: new Date(),
+      timestamp: now(),
       feedback: {
-        errors: [
+        errors: feedbackErrors([
           {
             index: 1,
             word: "ain't",
-            type: "word",
-            message:
-              "비표준적이고 구어체적인 표현으로 공식적인 문맥에서는 적절하지 않음",
+            type: "word" as ErrorType,
+            message: "비표준적이고 구어체적인 표현",
           },
-        ],
+        ]),
         explanation: "공식적 맥락에서는 'isn't' 또는 'is not'을 사용합니다.",
         suggestion: "He isn't coming to the meeting.",
       },
@@ -93,22 +123,22 @@ function buildDummyMessages(initial: string): Message[] {
       role: "ai",
       content:
         "Thanks for letting me know. Is there a reason he can't make it?",
-      timestamp: new Date(),
+      timestamp: now(),
     },
     {
       id: "user-2",
       role: "user",
       content: "She go to the office every day.",
-      timestamp: new Date(),
+      timestamp: now(),
       feedback: {
-        errors: [
+        errors: feedbackErrors([
           {
             index: 1,
             word: "go",
-            type: "grammar",
+            type: "grammar" as ErrorType,
             message: "주어 'She'에 맞게 현재형 동사에 -s 필요",
           },
-        ],
+        ]),
         explanation: "3인칭 단수 주어에는 현재형 동사에 -s를 붙입니다.",
         suggestion: "She goes to the office every day.",
       },
@@ -117,121 +147,38 @@ function buildDummyMessages(initial: string): Message[] {
       id: "ai-2",
       role: "ai",
       content: "Got it. What does she usually do there?",
-      timestamp: new Date(),
+      timestamp: now(),
     },
     {
       id: "user-3",
       role: "user",
-      content: "I didn't recieve the email yet.",
-      timestamp: new Date(),
+      content: "I didn't receive the email yet.",
+      timestamp: now(),
       feedback: {
-        errors: [
+        errors: feedbackErrors([
           {
             index: 3,
-            word: "recieve",
-            type: "spelling",
+            word: "receive",
+            type: "spelling" as ErrorType,
             message: "'receive'로 철자 수정 필요",
           },
-        ],
+        ]),
         explanation: "'receive'가 올바른 철자입니다.",
         suggestion: "I didn't receive the email yet.",
       },
     },
-    {
-      id: "ai-3",
-      role: "ai",
-      content: "Thanks for the update. Would you like me to resend it?",
-      timestamp: new Date(),
-    },
-    {
-      id: "user-4",
-      role: "user",
-      content: "Yo, I'm like super into coding and stuff.",
-      timestamp: new Date(),
-      feedback: {
-        errors: [
-          {
-            index: null,
-            word: null,
-            type: "style",
-            message: "면접 맥락에서 지나치게 비격식적이고 모호한 표현",
-          },
-        ],
-        explanation:
-          "면접 상황에는 격식 있는 어휘와 구체적인 기술/경험을 제시하는 문장이 적절합니다.",
-        suggestion:
-          "I am highly interested in software development, particularly in building reliable web applications.",
-      },
-    },
-    {
-      id: "ai-4",
-      role: "ai",
-      content:
-        "Could you share a recent project that demonstrates your skills?",
-      timestamp: new Date(),
-    },
-    {
-      id: "user-5",
-      role: "user",
-      content: "There is many oppurtunities in this company.",
-      timestamp: new Date(),
-      feedback: {
-        errors: [
-          {
-            index: 1,
-            word: "is",
-            type: "grammar",
-            message: "'opportunities'는 복수이므로 'are' 사용",
-          },
-          {
-            index: 3,
-            word: "oppurtunities",
-            type: "spelling",
-            message: "'opportunities'로 철자 수정",
-          },
-        ],
-        explanation:
-          "복수 명사에는 'are'를 사용하며 철자를 'opportunities'로 교정합니다.",
-        suggestion: "There are many opportunities in this company.",
-      },
-    },
-    {
-      id: "ai-5",
-      role: "ai",
-      content:
-        "Yes, we offer various roles across teams. Which area interests you most?",
-      timestamp: new Date(),
-    },
-    {
-      id: "user-6",
-      role: "user",
-      content: "Hey folks, gonna drop the report later, cool?",
-      timestamp: new Date(),
-      feedback: {
-        errors: [
-          {
-            index: null,
-            word: null,
-            type: "style",
-            message: "업무/이메일 문맥에서 과도한 비격식 표현",
-          },
-        ],
-        explanation:
-          "업무 커뮤니케이션에서는 격식 있는 표현과 명확한 시간 약속이 필요합니다.",
-        suggestion:
-          "Hello team, I will submit the report later today. Please let me know if that works.",
-      },
-    },
-    {
-      id: "ai-6",
-      role: "ai",
-      content:
-        "Thanks for the update. Could you share the estimated time of submission?",
-      timestamp: new Date(),
-    },
   ];
 }
 
+// Props 정의를 비활성화합니다. 라우터 State에서 정보를 가져옵니다.
+/*
+type Props = {
+  scenarioId: number;
+  onBack: () => void;
+};
+*/
+
+// --- 유틸리티 함수들 (변화 없음) ---
 function tokenizeWithIndices(text: string): { token: string; index: number }[] {
   const parts = text.split(/(\s+)/);
   const tokens: { token: string; index: number }[] = [];
@@ -255,52 +202,105 @@ function isMobileUA(): boolean {
   );
 }
 
-const FOOTER_HEIGHT = 96; // 푸터 높이
-const LAST_MESSAGE_SPACING = 16; // 마지막 메시지와 푸터 사이에 둘 여백
-const TOOLTIP_GAP_BELOW = 12; // 툴팁이 아래에 있을 때 메시지와의 간격
-const TOOLTIP_GAP_ABOVE = 6; // 툴팁이 위에 있을 때 메시지와의 간격(더 가깝게)
+const FOOTER_HEIGHT = 96;
+const LAST_MESSAGE_SPACING = 16;
+const TOOLTIP_GAP_BELOW = 12;
+const TOOLTIP_GAP_ABOVE = 6;
 
-const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
+// ✅ [수정] Props 제거
+const AITalkPageDetail: React.FC = () => {
+  // 라우터 훅을 사용하여 State에서 데이터를 가져옵니다.
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // URL State에서 scenarioId 추출
+  const scenarioId = location.state?.scenarioId as number | undefined;
+
   const headerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  const [scenarioTitle, setScenarioTitle] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+
   const [isRecording, setIsRecording] = useState(false);
 
+  // 툴팁 관련 상태 (이전과 동일)
   const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
     null
   );
   const [activeTooltipWordIndexes, setActiveTooltipWordIndexes] = useState<
     number[]
   >([]);
-  const [cardPos, setCardPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    preferAbove?: boolean;
-  }>({ top: 0, left: 0, width: 0, preferAbove: false });
+  const [cardPos, setCardPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    preferAbove: false,
+  });
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isMobile = isMobileUA();
 
-  const scenario = scenarioData[scenarioId] ?? scenarioData["free"];
-
+  // ✅ [수정] 데이터 로드 로직: scenarioId를 문자열 키로 변환하여 접근
   useEffect(() => {
+    // scenarioId가 없으면 목록으로 복귀
+    if (!scenarioId) {
+      navigate("/ai-talk", { replace: true });
+      return;
+    }
+
+    // 1. scenarioId(number)를 string으로 변환하여 객체 접근
+    const scenarioKey = String(scenarioId) as keyof typeof STATIC_SCENARIOS;
+
+    // 2. 안전한 접근 (키가 없으면 기본값인 1번(자유 대화) 사용)
+    const scenario = STATIC_SCENARIOS[scenarioKey] || STATIC_SCENARIOS["1"];
+
+    setScenarioTitle(scenario.title);
     setMessages(buildDummyMessages(scenario.initialMessage));
-  }, [scenarioId, scenario.initialMessage]);
+  }, [scenarioId, navigate]);
 
+  // 자동 스크롤
   useEffect(() => {
-    // 메시지 변경 시 마지막 메시지가 푸터에 딱 붙지 않도록 약간의 여백을 둠
     const el = listRef.current;
     if (!el) return;
     setTimeout(() => {
-      // 스크롤 끝 위치에서 마지막 여백(LAST_MESSAGE_SPACING)만큼 위로 위치시킴
       el.scrollTo({
         top: Math.max(0, el.scrollHeight - LAST_MESSAGE_SPACING),
         behavior: "smooth",
       });
-    }, 30);
+    }, 100);
   }, [messages]);
 
-  const toggleRecording = () => setIsRecording((s) => !s);
+  // --- 메시지 전송 로직 (더미) ---
+  const toggleRecording = () => {
+    if (isRecording) {
+      // 녹음 중지 시 더미 응답 추가
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${prev.length}`,
+          role: "user",
+          content: "Just a dummy user message for testing.",
+          timestamp: new Date(),
+        },
+        {
+          id: `ai-${prev.length + 1}`,
+          role: "ai",
+          content: "Thank you. This is a dummy AI response.",
+          timestamp: new Date(),
+        },
+      ]);
+      setIsRecording(false);
+    } else {
+      setIsRecording(true);
+    }
+  };
+
+  // ✅ [수정] 대화 종료 버튼 핸들러: 목록 페이지로 복귀
+  const handleEndConversation = () => {
+    navigate("/ai-talk");
+  };
+
+  // --- UI 헬퍼 함수들 (이전과 동일) ---
   const playAIVoice = (text: string) =>
     console.log("[v0] Playing AI voice:", text);
   const translateText = (text: string) =>
@@ -331,25 +331,12 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     const headerH = getHeaderHeight();
     const footerH = FOOTER_HEIGHT;
     setListHeight(`calc(100vh - ${headerH + footerH}px)`);
-    const el = listRef.current;
-    if (el) {
-      setTimeout(() => {
-        el.scrollTo({
-          top: Math.max(0, el.scrollHeight - LAST_MESSAGE_SPACING),
-          behavior: "smooth",
-        });
-      }, 30);
-    }
   }, [getHeaderHeight]);
 
   useEffect(() => {
     adjustLayout();
-    const id = setTimeout(adjustLayout, 50);
     window.addEventListener("resize", adjustLayout);
-    return () => {
-      clearTimeout(id);
-      window.removeEventListener("resize", adjustLayout);
-    };
+    return () => window.removeEventListener("resize", adjustLayout);
   }, [adjustLayout]);
 
   const updateCardPosition = useCallback((msgId: string) => {
@@ -358,18 +345,14 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     const rect = node.getBoundingClientRect();
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
-
     const desiredWidth = Math.min(rect.width, viewportW * 0.92);
     const center = rect.left + rect.width / 2;
     let left = center - desiredWidth / 2;
     left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
-
     const estimatedCardHeight = 180;
     const safeBottom = FOOTER_HEIGHT + 8;
-
     const spaceBelow = viewportH - rect.bottom - safeBottom;
     const spaceAbove = rect.top;
-
     let preferAbove = false;
     let top: number;
 
@@ -398,7 +381,6 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
         top = Math.min(rect.bottom + TOOLTIP_GAP_BELOW, maxAllowedTop);
       }
     }
-
     setCardPos({ top, left, width: desiredWidth, preferAbove });
   }, []);
 
@@ -439,11 +421,6 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
     };
   }, [activeTooltipMsgId, updateCardPosition, adjustLayout]);
 
-  const handleEndConversation = () => {
-    if (onBack) onBack();
-    else window.history.back();
-  };
-
   const memoizedTokens = useMemo(() => {
     const map: Record<string, { token: string; index: number }[]> = {};
     for (const m of messages) {
@@ -455,18 +432,22 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
 
   return (
     <div className="h-screen flex flex-col bg-white">
-      <header ref={headerRef} className="w-full bg-white flex-shrink-0">
+      {/* 헤더 */}
+      <header
+        ref={headerRef}
+        className="w-full bg-white flex-shrink-0 border-b border-gray-100"
+      >
         <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-[19px] sm:text-[22px] font-semibold text-gray-900 truncate">
-              {scenario.title}
+              {scenarioTitle}
             </h1>
           </div>
 
           <div className="flex items-center">
             <button
               type="button"
-              onClick={handleEndConversation}
+              onClick={handleEndConversation} // ✅ 수정된 함수 사용
               className="ml-3 inline-flex items-center gap-2 rounded-md bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium hover:bg-rose-100 shadow-sm"
             >
               대화 종료
@@ -475,6 +456,7 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
         </div>
       </header>
 
+      {/* 메시지 리스트 */}
       <main className="flex-1 overflow-hidden" aria-live="polite">
         <div
           ref={listRef}
@@ -502,11 +484,13 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
                     ref={(el) => {
                       bubbleRefs.current[m.id] = el;
                     }}
-                    className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug break-words ${
-                      isUser
-                        ? "bg-rose-500 text-white"
-                        : "bg-gray-100 text-gray-800"
-                    } ${styleError && isUser ? "ring-2 ring-yellow-300" : ""}`}
+                    className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug break-words 
+                      ${
+                        isUser
+                          ? "bg-rose-500 text-white"
+                          : "bg-gray-100 text-gray-800"
+                      } 
+                      ${styleError && isUser ? "ring-2 ring-yellow-300" : ""}`}
                     onMouseEnter={() => {
                       if (!isMobile && styleError && isUser)
                         onSentenceInteract(m.id, m.feedback);
@@ -609,18 +593,17 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
         </div>
       </main>
 
+      {/* 하단 입력창 (푸터) */}
       <footer
         className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-40"
-        aria-hidden={false}
         style={{ height: FOOTER_HEIGHT }}
       >
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="h-full flex items-center justify-center">
+          <div className="h-full flex items-center justify-center gap-4">
             <button
               type="button"
               onClick={toggleRecording}
               aria-pressed={isRecording}
-              aria-label="record"
               className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md ${
                 isRecording ? "bg-rose-600" : "bg-rose-500 hover:bg-rose-600"
               }`}
@@ -633,7 +616,6 @@ const AITalkPageDetail: React.FC<Props> = ({ scenarioId = "free", onBack }) => {
                   style={{
                     boxShadow: "0 0 0 0 rgba(244, 63, 94, 0.4)",
                     animation: "ringPulse 1.8s ease-out infinite",
-                    willChange: "box-shadow",
                   }}
                 />
               )}
