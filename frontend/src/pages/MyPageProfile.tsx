@@ -121,22 +121,19 @@ const MyPageProfile: React.FC = () => {
     <div className="h-[100dvh] bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-rose-500 text-white flex-shrink-0">
-        {/* div에 justify-between을 추가하고 버튼을 하단으로 이동시킴 */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {/* 텍스트 영역 */}
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold">개인정보 수정</h1>
             <p className="text-white/90 text-sm">프로필 정보를 관리하세요</p>
           </div>
 
-          {/* 닫기 버튼 (우측) */}
           <button
             onClick={() => navigate(-1)}
             className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition"
-            aria-label="닫기" // aria-label 수정
+            aria-label="닫기"
             type="button"
           >
-            <X className="w-5 h-5" /> {/* 아이콘 변경 */}
+            <X className="w-5 h-5" />
           </button>
         </div>
       </header>
@@ -153,9 +150,9 @@ const MyPageProfile: React.FC = () => {
           </div>
         )}
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-          {/* Profile Image */}
-          <section className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8">
+        {/* Section: Profile Image (full-bleed background, inner content aligned with other pages) */}
+        <section className="w-full bg-white border-b border-gray-200">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <header className="mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                 프로필 사진
@@ -167,7 +164,6 @@ const MyPageProfile: React.FC = () => {
 
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="relative">
-                {/* 그라데이션 제거 -> bg-rose-500 단색으로 변경 */}
                 <div className="w-32 h-32 rounded-full bg-rose-500 flex items-center justify-center text-4xl font-bold text-white overflow-hidden">
                   {profile.profileImage ? (
                     <img
@@ -204,10 +200,12 @@ const MyPageProfile: React.FC = () => {
                 </p>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* Basic Info */}
-          <section className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8">
+        {/* Section: Basic Info */}
+        <section className="w-full bg-white border-b border-gray-200">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <header className="mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                 기본 정보
@@ -266,10 +264,12 @@ const MyPageProfile: React.FC = () => {
                 {loadingSave ? "저장 중..." : "저장하기"}
               </button>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* Password */}
-          <section className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8">
+        {/* Section: Password */}
+        <section className="w-full bg-white border-b border-gray-200">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <header className="mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                 비밀번호 변경
@@ -335,10 +335,12 @@ const MyPageProfile: React.FC = () => {
                 {loadingPwd ? "변경 중..." : "비밀번호 변경"}
               </button>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* Delete Account */}
-          <section className="bg-white rounded-lg border-2 border-rose-200 p-6 sm:p-8">
+        {/* Section: Delete Account (full-bleed with subtle background) */}
+        <section className="w-full bg-rose-50 border-b border-rose-100">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <header className="mb-4">
               <h2 className="text-xl sm:text-2xl font-bold text-rose-600 mb-1 sm:mb-2">
                 회원 탈퇴
@@ -356,8 +358,8 @@ const MyPageProfile: React.FC = () => {
             >
               회원 탈퇴하기
             </button>
-          </section>
-        </div>
+          </div>
+        </section>
       </main>
 
       {/* Delete Confirmation Modal */}
