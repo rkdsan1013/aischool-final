@@ -210,7 +210,7 @@ const AITalkCustomScenario: React.FC = () => {
   };
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col font-sans">
+    <div className="h-[100dvh] bg-white flex flex-col">
       <header className="bg-rose-500 text-white flex-shrink-0 shadow-md">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div>
