@@ -2,6 +2,9 @@
 import { pool } from "../config/db";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 
+// CEFR 레벨 타입 유니온
+export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+
 // 기본 User 타입 (users 테이블)
 export type User = {
   user_id: number;
@@ -14,7 +17,7 @@ export type User = {
 // 프로필이 포함된 User 타입 (JOIN 결과)
 export type UserWithProfile = User & {
   name: string | null;
-  level: "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | null;
+  level: CEFRLevel | null;
   level_progress: number | null;
   profile_img: string | null;
   streak_count: number | null;
@@ -106,7 +109,7 @@ export async function updateUserProfileInDB(
   payload: Partial<{
     name: string | null;
     profile_img: string | null;
-    level: string | null;
+    level: CEFRLevel | null;
     level_progress: number | null;
     streak_count: number | null;
     total_study_time: number | null;
@@ -156,12 +159,26 @@ export async function updateUserProfileInDB(
     values.push(payload.tier);
   }
 
+  // 변경할 필드가 없으면 종료
   if (fields.length === 0) return;
 
   values.push(userId);
   const sql = `UPDATE user_profiles SET ${fields.join(", ")} WHERE user_id = ?`;
 
   await pool.execute(sql, values);
+}
+
+/**
+ * 유저 패스워드 업데이트
+ */
+export async function updateUserPasswordInDB(
+  userId: number,
+  hashedPassword: string
+): Promise<void> {
+  await pool.execute("UPDATE users SET password = ? WHERE user_id = ?", [
+    hashedPassword,
+    userId,
+  ]);
 }
 
 /**
