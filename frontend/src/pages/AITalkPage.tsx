@@ -205,15 +205,16 @@ const AITalkPage: React.FC = () => {
     try {
       await aiTalkService.updateCustomScenario(id, payload);
 
+      const style = getScenarioStyle(payload.title);
       const updated: DisplayScenario = {
         id,
         userId: null,
         title: payload.title,
         description: payload.description,
         context: payload.context,
-        icon: getScenarioStyle(payload.title).icon,
-        colorClass: getScenarioStyle(payload.title).colorClass,
-        colorHex: getScenarioStyle(payload.title).colorHex,
+        icon: style.icon,
+        colorClass: style.colorClass,
+        colorHex: style.colorHex,
       };
 
       setCustomScenarios((prev) =>
@@ -231,11 +232,8 @@ const AITalkPage: React.FC = () => {
 
   /**
    * ModalCard
-   * - 모달과 편집모드 모두에서 동일한 더보기/접기 로직과 디자인 사용
-   * - 더보기 버튼 색상: gray-500
-   * - 버튼 클릭 시 포커스 이동 방지(onMouseDown preventDefault), tabIndex={-1}으로 키보드 포커스 제외
-   * - 편집 모드 레이아웃은 기존(초기 구현)처럼: 입력창들 + textarea + 저장/취소
-   * - 편집 모드에서도 상단에 실제 사용자가 작성한 컨텍스트 미리보기(더보기/접기) 유지
+   * - 읽기 모드: 상황 설명 컨테이너만 스크롤 가능(모달은 스크롤 없음)
+   * - 편집 모드: 초기 작성 내용(제목/설명/컨텍스트) 모두 숨기고 인풋 컨테이너만 표시
    */
   const ModalCard: React.FC<{
     scenario: DisplayScenario;
@@ -262,9 +260,6 @@ const AITalkPage: React.FC = () => {
     );
     const [localIsEditing, setLocalIsEditing] = useState<boolean>(false);
 
-    // 더보기 토글 상태: false -> 줄임(3줄), true -> 확장(약 5~6줄) + 내부 스크롤
-    const [expandedContext, setExpandedContext] = useState<boolean>(false);
-
     const editingStartedRef = useRef<boolean>(false);
 
     const localTitleRef = useRef<HTMLInputElement | null>(null);
@@ -277,7 +272,6 @@ const AITalkPage: React.FC = () => {
       setLocalContext(scenario.context ?? "");
       setLocalIsEditing(false);
       editingStartedRef.current = false;
-      setExpandedContext(false);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scenario.id]);
 
@@ -321,20 +315,14 @@ const AITalkPage: React.FC = () => {
       onRequestDelete(scenario);
     };
 
-    // 편집 모드에서도 preview에 보여줄 텍스트는 localContext (편집 중이면) 또는 scenario.context
-    const previewText = localIsEditing ? localContext : scenario.context ?? "";
-    const CONTEXT_LONG_THRESHOLD = 120; // 120자 이상이면 더보기 버튼 표시
-    const isContextLong = (previewText ?? "").length > CONTEXT_LONG_THRESHOLD;
-
-    const expandedStyle: React.CSSProperties = {
-      maxHeight: "9rem", // 약 6줄
+    // 읽기 모드에서만 사용되는 상황 설명 컨테이너 스타일
+    const contextScrollStyle: React.CSSProperties = {
+      maxHeight: "9rem",
       overflowY: "auto",
       whiteSpace: "pre-wrap",
       overflowWrap: "break-word",
       wordBreak: "break-word",
     };
-
-    const collapsedClass = "line-clamp-3"; // 필요 시 전역 CSS로 대체
 
     const modalContent = (
       <>
@@ -356,175 +344,157 @@ const AITalkPage: React.FC = () => {
             className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-4 sm:p-5"
             style={{
               border: "1px solid rgba(0,0,0,0.06)",
+              // 모달 자체는 스크롤 없음
               maxHeight: "80vh",
-              overflow: "auto",
             }}
           >
-            <div className="flex items-start gap-3">
-              <div
-                className={`${scenario.colorClass} text-white p-2.5 rounded-xl shadow-md flex-shrink-0`}
-                style={{ border: `1px solid ${scenario.colorHex}` }}
-              >
-                {scenario.icon}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">
-                      {localTitle || scenario.title}
-                    </h3>
-                  </div>
-
-                  <div className="mt-1">
-                    <p className="text-sm text-muted-foreground truncate">
-                      {localDescription || scenario.description}
-                    </p>
-
-                    {/* preview 영역: 편집모드 여부와 상관없이 동일한 더보기/접기 UI 사용 */}
-                    <div
-                      className="text-sm text-muted-foreground mt-3"
-                      style={
-                        expandedContext
-                          ? expandedStyle
-                          : { whiteSpace: "pre-wrap" }
-                      }
-                      aria-expanded={expandedContext}
-                    >
-                      <p
-                        className={expandedContext ? "" : collapsedClass}
-                        style={{ margin: 0 }}
-                      >
-                        {previewText || "상세 컨텍스트가 없습니다."}
-                      </p>
-                    </div>
-
-                    {isContextLong && (
-                      <div className="mt-2">
-                        <button
-                          onClick={() => setExpandedContext((v) => !v)}
-                          onMouseDown={(e) => {
-                            // 클릭 시 포커스가 버튼으로 이동하지 않도록 방지
-                            e.preventDefault();
-                          }}
-                          // tabIndex -1: 키보드 탭 포커스 제외 (요청에 따라 포커스 맞추지 않음)
-                          tabIndex={-1}
-                          className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:underline focus:outline-none focus:ring-0"
-                          type="button"
-                          aria-label={expandedContext ? "접기" : "더보기"}
-                        >
-                          <span>{expandedContext ? "접기" : "더보기"}</span>
-                          <ChevronRight
-                            className={`w-4 h-4 transform transition-transform ${
-                              expandedContext ? "rotate-90" : ""
-                            }`}
-                          />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={onClose}
-                className="ml-auto p-2 rounded-md hover:bg-gray-100"
-                type="button"
-                aria-label="닫기"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="mt-4">
-              {scenario.userId === null ? (
-                <div className="grid gap-2">
+            {localIsEditing ? (
+              // 편집 모드: 초기 내용 모두 숨기고 인풋 컨테이너만 표시
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-base sm:text-lg text-foreground">
+                    시나리오 수정
+                  </h3>
                   <button
-                    onClick={() => onStartConversation(scenario)}
-                    className="w-full flex items-center justify-between bg-rose-500 text-white px-4 py-2 rounded-xl shadow-md hover:bg-rose-600 transition"
+                    onClick={onClose}
+                    className="p-2 rounded-md hover:bg-gray-100"
                     type="button"
+                    aria-label="닫기"
                   >
-                    <div className="flex items-center gap-3">
-                      <Play className="w-5 h-5" />
-                      <span className="font-medium">대화 시작</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 opacity-70" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-              ) : (
-                <>
-                  {localIsEditing ? (
-                    /* 편집 모드 레이아웃: 이전처럼 입력창들 + textarea + 저장/취소 */
-                    <div className="w-full bg-white rounded-xl p-3 space-y-3">
-                      <input
-                        ref={localTitleRef}
-                        value={localTitle}
-                        onChange={(e) => {
-                          handleInputStart();
-                          setLocalTitle(e.target.value);
-                        }}
-                        name="title"
-                        className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-foreground"
-                        placeholder="시나리오 제목"
-                      />
 
-                      <input
-                        ref={localDescRef}
-                        value={localDescription}
-                        onChange={(e) => {
-                          handleInputStart();
-                          setLocalDescription(e.target.value);
-                        }}
-                        name="description"
-                        className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-sm"
-                        placeholder="간단한 설명"
-                      />
+                <div className="w-full bg-white rounded-xl p-3 space-y-3">
+                  <input
+                    ref={localTitleRef}
+                    value={localTitle}
+                    onChange={(e) => {
+                      handleInputStart();
+                      setLocalTitle(e.target.value);
+                    }}
+                    name="title"
+                    className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-foreground"
+                    placeholder="시나리오 제목"
+                  />
 
-                      {/* 편집 모드에서도 preview(더보기/접기)는 상단에 이미 표시되므로,
-                          아래 textarea는 실제 편집용으로 그대로 둠 */}
-                      <textarea
-                        ref={localCtxRef}
-                        value={localContext}
-                        onChange={(e) => {
-                          handleInputStart();
-                          setLocalContext(e.target.value);
-                        }}
-                        name="context"
-                        className="w-full bg-white border border-gray-200 rounded-md p-3 text-sm resize-none"
-                        rows={6}
-                        placeholder="시나리오 상세 컨텍스트"
-                        style={{
-                          lineHeight: 1.5,
-                          height: "160px",
-                          maxHeight: "320px",
-                          overflowY: "auto",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "break-word",
-                          wordBreak: "break-word",
-                        }}
-                      />
+                  <input
+                    ref={localDescRef}
+                    value={localDescription}
+                    onChange={(e) => {
+                      handleInputStart();
+                      setLocalDescription(e.target.value);
+                    }}
+                    name="description"
+                    className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-sm"
+                    placeholder="간단한 설명"
+                  />
 
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleLocalSave}
-                          className="flex-1 bg-rose-500 text-white px-3 py-2 rounded-lg"
-                          type="button"
+                  <textarea
+                    ref={localCtxRef}
+                    value={localContext}
+                    onChange={(e) => {
+                      handleInputStart();
+                      setLocalContext(e.target.value);
+                    }}
+                    name="context"
+                    className="w-full bg-white border border-gray-200 rounded-md p-3 text-sm resize-none"
+                    rows={6}
+                    placeholder="시나리오 상세 컨텍스트"
+                    style={{
+                      lineHeight: 1.5,
+                      height: "160px",
+                      maxHeight: "320px",
+                      overflowY: "auto",
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "break-word",
+                      wordBreak: "break-word",
+                    }}
+                  />
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleLocalSave}
+                      className="flex-1 bg-rose-500 text-white px-3 py-2 rounded-lg"
+                      type="button"
+                    >
+                      저장
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleCancelLocal();
+                      }}
+                      className="flex-1 bg-white border px-3 py-2 rounded-lg"
+                      type="button"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // 읽기 모드: 헤더 + 상황 설명(컨테이너 스크롤) + 액션들
+              <>
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`${scenario.colorClass} text-white p-2.5 rounded-xl shadow-md flex-shrink-0`}
+                    style={{ border: `1px solid ${scenario.colorHex}` }}
+                  >
+                    {scenario.icon}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">
+                          {scenario.title}
+                        </h3>
+                      </div>
+
+                      <div className="mt-1">
+                        <p className="text-sm text-muted-foreground truncate">
+                          {scenario.description}
+                        </p>
+
+                        <div
+                          className="text-sm text-muted-foreground mt-3"
+                          style={contextScrollStyle}
+                          aria-label="상황 설명"
                         >
-                          저장
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleCancelLocal();
-                          }}
-                          className="flex-1 bg-white border px-3 py-2 rounded-lg"
-                          type="button"
-                        >
-                          취소
-                        </button>
+                          <p style={{ margin: 0 }}>
+                            {scenario.context || "상세 컨텍스트가 없습니다."}
+                          </p>
+                        </div>
                       </div>
                     </div>
+                  </div>
+
+                  <button
+                    onClick={onClose}
+                    className="ml-auto p-2 rounded-md hover:bg-gray-100"
+                    type="button"
+                    aria-label="닫기"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  {scenario.userId === null ? (
+                    <div className="grid gap-2">
+                      <button
+                        onClick={() => onStartConversation(scenario)}
+                        className="w-full flex items-center justify-between bg-rose-500 text-white px-4 py-2 rounded-xl shadow-md hover:bg-rose-600 transition"
+                        type="button"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Play className="w-5 h-5" />
+                          <span className="font-medium">대화 시작</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 opacity-70" />
+                      </button>
+                    </div>
                   ) : (
-                    /* 읽기 모드 레이아웃 (대화 시작 / 수정 / 삭제) */
                     <div className="grid gap-2">
                       <button
                         onClick={() => onStartConversation(scenario)}
@@ -563,9 +533,9 @@ const AITalkPage: React.FC = () => {
                       </button>
                     </div>
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </>
@@ -701,7 +671,7 @@ const AITalkPage: React.FC = () => {
         <section>
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold mb-1 sm:mb-2">
+              <h2 className="text-xl sm:2xl font-bold mb-1 sm:mb-2">
                 나만의 시나리오
               </h2>
               <p className="text-sm sm:text-base text-muted-foreground text-pretty">
