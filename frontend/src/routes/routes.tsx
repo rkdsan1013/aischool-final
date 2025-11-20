@@ -11,6 +11,7 @@ import MyPage from "../pages/MyPage";
 import AITalk from "../pages/AITalkPage";
 import VoiceRoomPage from "../pages/VoiceRoomPage";
 import TrainingPage from "../pages/Training";
+import TrainingResult from "../pages/TrainingResult"; // [신규 Import]
 import VoiceRoomDetail from "../pages/VoiceRoomDetail";
 import VoiceRoomCreate from "../pages/VoiceRoomCreate";
 import AITalkPageDetail from "../pages/AITalkPageDetail";
@@ -44,8 +45,23 @@ export const routes: RouteObject[] = [
       },
       {
         path: "/training",
-        element: <TrainingPage />,
+        element: (
+          // 훈련 페이지도 로그인한 사용자만 접근 가능하도록 보호하는 것을 권장합니다.
+          <ProtectedRoute redirectTo="/auth">
+            <TrainingPage />
+          </ProtectedRoute>
+        ),
       },
+      // --- [신규] 결과 페이지 라우트 추가 ---
+      {
+        path: "/training/result",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <TrainingResult />
+          </ProtectedRoute>
+        ),
+      },
+      // --- [추가 완료] ---
       {
         path: "/voiceroom/room/:roomId",
         element: (
@@ -63,7 +79,6 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // [ADDED] AITalk 커스텀 시나리오 생성/수정 페이지 (유지)
       {
         path: "/ai-talk/custom-scenario",
         element: (
@@ -72,17 +87,6 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // ❌ [삭제] AITalk 상세 페이지는 AITalkPage 내부에서 상태로 처리됩니다.
-      /*
-      {
-        path: "/ai-talk/:id",
-        element: (
-          <ProtectedRoute redirectTo="/auth">
-            <AITalkPageDetail />
-          </ProtectedRoute>
-        ),
-      },
-      */
       {
         path: "/ai-talk/chat",
         element: (
@@ -126,7 +130,6 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // ✅ [중요] AITalk 페이지가 이제 상세 페이지까지 처리합니다.
       {
         path: "/ai-talk",
         element: (

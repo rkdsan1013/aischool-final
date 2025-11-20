@@ -1,6 +1,4 @@
-// src/components/Speaking.tsx
-// (SpeakingListening.tsx에서 수정됨)
-// cSpell:ignore MediaRecorder
+// frontend/src/components/Speaking.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { Mic, Square, Volume2 } from "lucide-react";
 

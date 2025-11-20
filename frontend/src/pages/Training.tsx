@@ -15,9 +15,16 @@ import Blank from "../components/Blank";
 import Writing from "../components/Writing";
 import Speaking from "../components/Speaking";
 import type { QuestionItem, TrainingType } from "../services/trainingService";
-import { fetchTrainingQuestions } from "../services/trainingService";
+import {
+  fetchTrainingQuestions,
+  verifyAnswer,
+} from "../services/trainingService";
 
-/* location.state 타입가드 */
+type ExtendedQuestionItem = QuestionItem & {
+  canonical_preferred?: string;
+  preferred?: string;
+};
+
 function isLocState(
   obj: unknown
 ): obj is { startType?: TrainingType; questions?: QuestionItem[] } {
@@ -28,19 +35,32 @@ function isLocState(
   return hasStart || hasQuestions;
 }
 
-// 푸터 / 피드백 관련 상수
-const FOOTER_BASE_HEIGHT = 64; // 버튼 영역 높이
-const SAFE_BOTTOM = 12; // 하단 여백
-const FEEDBACK_AREA_MIN_HEIGHT = 100; // 피드백 내용이 표시될 최소 영역 높이
-const FOOTER_BUTTON_AREA_HEIGHT = FOOTER_BASE_HEIGHT + SAFE_BOTTOM; // 76px
+const FOOTER_BASE_HEIGHT = 64;
+const SAFE_BOTTOM = 12;
+const FEEDBACK_AREA_MIN_HEIGHT = 100;
+const FOOTER_BUTTON_AREA_HEIGHT = FOOTER_BASE_HEIGHT + SAFE_BOTTOM;
 
-// 문자열 정규화: 프론트에서 deterministic 비교에 사용
 function normalizeForCompare(s: string) {
   return s
-    .normalize("NFKC") // 유니코드 정규화
-    .replace(/[\u2018\u2019\u201C\u201D]/g, "'") // 스마트 따옴표 치환
-    .replace(/\u00A0/g, " ") // NBSP 치환
-    .replace(/\s+/g, " ") // 연속 공백 축소
+    .normalize("NFKC")
+    .replace(/[\u2018\u2019\u201C\u201D]/g, "'")
+    .replace(/\u00A0/g, " ")
+    .replace(/\b(i|you|he|she|it|we|they)'m\b/gi, "$1 am")
+    .replace(/\b(i|you|he|she|it|we|they)'re\b/gi, "$1 are")
+    .replace(/\b(i|you|he|she|it|we|they)'ve\b/gi, "$1 have")
+    .replace(/\b(i|you|he|she|it|we|they)'ll\b/gi, "$1 will")
+    .replace(/\b(i|you|he|she|it|we|they)'d\b/gi, "$1 would")
+    .replace(/\bcan't\b/gi, "cannot")
+    .replace(/\bdon't\b/gi, "do not")
+    .replace(/\bdoesn't\b/gi, "does not")
+    .replace(/\bdidn't\b/gi, "did not")
+    .replace(/\bwon't\b/gi, "will not")
+    .replace(/\bisn't\b/gi, "is not")
+    .replace(/\baren't\b/gi, "are not")
+    .replace(/\bwasn't\b/gi, "was not")
+    .replace(/\bweren't\b/gi, "were not")
+    .replace(/[.,!?]/g, "")
+    .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 }
@@ -56,7 +76,6 @@ const TrainingPage: React.FC = () => {
       })
     : undefined;
 
-  // 안전한 rawStart 처리
   const rawStart: unknown =
     locState && (locState as Record<string, unknown>).startType;
 
@@ -71,6 +90,11 @@ const TrainingPage: React.FC = () => {
   );
   const [index, setIndex] = useState<number>(0);
 
+  // --- [신규] 상태 추가 ---
+  const [correctCount, setCorrectCount] = useState<number>(0);
+  const [sessionScore, setSessionScore] = useState<number>(0);
+  // --- [신규 완료] ---
+
   // UI 상태
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
@@ -79,10 +103,9 @@ const TrainingPage: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
-  // writing 오답 시 피드백에 보여줄 정답
   const [answerToShow, setAnswerToShow] = useState<string | null>(null);
+  const [answerLabel, setAnswerLabel] = useState<string>("정답");
 
-  // 동적 피드백 높이 상태 및 ref
   const [feedbackContentHeight, setFeedbackContentHeight] = useState(
     FEEDBACK_AREA_MIN_HEIGHT
   );
@@ -102,6 +125,9 @@ const TrainingPage: React.FC = () => {
           const data = await fetchTrainingQuestions(startType);
           setQuestions(data);
           setIndex(0);
+          // 초기화
+          setCorrectCount(0);
+          setSessionScore(0);
         } catch (err) {
           console.error(err);
           console.error("문제를 불러오지 못했습니다.");
@@ -114,12 +140,14 @@ const TrainingPage: React.FC = () => {
     }
   }, [startType, questions, navigate]);
 
-  const currentQuestion = useMemo(
-    () => (questions && questions[index] ? questions[index] : null),
+  const currentQuestion: ExtendedQuestionItem | null = useMemo(
+    () =>
+      questions && questions[index]
+        ? (questions[index] as ExtendedQuestionItem)
+        : null,
     [questions, index]
   );
 
-  // stableOptions는 writing이면 빈 배열 반환
   const stableOptions = useMemo(() => {
     if (!currentQuestion) return [];
     if (currentQuestion.type === "writing") return [];
@@ -133,7 +161,6 @@ const TrainingPage: React.FC = () => {
       : ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
   const isLastQuestion = index === (questions?.length ?? 1) - 1;
 
-  // 닫기 버튼
   const handleClose = () => {
     navigate("/home");
   };
@@ -146,6 +173,7 @@ const TrainingPage: React.FC = () => {
     setShowFeedback(false);
     setIsCorrect(false);
     setAnswerToShow(null);
+    setAnswerLabel("정답");
     setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
@@ -181,24 +209,28 @@ const TrainingPage: React.FC = () => {
   const handleRecordReceived = (blob: Blob) => {
     if (showFeedback) return;
     setRecordedBlob(blob);
-    console.debug("received recording blob (demo)", blob);
   };
 
   const arraysEqual = (a: string[], b: string[]) =>
     a.length === b.length &&
     a.every((v, i) => v.trim() === (b[i] ?? "").trim());
 
-  // writing은 프론트에서 deterministic 비교 (LLM 의존 제거)
-  const handleCheckAnswer = () => {
+  // --- [수정됨] 정답 확인 핸들러 ---
+  const handleCheckAnswer = async () => {
     if (!currentQuestion) return;
-    let correct = false;
+
+    // 1. 로컬 검증 (UI 즉시 반응용)
+    let localCorrect = false;
     setAnswerToShow(null);
+    setAnswerLabel("정답");
+    let userAnswerForBackend: string | string[] = "";
 
     switch (currentQuestion.type) {
       case "vocabulary":
       case "blank": {
+        userAnswerForBackend = selectedAnswer ?? "";
         const correctField = currentQuestion.correct;
-        correct =
+        localCorrect =
           typeof correctField === "string"
             ? correctField === selectedAnswer
             : Array.isArray(correctField)
@@ -207,70 +239,79 @@ const TrainingPage: React.FC = () => {
         break;
       }
       case "speaking": {
-        correct = Boolean(recordedBlob);
+        userAnswerForBackend = "(audio)";
+        localCorrect = Boolean(recordedBlob);
         break;
       }
       case "sentence": {
+        userAnswerForBackend = selectedOrder;
         if (Array.isArray(currentQuestion.correct)) {
-          correct = arraysEqual(currentQuestion.correct, selectedOrder);
+          localCorrect = arraysEqual(currentQuestion.correct, selectedOrder);
         } else if (typeof currentQuestion.correct === "string") {
-          correct = currentQuestion.correct === selectedOrder.join(" ");
-        } else {
-          correct = false;
+          localCorrect = currentQuestion.correct === selectedOrder.join(" ");
         }
         break;
       }
       case "writing": {
-        // 우선순위: generator가 제공한 canonical_preferred 필드 사용 시 그것을 우선,
-        // 없으면 currentQuestion.correct 또는 currentQuestion.preferred 사용
-        const anyQ = currentQuestion as any;
-        const canonical =
-          typeof anyQ.canonical_preferred === "string" &&
-          anyQ.canonical_preferred.trim() !== ""
-            ? anyQ.canonical_preferred
-            : typeof currentQuestion.correct === "string" &&
-              String(currentQuestion.correct).trim() !== ""
-            ? String(currentQuestion.correct)
-            : typeof anyQ.preferred === "string" && anyQ.preferred.trim() !== ""
-            ? anyQ.preferred
-            : "";
+        userAnswerForBackend = writingValue;
+        const userNorm = normalizeForCompare(writingValue);
+        const correctList = Array.isArray(currentQuestion.correct)
+          ? currentQuestion.correct
+          : [currentQuestion.correct as string];
 
-        // 디버그 로그
-        console.debug("[writing compare] userInput:", writingValue);
-        console.debug("[writing compare] canonical/preferred:", canonical);
+        const matchIndex = correctList.findIndex(
+          (ans) => normalizeForCompare(ans) === userNorm
+        );
 
-        if (canonical === "") {
-          // 정답 데이터가 없으면 안전하게 오답 처리하고 원문(correct)을 보여줌
-          correct = false;
-          setAnswerToShow(String(currentQuestion.correct ?? ""));
-        } else {
-          const userNorm = normalizeForCompare(writingValue);
-          const prefNorm = normalizeForCompare(canonical);
-          console.debug(
-            "[writing compare] userNorm:",
-            userNorm,
-            "prefNorm:",
-            prefNorm
-          );
-          if (userNorm === prefNorm) {
-            correct = true;
+        if (matchIndex !== -1) {
+          localCorrect = true;
+          if (matchIndex > 0) {
+            setAnswerLabel("이런 표현도 있어요");
+            setAnswerToShow(correctList[0] ?? "");
           } else {
-            correct = false;
-            // 피드백에는 사람이 읽을 수 있는 preferred(원문)를 보여줌
-            setAnswerToShow(
-              String(anyQ.preferred ?? currentQuestion.correct ?? canonical)
-            );
+            setAnswerToShow(null);
           }
+        } else {
+          localCorrect = false;
+          setAnswerToShow(correctList[0] ?? "");
+          setAnswerLabel("정답");
         }
         break;
       }
       default:
-        correct = false;
+        localCorrect = false;
     }
 
-    setIsCorrect(Boolean(correct));
+    // UI 즉시 업데이트
+    setIsCorrect(Boolean(localCorrect));
     setShowFeedback(true);
+
+    // 2. 백엔드 검증 및 점수 획득
+    try {
+      const result = await verifyAnswer({
+        type: currentQuestion.type,
+        userAnswer: userAnswerForBackend,
+        correctAnswer: currentQuestion.correct ?? [],
+      });
+
+      // 서버가 정답이라고 판정하면 점수 누적 및 정답 카운트 증가
+      if (result.isCorrect) {
+        setSessionScore((prev) => prev + result.points);
+        setCorrectCount((prev) => prev + 1);
+        console.log(`[Server] Correct! Earned ${result.points} points.`);
+      }
+
+      // (옵션) 로컬 판정과 다르면 서버 판정으로 보정 가능 (현재는 로깅만)
+      if (localCorrect !== result.isCorrect) {
+        console.warn(
+          `[Mismatch] Local: ${localCorrect}, Server: ${result.isCorrect}`
+        );
+      }
+    } catch (err) {
+      console.error("[Frontend] Background verification failed", err);
+    }
   };
+  // --- [수정 완료] ---
 
   const handleNext = () => {
     if (!questions) return;
@@ -282,12 +323,21 @@ const TrainingPage: React.FC = () => {
     }
   };
 
+  // --- [수정됨] 학습 완료 핸들러 ---
   const handleTrainingComplete = () => {
-    console.log("학습을 종료합니다.");
-    navigate("/home");
+    console.log("학습 종료. 결과 페이지로 이동");
+    navigate("/training/result", {
+      replace: true,
+      state: {
+        correctCount: correctCount,
+        totalCount: questions?.length ?? 0,
+        trainingType: startType,
+        earnedScore: sessionScore, // 서버에서 받은 총 점수
+      },
+    });
   };
+  // --- [수정 완료] ---
 
-  // 피드백 컨텐츠 높이 측정 Effect
   useLayoutEffect(() => {
     if (showFeedback && feedbackContentRef.current) {
       const currentContentHeight = feedbackContentRef.current.scrollHeight;
@@ -295,14 +345,12 @@ const TrainingPage: React.FC = () => {
         Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
       );
     }
-  }, [showFeedback, isCorrect, currentQuestion?.correct]);
+  }, [showFeedback, isCorrect, currentQuestion?.correct, answerToShow]);
 
-  // 동적 높이 계산
   const footerVisualHeight = showFeedback
     ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight
     : FOOTER_BUTTON_AREA_HEIGHT;
 
-  // 메인 컨텐츠 패딩도 동적으로 계산
   const MAIN_CONTENT_PADDING_BOTTOM =
     FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight;
 
@@ -340,6 +388,12 @@ const TrainingPage: React.FC = () => {
         <div className="text-gray-500">
           문제를 불러오는 중이거나, 문제가 없습니다.
         </div>
+        <button
+          onClick={() => navigate("/home")}
+          className="mt-4 text-rose-500 font-bold"
+        >
+          홈으로 돌아가기
+        </button>
       </div>
     );
   }
@@ -376,7 +430,6 @@ const TrainingPage: React.FC = () => {
           />
         );
       case "writing":
-        // Writing 컴포넌트는 controlled 방식으로 value/onChange를 사용
         return (
           <Writing
             sentence={String(item.question ?? "")}
@@ -436,7 +489,6 @@ const TrainingPage: React.FC = () => {
         className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
         style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
       >
-        {/* Interaction blocker when feedback shown */}
         {showFeedback && (
           <div
             className="absolute inset-0 bg-transparent"
@@ -534,15 +586,20 @@ const TrainingPage: React.FC = () => {
                       {isCorrect ? "정답입니다!" : "아쉬워요!"}
                     </div>
 
-                    {/* 오답일 때 speaking을 제외하고 정답 텍스트 노출
-                        writing의 경우 프론트에서 결정한 answerToShow를 우선 사용 */}
-                    {!isCorrect && currentQuestion.type !== "speaking" && (
+                    {((!isCorrect && currentQuestion.type !== "speaking") ||
+                      (isCorrect && answerToShow)) && (
                       <div className="mt-1">
-                        <div className="text-sm text-gray-600">정답</div>
+                        <div className="text-sm text-gray-600">
+                          {answerLabel}
+                        </div>
                         <div className="text-base font-bold text-gray-900 mt-1">
                           {currentQuestion.type === "writing"
                             ? String(
-                                answerToShow ?? currentQuestion.correct ?? ""
+                                answerToShow ??
+                                  (Array.isArray(currentQuestion.correct)
+                                    ? currentQuestion.correct[0]
+                                    : currentQuestion.correct) ??
+                                  ""
                               )
                             : Array.isArray(currentQuestion.correct)
                             ? currentQuestion.correct.join(" ")
