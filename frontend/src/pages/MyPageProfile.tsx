@@ -1,7 +1,9 @@
-// frontend/src/pages/MyPageProfile.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { X, Camera, AlertTriangle, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useProfile } from "../hooks/useProfile";
+import { useAuth } from "../hooks/useAuth";
+// import { updateUserProfile, deleteUser } from "../services/userService";
 
 type ProfileState = {
   name: string;
@@ -18,9 +20,14 @@ type PasswordState = {
 const MyPageProfile: React.FC = () => {
   const navigate = useNavigate();
 
+  // [신규] 전역 상태에서 프로필 정보 및 갱신 함수 가져오기
+  const { profile: globalProfile, refreshProfile } = useProfile();
+  const { logout } = useAuth();
+
+  // 로컬 편집용 상태
   const [profile, setProfile] = useState<ProfileState>({
-    name: "홍길동",
-    email: "test@test.com",
+    name: "",
+    email: "",
     profileImage: null,
   });
 
@@ -39,6 +46,21 @@ const MyPageProfile: React.FC = () => {
 
   const fileUrlRef = useRef<string | null>(null);
 
+  // [신규] 초기 로드 시 전역 프로필 데이터를 로컬 상태에 동기화
+  useEffect(() => {
+    if (globalProfile) {
+      setProfile({
+        name: globalProfile.name || "",
+        email: globalProfile.email,
+        profileImage: globalProfile.profile_img || null,
+      });
+    } else {
+      // 프로필이 없으면 로그인 페이지로 (혹은 AuthGuard가 처리)
+      navigate("/");
+    }
+  }, [globalProfile, navigate]);
+
+  // 메모리 누수 방지: 컴포넌트 언마운트 시 Blob URL 해제
   useEffect(() => {
     return () => {
       if (fileUrlRef.current) {
@@ -56,21 +78,35 @@ const MyPageProfile: React.FC = () => {
       URL.revokeObjectURL(fileUrlRef.current);
     }
 
+    // 주의: 실제 프로덕션에서는 여기서 파일을 서버로 업로드하고 URL을 받아와야 합니다.
+    // 현재는 미리보기용 Blob URL을 생성합니다.
+    // (백엔드가 base64나 파일을 처리하도록 구현되어 있다고 가정하거나 추후 구현 필요)
     const objUrl = URL.createObjectURL(file);
     fileUrlRef.current = objUrl;
     setProfile((p) => ({ ...p, profileImage: objUrl }));
   };
 
-  const mockApi = (ms = 700) => new Promise((res) => setTimeout(res, ms));
-
+  // [수정] 실제 프로필 업데이트 API 호출
   const handleSaveProfile = async () => {
-    if (loadingSave) return;
+    if (loadingSave || !globalProfile) return;
     setLoadingSave(true);
+
     try {
-      // TODO: Replace with real API call for profile save (multipart if uploading)
-      await mockApi();
+      // 1. 백엔드 업데이트 요청
+      // (이미지 업로드는 별도 로직이 필요할 수 있으나, 여기서는 profileImage 문자열을 보냄)
+      await updateUserProfile(globalProfile.user_id, {
+        name: profile.name,
+        profile_img: profile.profileImage,
+      });
+
+      // 2. 전역 상태(Context) 갱신 (MyPage 등 다른 곳에도 즉시 반영되도록)
+      await refreshProfile();
+
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+      alert("프로필 저장에 실패했습니다.");
     } finally {
       setLoadingSave(false);
     }
@@ -78,12 +114,11 @@ const MyPageProfile: React.FC = () => {
 
   const validateNewPassword = (): boolean => {
     if (passwords.new.length < 8) {
-      // Use custom alert/toast in production instead of alert()
-      console.error("새 비밀번호는 최소 8자 이상이어야 합니다.");
+      alert("새 비밀번호는 최소 8자 이상이어야 합니다.");
       return false;
     }
     if (passwords.new !== passwords.confirm) {
-      console.error("새 비밀번호가 일치하지 않습니다.");
+      alert("새 비밀번호가 일치하지 않습니다.");
       return false;
     }
     return true;
@@ -94,24 +129,49 @@ const MyPageProfile: React.FC = () => {
     if (!validateNewPassword()) return;
     setLoadingPwd(true);
     try {
-      // TODO: Replace with real password-change API call
-      await mockApi();
+      // TODO: 비밀번호 변경 API는 아직 userService에 구현되지 않았습니다.
+      // 추후 구현 시 여기에 await changePassword(...) 호출
+      // await changePassword(passwords.current, passwords.new);
+
+      // 임시 mock delay
+      await new Promise((res) => setTimeout(res, 1000));
+
       setPasswords({ current: "", new: "", confirm: "" });
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 3000);
+      alert("비밀번호가 변경되었습니다. (실제 API 연동 필요)");
+    } catch (err) {
+      console.error("Failed to change password:", err);
+      alert("비밀번호 변경 실패");
     } finally {
       setLoadingPwd(false);
     }
   };
 
+  // [수정] 실제 회원 탈퇴 API 호출
   const handleDeleteAccount = async () => {
-    if (loadingDelete) return;
+    if (loadingDelete || !globalProfile) return;
+
+    if (
+      !window.confirm("정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")
+    ) {
+      return;
+    }
+
     setLoadingDelete(true);
     try {
-      // TODO: Replace with real delete API call
-      await mockApi();
+      // 1. 백엔드 탈퇴 요청
+      await deleteUser(globalProfile.user_id);
+
+      // 2. 로그아웃 처리 (토큰 삭제 및 상태 초기화)
+      await logout();
+
       setShowDeleteModal(false);
+      alert("회원 탈퇴가 완료되었습니다.");
       navigate("/", { replace: true });
+    } catch (err) {
+      console.error("Failed to delete account:", err);
+      alert("회원 탈퇴 처리에 실패했습니다.");
     } finally {
       setLoadingDelete(false);
     }
@@ -143,14 +203,14 @@ const MyPageProfile: React.FC = () => {
         {/* Toast */}
         {showSuccessMessage && (
           <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50">
-            <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-md flex items-center gap-2">
+            <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-md flex items-center gap-2 animate-fade-in-down">
               <Check className="w-5 h-5" />
               <span className="font-semibold">저장되었습니다!</span>
             </div>
           </div>
         )}
 
-        {/* Section: Profile Image (full-bleed background, inner content aligned with other pages) */}
+        {/* Section: Profile Image */}
         <section className="w-full bg-white border-b border-gray-200">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <header className="mb-6">
@@ -164,7 +224,7 @@ const MyPageProfile: React.FC = () => {
 
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="relative">
-                <div className="w-32 h-32 rounded-full bg-rose-500 flex items-center justify-center text-4xl font-bold text-white overflow-hidden">
+                <div className="w-32 h-32 rounded-full bg-rose-500 flex items-center justify-center text-4xl font-bold text-white overflow-hidden shadow-inner">
                   {profile.profileImage ? (
                     <img
                       src={profile.profileImage}
@@ -196,7 +256,7 @@ const MyPageProfile: React.FC = () => {
                   프로필 사진을 변경하려면 카메라 아이콘을 클릭하세요
                 </p>
                 <p className="text-xs text-gray-500">
-                  JPG, PNG 형식 / 최대 5MB
+                  JPG, PNG 형식 / 최대 5MB (현재 로컬 미리보기만 지원)
                 </p>
               </div>
             </div>
@@ -338,7 +398,7 @@ const MyPageProfile: React.FC = () => {
           </div>
         </section>
 
-        {/* Section: Delete Account (full-bleed with subtle background) */}
+        {/* Section: Delete Account */}
         <section className="w-full bg-rose-50 border-b border-rose-100">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <header className="mb-4">
@@ -348,7 +408,8 @@ const MyPageProfile: React.FC = () => {
             </header>
 
             <p className="text-sm text-gray-600 mb-4">
-              회원 탈퇴 시 모든 학습 데이터가 삭제되며 복구할 수 없습니다.
+              회원 탈퇴 시 모든 학습 데이터가 영구적으로 삭제되며 복구할 수
+              없습니다.
             </p>
 
             <button
