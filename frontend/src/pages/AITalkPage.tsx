@@ -16,6 +16,7 @@ import {
   Edit3,
   Play,
   X,
+  Pen,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { aiTalkService } from "../services/aiTalkService";
@@ -24,15 +25,15 @@ import { aiTalkService } from "../services/aiTalkService";
  * AITalkPage.tsx
  *
  * 변경 요약
- * - 모달 헤더에 카드에 사용된 아이콘과 색상을 그대로 사용하도록 수정
- * - 기존 로직과 구조는 유지, 모달 내부 아이콘만 scenario.icon / scenario.colorClass / scenario.colorHex 사용
- * - 삭제 확인은 별도 ConfirmModal로 처리 (기존 변경 유지)
+ * - 사용자 시나리오 아이콘을 커스텀 SVG 대신 lucide-react의 Pen 아이콘으로 교체
+ * - 사용자 시나리오 색상은 이전 요청대로 창의적인 그라데이션 유지
+ * - 모달/확인 모달/입력 유지 로직 등 기존 동작은 그대로 유지
  */
 
 /* 화면 표시용 데이터 타입 */
 interface DisplayScenario {
   id: number;
-  userId?: number | null; // null이면 공식 시나리오
+  userId?: number | null;
   title: string;
   description: string;
   icon: React.ReactNode;
@@ -52,11 +53,9 @@ const AITalkPage: React.FC = () => {
     null
   );
 
-  // 삭제 확인용 상태: confirmScenario가 설정되면 "확인 모달"이 뜸
   const [confirmScenario, setConfirmScenario] =
     useState<DisplayScenario | null>(null);
 
-  // refs (보조)
   const titleRef = useRef<HTMLInputElement | null>(null);
   const descRef = useRef<HTMLInputElement | null>(null);
   const ctxRef = useRef<HTMLTextAreaElement | null>(null);
@@ -118,7 +117,6 @@ const AITalkPage: React.FC = () => {
     };
   };
 
-  // 초기 시나리오 로드
   useEffect(() => {
     const fetchScenarios = async () => {
       try {
@@ -129,20 +127,33 @@ const AITalkPage: React.FC = () => {
 
         data.forEach((item: any) => {
           const style = getScenarioStyle(item.title);
-          const formatted: DisplayScenario = {
-            id: item.scenario_id,
-            userId: item.user_id ?? null,
-            title: item.title,
-            description: item.description,
-            context: item.context,
-            icon: style.icon,
-            colorClass: style.colorClass,
-            colorHex: style.colorHex,
-          };
 
           if (item.user_id === null) {
+            const formatted: DisplayScenario = {
+              id: item.scenario_id,
+              userId: null,
+              title: item.title,
+              description: item.description,
+              context: item.context,
+              icon: style.icon,
+              colorClass: style.colorClass,
+              colorHex: style.colorHex,
+            };
             official.push(formatted);
           } else {
+            const formatted: DisplayScenario = {
+              id: item.scenario_id,
+              userId: item.user_id,
+              title: item.title,
+              description: item.description,
+              context: item.context,
+              // lucide-react Pen 아이콘 사용
+              icon: <Pen className="w-5 h-5 sm:w-6 sm:h-6" />,
+              // 창의적인 그라데이션 색상 유지
+              colorClass:
+                "bg-gradient-to-br from-cyan-400 via-fuchsia-500 to-amber-400",
+              colorHex: "#06b6d4",
+            };
             custom.push(formatted);
           }
         });
@@ -157,14 +168,11 @@ const AITalkPage: React.FC = () => {
     fetchScenarios();
   }, []);
 
-  // 부모는 모달 열림 시 body overflow만 잠금 (스크롤 방지)
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
-
     if (modalScenario || confirmScenario) {
       document.body.style.overflow = "hidden";
     }
-
     return () => {
       document.body.style.overflow = prevOverflow || "";
     };
@@ -189,17 +197,14 @@ const AITalkPage: React.FC = () => {
     navigate("/ai-talk/chat", { state: { scenarioId: s.id } });
   };
 
-  // 실제 삭제 로직: 더 이상 window.confirm 사용하지 않음.
   const deleteScenario = async (id: number) => {
     try {
       await aiTalkService.deleteCustomScenario(id);
       setCustomScenarios((prev) => prev.filter((c) => c.id !== id));
-      // 삭제 후 모든 모달 닫기
       setConfirmScenario(null);
       setModalScenario(null);
     } catch (error) {
       console.error("삭제 실패:", error);
-      // 실패 시 확인 모달 닫고 원래 모달 복원
       setConfirmScenario(null);
     }
   };
@@ -213,7 +218,7 @@ const AITalkPage: React.FC = () => {
 
       const updated: DisplayScenario = {
         id,
-        userId: null, // 실제 userId는 서비스 응답에 따라 조정 필요
+        userId: null,
         title: payload.title,
         description: payload.description,
         context: payload.context,
@@ -235,11 +240,6 @@ const AITalkPage: React.FC = () => {
     }
   };
 
-  /**
-   * ModalCard 컴포넌트
-   * - 헤더 아이콘/색상을 scenario.icon / scenario.colorClass / scenario.colorHex 로 사용
-   * - 삭제 요청은 onRequestDelete로 부모에 전달
-   */
   const ModalCard: React.FC<{
     scenario: DisplayScenario;
     onClose: () => void;
@@ -256,7 +256,6 @@ const AITalkPage: React.FC = () => {
     onRequestDelete,
     onSave,
   }) => {
-    // 로컬 상태: 모달이 마운트될 때 한 번만 초기화됨
     const [localTitle, setLocalTitle] = useState<string>(scenario.title ?? "");
     const [localDescription, setLocalDescription] = useState<string>(
       scenario.description ?? ""
@@ -266,15 +265,12 @@ const AITalkPage: React.FC = () => {
     );
     const [localIsEditing, setLocalIsEditing] = useState<boolean>(false);
 
-    // 입력 시작 여부 추적 (입력 시작하면 true)
     const editingStartedRef = useRef<boolean>(false);
 
-    // 포커스용 refs (모달 내부 전용)
     const localTitleRef = useRef<HTMLInputElement | null>(null);
     const localDescRef = useRef<HTMLInputElement | null>(null);
     const localCtxRef = useRef<HTMLTextAreaElement | null>(null);
 
-    // 마운트 시 초기화 (scenario가 바뀌면 ModalCard가 remount 되므로 이 effect는 한 번만 실행)
     useEffect(() => {
       setLocalTitle(scenario.title ?? "");
       setLocalDescription(scenario.description ?? "");
@@ -282,10 +278,10 @@ const AITalkPage: React.FC = () => {
       setLocalIsEditing(false);
       editingStartedRef.current = false;
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // 빈 deps: remount 시에만 실행
+    }, []);
 
     const startEditingLocal = () => {
-      if (scenario.userId === null) return; // official은 편집 불가
+      if (scenario.userId === null) return;
       setLocalIsEditing(true);
       setTimeout(() => {
         localTitleRef.current?.focus();
@@ -321,7 +317,6 @@ const AITalkPage: React.FC = () => {
     };
 
     const handleDeleteRequest = () => {
-      // 부모에게 삭제 요청 전달 -> 부모가 confirmScenario를 설정하여 확인 모달을 띄움
       onRequestDelete(scenario);
     };
 
@@ -350,13 +345,9 @@ const AITalkPage: React.FC = () => {
             }}
           >
             <div className="flex items-start gap-3">
-              {/* 헤더 아이콘: 카드와 동일한 아이콘/색상 사용 */}
               <div
                 className={`${scenario.colorClass} text-white p-2.5 rounded-xl shadow-md flex-shrink-0`}
-                style={{
-                  border: `1px solid ${scenario.colorHex}`,
-                  // 기존 카드와 동일한 스타일 효과 유지
-                }}
+                style={{ border: `1px solid ${scenario.colorHex}` }}
               >
                 {scenario.icon}
               </div>
@@ -524,12 +515,6 @@ const AITalkPage: React.FC = () => {
     return ReactDOM.createPortal(modalContent, document.body);
   };
 
-  /**
-   * ConfirmModal 컴포넌트
-   * - 별도의 모달로 렌더링되어 "삭제 하시겠습니까?" 메시지와 예/아니오 버튼을 제공
-   * - 예: 부모의 deleteScenario 호출
-   * - 아니오: confirmScenario를 닫고 원래 modalScenario를 유지(원래 모달 복원)
-   */
   const ConfirmModal: React.FC<{
     scenario: DisplayScenario;
     onConfirm: (id: number) => Promise<void>;
@@ -564,9 +549,7 @@ const AITalkPage: React.FC = () => {
           <div
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-4 sm:p-5"
-            style={{
-              border: "1px solid rgba(0,0,0,0.06)",
-            }}
+            style={{ border: "1px solid rgba(0,0,0,0.06)" }}
           >
             <div className="flex items-start gap-3">
               <div
@@ -656,7 +639,6 @@ const AITalkPage: React.FC = () => {
           </div>
         </section>
 
-        {/* 커스텀 시나리오 섹션 */}
         <section>
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
@@ -723,10 +705,6 @@ const AITalkPage: React.FC = () => {
         </section>
       </main>
 
-      {/* 모달 렌더링 로직
-          - confirmScenario가 있으면 ConfirmModal을 우선 렌더링(기존 모달은 숨김)
-          - confirmScenario가 없고 modalScenario가 있으면 ModalCard 렌더링
-      */}
       {confirmScenario ? (
         <ConfirmModal
           scenario={confirmScenario}
