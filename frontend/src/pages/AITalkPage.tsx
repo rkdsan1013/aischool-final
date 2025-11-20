@@ -1,4 +1,6 @@
+// frontend/src/pages/AITalkPage.tsx
 import React, { useEffect, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import {
   Coffee,
   Briefcase,
@@ -18,9 +20,22 @@ import {
 import { useNavigate } from "react-router-dom";
 import { aiTalkService } from "../services/aiTalkService";
 
-// 화면 표시용 데이터 타입
+/**
+ * AITalkPage.tsx
+ *
+ * 변경 요약
+ * - 모달 내부의 입력 상태를 ModalCard 내부 로컬 상태로 완전히 분리하여
+ *   사용자가 입력을 시작하면 해당 모달 인스턴스가 닫히거나 저장/취소될 때까지
+ *   외부에서 초기화되지 않도록 보장합니다.
+ * - ModalCard는 key={scenario.id}로 렌더링되어 다른 시나리오로 바뀌면 컴포넌트가 remount 되어 초기화됩니다.
+ * - overlay는 document.body에 포탈로 렌더링되어 푸터까지 덮습니다.
+ * - 기존의 부모 상태(officialScenarios, customScenarios 등)는 유지합니다.
+ */
+
+/* 화면 표시용 데이터 타입 */
 interface DisplayScenario {
   id: number;
+  userId?: number | null; // null이면 공식 시나리오
   title: string;
   description: string;
   icon: React.ReactNode;
@@ -40,13 +55,19 @@ const AITalkPage: React.FC = () => {
     null
   );
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<DisplayScenario>>({});
 
+  // 부모의 formState는 더 이상 모달 입력을 직접 제어하지 않음(모달 내부에서 관리)
+  const [formState, setFormState] = useState({
+    title: "",
+    description: "",
+    context: "",
+  });
+
+  // refs (포커스 용도) — ModalCard 내부에서도 사용하지만 보조로 유지
   const titleRef = useRef<HTMLInputElement | null>(null);
   const descRef = useRef<HTMLInputElement | null>(null);
   const ctxRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // 스타일 매핑 헬퍼
   const getScenarioStyle = (title: string) => {
     if (title.includes("카페")) {
       return {
@@ -104,7 +125,7 @@ const AITalkPage: React.FC = () => {
     };
   };
 
-  // DB 데이터 Fetching
+  // 초기 시나리오 로드
   useEffect(() => {
     const fetchScenarios = async () => {
       try {
@@ -113,10 +134,11 @@ const AITalkPage: React.FC = () => {
         const official: DisplayScenario[] = [];
         const custom: DisplayScenario[] = [];
 
-        data.forEach((item) => {
+        data.forEach((item: any) => {
           const style = getScenarioStyle(item.title);
           const formatted: DisplayScenario = {
             id: item.scenario_id,
+            userId: item.user_id ?? null,
             title: item.title,
             description: item.description,
             context: item.context,
@@ -142,22 +164,19 @@ const AITalkPage: React.FC = () => {
     fetchScenarios();
   }, []);
 
-  // 모달 초기값 세팅
+  // 부모는 모달 열림 시 body overflow만 잠금 (스크롤 방지)
   useEffect(() => {
-    if (!modalScenario) {
-      setEditForm({});
-      return;
+    const prevOverflow = document.body.style.overflow;
+
+    if (modalScenario) {
+      document.body.style.overflow = "hidden";
     }
 
-    const s = modalScenario;
-    setEditForm({
-      title: s.title,
-      description: s.description,
-      context: s.context,
-    });
+    return () => {
+      document.body.style.overflow = prevOverflow || "";
+    };
   }, [modalScenario]);
 
-  // 시나리오 클릭 핸들러: State와 함께 고정 경로로 navigate
   const handleScenarioClick = (id: number) => {
     navigate("/ai-talk/chat", { state: { scenarioId: id } });
   };
@@ -166,20 +185,14 @@ const AITalkPage: React.FC = () => {
 
   const openModal = (s: DisplayScenario) => {
     setModalScenario(s);
-    setIsEditing(false);
-    document.body.style.overflow = "hidden";
   };
 
   const closeModal = () => {
     setModalScenario(null);
-    setIsEditing(false);
-    setEditForm({});
-    document.body.style.overflow = "";
   };
 
-  // 모달 내 '대화 시작' 버튼 핸들러
   const startConversation = (s: DisplayScenario) => {
-    closeModal();
+    setModalScenario(null);
     navigate("/ai-talk/chat", { state: { scenarioId: s.id } });
   };
 
@@ -188,219 +201,321 @@ const AITalkPage: React.FC = () => {
     try {
       await aiTalkService.deleteCustomScenario(id);
       setCustomScenarios((prev) => prev.filter((c) => c.id !== id));
-      closeModal();
+      setModalScenario(null);
     } catch (error) {
       console.error("삭제 실패:", error);
     }
   };
 
-  const startEditing = () => {
-    if (!modalScenario) return;
-    setIsEditing(true);
-    // ref 값 초기화 (defaultValue가 아닌 value에 직접 할당해야 함)
-    setTimeout(() => {
-      if (titleRef.current) titleRef.current.value = modalScenario.title;
-      if (descRef.current) descRef.current.value = modalScenario.description;
-      if (ctxRef.current) ctxRef.current.value = modalScenario.context || "";
-    }, 0);
-  };
-
-  // Null check 경고 해결 (Optional chaining 사용)
-  const saveEdit = async () => {
-    if (!modalScenario) return;
-    // Null 체크를 강화하여 경고 해결
-    const title = (titleRef.current?.value ?? "").trim();
-    if (!title) return;
-    const description = (descRef.current?.value ?? "").trim();
-    const context = (ctxRef.current?.value ?? "").trim();
-
+  const saveEditParent = async (
+    id: number,
+    payload: { title: string; description: string; context: string }
+  ) => {
+    // 부모가 시나리오 목록을 업데이트해야 할 때 호출되는 헬퍼
     try {
-      await aiTalkService.updateCustomScenario(modalScenario.id, {
-        title,
-        description,
-        context,
-      });
+      await aiTalkService.updateCustomScenario(id, payload);
 
       const updated: DisplayScenario = {
-        ...modalScenario,
-        title,
-        description,
-        context,
+        id,
+        userId: null, // 실제 userId는 서비스 응답에 따라 조정 필요
+        title: payload.title,
+        description: payload.description,
+        context: payload.context,
+        icon: getScenarioStyle(payload.title).icon,
+        colorClass: getScenarioStyle(payload.title).colorClass,
+        colorHex: getScenarioStyle(payload.title).colorHex,
       };
 
       setCustomScenarios((prev) =>
-        prev.map((c) => (c.id === updated.id ? updated : c))
+        prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
       );
 
-      setEditForm({ title, description, context });
-      setModalScenario(updated);
-      setIsEditing(false);
+      // 만약 modalScenario가 열려있다면 업데이트 반영
+      if (modalScenario && modalScenario.id === id) {
+        setModalScenario((prev) => (prev ? { ...prev, ...updated } : prev));
+      }
     } catch (error) {
       console.error("수정 실패:", error);
+      throw error;
     }
   };
 
-  const ModalCard: React.FC = () => {
-    if (!modalScenario) return null;
-    const s = modalScenario;
+  /**
+   * ModalCard 컴포넌트
+   * - 모달 내부 입력 상태를 로컬로 관리하여 외부 변경에 의해 입력이 초기화되지 않도록 보장
+   * - key={scenario.id}로 렌더링되므로 다른 시나리오로 바뀌면 컴포넌트가 remount 되어 초기화됨
+   */
+  const ModalCard: React.FC<{
+    scenario: DisplayScenario;
+    onClose: () => void;
+    onStartConversation: (s: DisplayScenario) => void;
+    onDelete: (id: number) => void;
+    onSave: (
+      id: number,
+      payload: { title: string; description: string; context: string }
+    ) => Promise<void>;
+  }> = ({ scenario, onClose, onStartConversation, onDelete, onSave }) => {
+    // 로컬 상태: 모달이 마운트될 때 한 번만 초기화됨
+    const [localTitle, setLocalTitle] = useState<string>(scenario.title ?? "");
+    const [localDescription, setLocalDescription] = useState<string>(
+      scenario.description ?? ""
+    );
+    const [localContext, setLocalContext] = useState<string>(
+      scenario.context ?? ""
+    );
+    const [localIsEditing, setLocalIsEditing] = useState<boolean>(false);
 
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:px-6"
-        role="dialog"
-        aria-modal="true"
-      >
+    // 입력 시작 여부 추적 (입력 시작하면 true)
+    const editingStartedRef = useRef<boolean>(false);
+
+    // 포커스용 refs (모달 내부 전용)
+    const localTitleRef = useRef<HTMLInputElement | null>(null);
+    const localDescRef = useRef<HTMLInputElement | null>(null);
+    const localCtxRef = useRef<HTMLTextAreaElement | null>(null);
+
+    // 마운트 시 초기화 (scenario가 바뀌면 ModalCard가 remount 되므로 이 effect는 한 번만 실행)
+    useEffect(() => {
+      setLocalTitle(scenario.title ?? "");
+      setLocalDescription(scenario.description ?? "");
+      setLocalContext(scenario.context ?? "");
+      setLocalIsEditing(false);
+      editingStartedRef.current = false;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // 빈 deps: remount 시에만 실행
+
+    const startEditingLocal = () => {
+      if (scenario.userId === null) return; // official은 편집 불가
+      setLocalIsEditing(true);
+      setTimeout(() => {
+        localTitleRef.current?.focus();
+      }, 0);
+    };
+
+    const handleLocalSave = async () => {
+      if (scenario.userId === null) return;
+      const title = (localTitle ?? "").trim();
+      if (!title) return;
+      const description = (localDescription ?? "").trim();
+      const context = (localContext ?? "").trim();
+
+      try {
+        await onSave(scenario.id, { title, description, context });
+        // 저장 후 편집 모드 종료 및 입력 세션 리셋
+        setLocalIsEditing(false);
+        editingStartedRef.current = false;
+        // 모달에 반영: (부모가 modalScenario를 업데이트하면 반영됨)
+      } catch (err) {
+        // 실패 시 그대로 유지
+        console.error(err);
+      }
+    };
+
+    const handleInputStart = () => {
+      if (!editingStartedRef.current) editingStartedRef.current = true;
+    };
+
+    const handleCancelLocal = () => {
+      // 취소 시 로컬 상태를 원본으로 되돌림
+      setLocalTitle(scenario.title ?? "");
+      setLocalDescription(scenario.description ?? "");
+      setLocalContext(scenario.context ?? "");
+      setLocalIsEditing(false);
+      editingStartedRef.current = false;
+    };
+
+    const modalContent = (
+      <>
         <div
-          className="absolute inset-0 bg-black/40"
-          onClick={closeModal}
+          className="fixed inset-0 bg-black/40"
+          onClick={onClose}
           aria-hidden="true"
+          style={{ zIndex: 9999 }}
         />
 
         <div
-          className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-4 sm:p-5 z-10"
-          onClick={(e) => e.stopPropagation()}
-          style={{ border: "1px solid rgba(0,0,0,0.06)" }}
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 flex items-center justify-center px-4 sm:px-6"
+          style={{ zIndex: 10000 }}
         >
-          <div className="flex items-start gap-3">
-            <div
-              className="bg-gradient-to-br from-rose-500 to-pink-500 text-white p-2.5 rounded-xl shadow-md flex-shrink-0"
-              style={{ border: "1px solid #e11d48" }}
-            >
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-4 sm:p-5"
+            style={{
+              border: "1px solid rgba(0,0,0,0.06)",
+              maxHeight: "80vh",
+              overflow: "auto",
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="bg-gradient-to-br from-rose-500 to-pink-500 text-white p-2.5 rounded-xl shadow-md flex-shrink-0"
+                style={{ border: "1px solid #e11d48" }}
+              >
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">
+                      {scenario.title}
+                    </h3>
+                  </div>
+
+                  <div className="mt-1">
+                    <p className="text-sm text-muted-foreground truncate">
+                      {scenario.description}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap line-clamp-3">
+                      {scenario.context ?? "상세 컨텍스트가 없습니다."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={onClose}
+                className="ml-auto p-2 rounded-md hover:bg-gray-100"
+                type="button"
+                aria-label="닫기"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="min-w-0 flex-1">
-              <div>
-                <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">
-                    {editForm.title ?? s.title}
-                  </h3>
+            <div className="mt-4">
+              {scenario.userId === null ? (
+                <div className="grid gap-2">
+                  <button
+                    onClick={() => onStartConversation(scenario)}
+                    className="w-full flex items-center justify-between bg-rose-500 text-white px-4 py-2 rounded-xl shadow-md hover:bg-rose-600 transition"
+                    type="button"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Play className="w-5 h-5" />
+                      <span className="font-medium">대화 시작</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 opacity-70" />
+                  </button>
                 </div>
+              ) : (
+                <>
+                  {localIsEditing ? (
+                    <div className="w-full bg-white rounded-xl p-3 space-y-3">
+                      <input
+                        ref={localTitleRef}
+                        value={localTitle}
+                        onChange={(e) => {
+                          handleInputStart();
+                          setLocalTitle(e.target.value);
+                        }}
+                        name="title"
+                        className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-foreground"
+                        placeholder="시나리오 제목"
+                      />
 
-                <div className="mt-1">
-                  <p className="text-sm text-muted-foreground truncate">
-                    {editForm.description ?? s.description}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap line-clamp-3">
-                    {editForm.context ??
-                      s.context ??
-                      "상세 컨텍스트가 없습니다."}
-                  </p>
-                </div>
-              </div>
+                      <input
+                        ref={localDescRef}
+                        value={localDescription}
+                        onChange={(e) => {
+                          handleInputStart();
+                          setLocalDescription(e.target.value);
+                        }}
+                        name="description"
+                        className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-sm"
+                        placeholder="간단한 설명"
+                      />
+
+                      <textarea
+                        ref={localCtxRef}
+                        value={localContext}
+                        onChange={(e) => {
+                          handleInputStart();
+                          setLocalContext(e.target.value);
+                        }}
+                        name="context"
+                        className="w-full bg-white border border-gray-200 rounded-md p-3 text-sm resize-none"
+                        rows={6}
+                        placeholder="시나리오 상세 컨텍스트"
+                        style={{
+                          lineHeight: 1.5,
+                          height: "160px",
+                          maxHeight: "320px",
+                          overflowY: "auto",
+                          whiteSpace: "pre-wrap",
+                          overflowWrap: "break-word",
+                          wordBreak: "break-word",
+                        }}
+                      />
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleLocalSave}
+                          className="flex-1 bg-rose-500 text-white px-3 py-2 rounded-lg"
+                          type="button"
+                        >
+                          저장
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleCancelLocal();
+                          }}
+                          className="flex-1 bg-white border px-3 py-2 rounded-lg"
+                          type="button"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <button
+                        onClick={() => onStartConversation(scenario)}
+                        className="w-full flex items-center justify-between bg-rose-500 text-white px-4 py-2 rounded-xl shadow-md hover:bg-rose-600 transition"
+                        type="button"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Play className="w-5 h-5" />
+                          <span className="font-medium">대화 시작</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 opacity-70" />
+                      </button>
+
+                      <button
+                        onClick={startEditingLocal}
+                        className="w-full flex items-center justify-between bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-50 transition"
+                        type="button"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Edit3 className="w-5 h-5" />
+                          <span className="font-medium">수정</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 opacity-50" />
+                      </button>
+
+                      <button
+                        onClick={() => onDelete(scenario.id)}
+                        className="w-full flex items-center justify-between bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-50 transition text-red-600"
+                        type="button"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Trash2 className="w-5 h-5" />
+                          <span className="font-medium">삭제</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 opacity-50" />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-
-            <button
-              onClick={closeModal}
-              className="ml-auto p-2 rounded-md hover:bg-gray-100"
-              type="button"
-              aria-label="닫기"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="mt-4">
-            {isEditing ? (
-              <div className="w-full bg-white rounded-xl p-3 space-y-3">
-                <input
-                  ref={titleRef}
-                  defaultValue={editForm.title ?? s.title ?? ""}
-                  name="title"
-                  className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-foreground"
-                  placeholder="시나리오 제목"
-                />
-
-                <input
-                  ref={descRef}
-                  defaultValue={editForm.description ?? s.description ?? ""}
-                  name="description"
-                  className="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-sm"
-                  placeholder="간단한 설명"
-                />
-
-                <textarea
-                  ref={ctxRef}
-                  defaultValue={editForm.context ?? s.context ?? ""}
-                  name="context"
-                  className="w-full bg-white border border-gray-200 rounded-md p-3 text-sm"
-                  rows={6}
-                  placeholder="시나리오 상세 컨텍스트"
-                />
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={saveEdit}
-                    className="flex-1 bg-rose-500 text-white px-3 py-2 rounded-lg"
-                    type="button"
-                  >
-                    저장
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (titleRef.current)
-                        titleRef.current.value = s.title ?? "";
-                      if (descRef.current)
-                        descRef.current.value = s.description ?? "";
-                      if (ctxRef.current)
-                        ctxRef.current.value = s.context ?? "";
-                      setIsEditing(false);
-                      setEditForm({
-                        title: s.title,
-                        description: s.description,
-                        context: s.context,
-                      });
-                    }}
-                    className="flex-1 bg-white border px-3 py-2 rounded-lg"
-                    type="button"
-                  >
-                    취소
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <button
-                  onClick={() => startConversation(s)}
-                  className="w-full flex items-center justify-between bg-rose-500 text-white px-4 py-2 rounded-xl shadow-md hover:bg-rose-600 transition"
-                  type="button"
-                >
-                  <div className="flex items-center gap-3">
-                    <Play className="w-5 h-5" />
-                    <span className="font-medium">대화 시작</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 opacity-70" />
-                </button>
-
-                <button
-                  onClick={startEditing}
-                  className="w-full flex items-center justify-between bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-50 transition"
-                  type="button"
-                >
-                  <div className="flex items-center gap-3">
-                    <Edit3 className="w-5 h-5" />
-                    <span className="font-medium">수정</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 opacity-50" />
-                </button>
-
-                <button
-                  onClick={() => deleteScenario(s.id)}
-                  className="w-full flex items-center justify-between bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-50 transition text-red-600"
-                  type="button"
-                >
-                  <div className="flex items-center gap-3">
-                    <Trash2 className="w-5 h-5" />
-                    <span className="font-medium">삭제</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 opacity-50" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
-      </div>
+      </>
     );
+
+    return ReactDOM.createPortal(modalContent, document.body);
   };
 
   return (
@@ -419,7 +534,7 @@ const AITalkPage: React.FC = () => {
             {officialScenarios.map((s) => (
               <button
                 key={s.id}
-                onClick={() => handleScenarioClick(s.id)}
+                onClick={() => openModal(s)}
                 className="border-2 border-gray-200 group relative bg-card rounded-2xl p-4 sm:p-5 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                 type="button"
               >
@@ -514,7 +629,23 @@ const AITalkPage: React.FC = () => {
         </section>
       </main>
 
-      {modalScenario && <ModalCard />}
+      {/* ModalCard는 scenario.id를 key로 하여 렌더링 (같은 id인 동안은 remount 되지 않음) */}
+      {modalScenario && (
+        <ModalCard
+          key={modalScenario.id}
+          scenario={modalScenario}
+          onClose={() => setModalScenario(null)}
+          onStartConversation={startConversation}
+          onDelete={deleteScenario}
+          onSave={async (id, payload) => {
+            // 부모 저장 로직 호출
+            await saveEditParent(id, payload);
+            // 부모에서 업데이트가 반영되면 modalScenario도 업데이트됨
+            // (saveEditParent 내부에서 setModalScenario을 호출하지 않으므로 여기서 직접 반영)
+            setModalScenario((prev) => (prev ? { ...prev, ...payload } : prev));
+          }}
+        />
+      )}
     </div>
   );
 };
