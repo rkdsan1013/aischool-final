@@ -231,11 +231,11 @@ const AITalkPage: React.FC = () => {
 
   /**
    * ModalCard
-   * - "더보기"를 누르면 줄임(3줄) -> 확장(약 5~6줄)로 바뀌고,
-   *   확장 상태에서는 내부 영역에 스크롤이 생겨 전체 모달 높이를 크게 만들지 않음.
+   * - 모달과 편집모드 모두에서 동일한 더보기/접기 로직과 디자인 사용
    * - 더보기 버튼 색상: gray-500
-   * - 버튼 클릭 시 포커스가 이동하지 않도록 onMouseDown에서 preventDefault 처리
-   * - 버튼에 포커스 스타일 제거 (focus:outline-none, focus:ring-0) 및 tabIndex={-1}으로 키보드 포커스 제외
+   * - 버튼 클릭 시 포커스 이동 방지(onMouseDown preventDefault), tabIndex={-1}으로 키보드 포커스 제외
+   * - 편집 모드 레이아웃은 기존(초기 구현)처럼: 입력창들 + textarea + 저장/취소
+   * - 편집 모드에서도 상단에 실제 사용자가 작성한 컨텍스트 미리보기(더보기/접기) 유지
    */
   const ModalCard: React.FC<{
     scenario: DisplayScenario;
@@ -321,26 +321,20 @@ const AITalkPage: React.FC = () => {
       onRequestDelete(scenario);
     };
 
-    // 긴 텍스트 판단 기준 (문자 수 기반)
-    const contextText = scenario.context ?? "";
+    // 편집 모드에서도 preview에 보여줄 텍스트는 localContext (편집 중이면) 또는 scenario.context
+    const previewText = localIsEditing ? localContext : scenario.context ?? "";
     const CONTEXT_LONG_THRESHOLD = 120; // 120자 이상이면 더보기 버튼 표시
-    const isContextLong = contextText.length > CONTEXT_LONG_THRESHOLD;
+    const isContextLong = (previewText ?? "").length > CONTEXT_LONG_THRESHOLD;
 
-    /**
-     * 스타일 설명
-     * - 기본(줄임): line-clamp-3 (Tailwind 플러그인 사용 시)
-     * - 확장: 내부 컨텍스트 영역에 maxHeight를 주고 overflowY:auto로 스크롤 가능하게 함
-     *   (줄 수는 약 5~6줄 정도로 설정)
-     */
     const expandedStyle: React.CSSProperties = {
-      maxHeight: "9rem", // 약 6줄 (줄높이/폰트에 따라 조정 가능)
+      maxHeight: "9rem", // 약 6줄
       overflowY: "auto",
       whiteSpace: "pre-wrap",
       overflowWrap: "break-word",
       wordBreak: "break-word",
     };
 
-    const collapsedClass = "line-clamp-3"; // 프로젝트에 line-clamp 플러그인 없으면 전역 CSS로 대체 필요
+    const collapsedClass = "line-clamp-3"; // 필요 시 전역 CSS로 대체
 
     const modalContent = (
       <>
@@ -378,65 +372,55 @@ const AITalkPage: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2 min-w-0">
                     <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">
-                      {scenario.title}
+                      {localTitle || scenario.title}
                     </h3>
                   </div>
 
                   <div className="mt-1">
                     <p className="text-sm text-muted-foreground truncate">
-                      {scenario.description}
+                      {localDescription || scenario.description}
                     </p>
 
-                    {/* 컨텍스트: 기본은 줄임(3줄), 더보기 누르면 2~3줄 더 보여주고 내부 스크롤 허용 */}
-                    {!localIsEditing ? (
-                      <>
-                        <div
-                          className="text-sm text-muted-foreground mt-3"
-                          style={
-                            expandedContext
-                              ? expandedStyle
-                              : { whiteSpace: "pre-wrap" }
-                          }
-                          aria-expanded={expandedContext}
-                        >
-                          <p
-                            className={expandedContext ? "" : collapsedClass}
-                            style={{ margin: 0 }}
-                          >
-                            {contextText || "상세 컨텍스트가 없습니다."}
-                          </p>
-                        </div>
-
-                        {/* 더보기/접기 버튼: 컨텍스트가 길거나 줄임이 적용될 때만 표시 */}
-                        {isContextLong && (
-                          <div className="mt-2">
-                            <button
-                              onClick={() => setExpandedContext((v) => !v)}
-                              onMouseDown={(e) => {
-                                // 클릭 시 포커스가 버튼으로 이동하지 않도록 방지
-                                e.preventDefault();
-                              }}
-                              // tabIndex -1: 키보드 탭 포커스 제외 (요청에 따라 포커스 맞추지 않음)
-                              tabIndex={-1}
-                              className={`inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:underline focus:outline-none focus:ring-0`}
-                              type="button"
-                              aria-label={expandedContext ? "접기" : "더보기"}
-                            >
-                              <span>{expandedContext ? "접기" : "더보기"}</span>
-                              <ChevronRight
-                                className={`w-4 h-4 transform transition-transform ${
-                                  expandedContext ? "rotate-90" : ""
-                                }`}
-                              />
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap line-clamp-3">
-                        편집 모드에서 전체 컨텍스트를 확인하고 수정할 수
-                        있습니다.
+                    {/* preview 영역: 편집모드 여부와 상관없이 동일한 더보기/접기 UI 사용 */}
+                    <div
+                      className="text-sm text-muted-foreground mt-3"
+                      style={
+                        expandedContext
+                          ? expandedStyle
+                          : { whiteSpace: "pre-wrap" }
+                      }
+                      aria-expanded={expandedContext}
+                    >
+                      <p
+                        className={expandedContext ? "" : collapsedClass}
+                        style={{ margin: 0 }}
+                      >
+                        {previewText || "상세 컨텍스트가 없습니다."}
                       </p>
+                    </div>
+
+                    {isContextLong && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setExpandedContext((v) => !v)}
+                          onMouseDown={(e) => {
+                            // 클릭 시 포커스가 버튼으로 이동하지 않도록 방지
+                            e.preventDefault();
+                          }}
+                          // tabIndex -1: 키보드 탭 포커스 제외 (요청에 따라 포커스 맞추지 않음)
+                          tabIndex={-1}
+                          className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:underline focus:outline-none focus:ring-0"
+                          type="button"
+                          aria-label={expandedContext ? "접기" : "더보기"}
+                        >
+                          <span>{expandedContext ? "접기" : "더보기"}</span>
+                          <ChevronRight
+                            className={`w-4 h-4 transform transition-transform ${
+                              expandedContext ? "rotate-90" : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -470,6 +454,7 @@ const AITalkPage: React.FC = () => {
               ) : (
                 <>
                   {localIsEditing ? (
+                    /* 편집 모드 레이아웃: 이전처럼 입력창들 + textarea + 저장/취소 */
                     <div className="w-full bg-white rounded-xl p-3 space-y-3">
                       <input
                         ref={localTitleRef}
@@ -495,6 +480,8 @@ const AITalkPage: React.FC = () => {
                         placeholder="간단한 설명"
                       />
 
+                      {/* 편집 모드에서도 preview(더보기/접기)는 상단에 이미 표시되므로,
+                          아래 textarea는 실제 편집용으로 그대로 둠 */}
                       <textarea
                         ref={localCtxRef}
                         value={localContext}
@@ -537,6 +524,7 @@ const AITalkPage: React.FC = () => {
                       </div>
                     </div>
                   ) : (
+                    /* 읽기 모드 레이아웃 (대화 시작 / 수정 / 삭제) */
                     <div className="grid gap-2">
                       <button
                         onClick={() => onStartConversation(scenario)}
