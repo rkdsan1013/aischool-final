@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Flame,
@@ -62,6 +62,121 @@ const NavigateRow: React.FC<{
   </div>
 );
 
+// 출석 그리드 (모바일 퍼스트, 전처럼 작은 칸 유지 + 회색은 gray-200)
+// 6개월 기준으로 잡초(칸) 수 확대
+const AttendanceGrid: React.FC<{
+  data: { date: string; attended: boolean; count?: number }[];
+}> = ({ data }) => {
+  const weeks = useMemo(() => {
+    const sorted = [...data].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    if (sorted.length === 0) return [];
+    const start = new Date(sorted[0].date);
+    const day = start.getDay();
+    start.setDate(start.getDate() - day);
+
+    // 6개월 ≈ 26주로 확장 (가로를 꽉 채워 보이도록 컬럼 수 증가)
+    const maxWeeks = 26;
+    const grid: {
+      date: Date;
+      item?: { date: string; attended: boolean; count?: number };
+    }[][] = [];
+    const cursor = new Date(start);
+
+    for (let w = 0; w < maxWeeks; w++) {
+      const week: {
+        date: Date;
+        item?: { date: string; attended: boolean; count?: number };
+      }[] = [];
+      for (let d = 0; d < 7; d++) {
+        const y = cursor.getFullYear();
+        const m = String(cursor.getMonth() + 1).padStart(2, "0");
+        const dd = String(cursor.getDate()).padStart(2, "0");
+        const dateStr = `${y}-${m}-${dd}`;
+        const found = sorted.find((x) => x.date === dateStr);
+        week.push({ date: new Date(cursor), item: found });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      grid.push(week);
+    }
+    return grid;
+  }, [data]);
+
+  const getColor = (item?: { attended: boolean; count?: number }) => {
+    if (!item || !item.attended) return "bg-gray-200";
+    const c = item.count ?? 1;
+    if (c >= 4) return "bg-rose-700";
+    if (c === 3) return "bg-rose-600";
+    if (c === 2) return "bg-rose-500";
+    return "bg-rose-400";
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-rose-500" />
+          <span className="text-sm sm:text-base font-semibold text-gray-900">
+            출석 그리드
+          </span>
+        </div>
+        <div className="hidden sm:flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-gray-200" />
+            <span className="text-xs text-gray-500">미출석</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-rose-400" />
+            <span className="text-xs text-gray-500">저</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-rose-500" />
+            <span className="text-xs text-gray-500">중</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-rose-600" />
+            <span className="text-xs text-gray-500">고</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-rose-700" />
+            <span className="text-xs text-gray-500">매우 고</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 예전 레이아웃: 작은 칸 + 촘촘한 간격, 가로 스크롤로 끝까지 채워 보이게 */}
+      <div className="flex gap-1">
+        <div className="hidden sm:flex flex-col gap-[3px] mr-2 mt-5">
+          {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
+            <span key={d} className="text-[10px] text-gray-500">
+              {d}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex gap-[3px] overflow-x-auto pb-1">
+          {weeks.map((week, wi) => (
+            <div key={wi} className="flex flex-col gap-[3px]">
+              {week.map((cell, ci) => (
+                <div
+                  key={`${wi}-${ci}`}
+                  className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-sm ${getColor(
+                    cell.item
+                  )} transition-colors`}
+                  title={`${cell.date.toLocaleDateString()}${
+                    cell.item?.attended ? " • 출석" : " • 미출석"
+                  }${cell.item?.count ? ` • 횟수: ${cell.item.count}` : ""}`}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MyPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthLoading, logout } = useAuth();
@@ -106,13 +221,44 @@ const MyPage: React.FC = () => {
     }
   };
 
-  const handleRetakeTest = () => navigate("/level-test");
-
-  // 프로필 관리 클릭 시 MyPageProfile 컴포넌트로 이동 (/profile 경로)
   const handleOpenProfile = () => navigate("/my/profile");
-
-  // 히스토리로 이동
   const handleOpenHistory = () => navigate("/my/history");
+
+  // 더미 출석 데이터 (6개월 ≈ 26주로 확장)
+  const attendanceData = useMemo(() => {
+    const today = new Date();
+    const days = 26 * 7;
+    const arr: { date: string; attended: boolean; count?: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const dateStr = `${y}-${m}-${dd}`;
+
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const attended = isWeekend ? Math.random() < 0.4 : Math.random() < 0.8;
+      const count = attended ? Math.ceil(Math.random() * 4) : undefined;
+
+      arr.push({ date: dateStr, attended, count });
+    }
+    return arr;
+  }, []);
+
+  // API 연동 예시 (주석 처리)
+  // useEffect(() => {
+  //   const fetchAttendance = async () => {
+  //     try {
+  //       const res = await fetch("/api/attendance");
+  //       const json = await res.json();
+  //       // setAttendanceData(json);
+  //     } catch (e) {
+  //       console.error("attendance fetch error", e);
+  //     }
+  //   };
+  //   fetchAttendance();
+  // }, []);
 
   return (
     <div className="min-h-screen bg-white pb-20">
@@ -181,6 +327,19 @@ const MyPage: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+            출석 현황
+          </h2>
+          <p className="text-sm sm:text-base text-gray-600">
+            하루하루의 참여를 작은 네모로 기록했어요
+          </p>
+        </div>
+
+        <div className="mb-6 sm:mb-8">
+          <AttendanceGrid data={attendanceData} />
+        </div>
+
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
             학습 현황
           </h2>
           <p className="text-sm sm:text-base text-gray-600">
@@ -221,13 +380,6 @@ const MyPage: React.FC = () => {
             title="히스토리"
             subtitle="상세한 학습 기록을 확인하세요"
             onClick={handleOpenHistory}
-          />
-
-          <NavigateRow
-            icon={<Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
-            title="레벨 테스트"
-            subtitle="레벨을 다시 측정해보세요"
-            onClick={handleRetakeTest}
           />
 
           <NavigateRow
