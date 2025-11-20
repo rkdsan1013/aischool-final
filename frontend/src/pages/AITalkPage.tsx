@@ -24,12 +24,9 @@ import { aiTalkService } from "../services/aiTalkService";
  * AITalkPage.tsx
  *
  * 변경 요약
- * - 모달 내부의 입력 상태를 ModalCard 내부 로컬 상태로 완전히 분리하여
- *   사용자가 입력을 시작하면 해당 모달 인스턴스가 닫히거나 저장/취소될 때까지
- *   외부에서 초기화되지 않도록 보장합니다.
- * - ModalCard는 key={scenario.id}로 렌더링되어 다른 시나리오로 바뀌면 컴포넌트가 remount 되어 초기화됩니다.
- * - overlay는 document.body에 포탈로 렌더링되어 푸터까지 덮습니다.
- * - 기존의 부모 상태(officialScenarios, customScenarios 등)는 유지합니다.
+ * - 모달 헤더에 카드에 사용된 아이콘과 색상을 그대로 사용하도록 수정
+ * - 기존 로직과 구조는 유지, 모달 내부 아이콘만 scenario.icon / scenario.colorClass / scenario.colorHex 사용
+ * - 삭제 확인은 별도 ConfirmModal로 처리 (기존 변경 유지)
  */
 
 /* 화면 표시용 데이터 타입 */
@@ -54,16 +51,12 @@ const AITalkPage: React.FC = () => {
   const [modalScenario, setModalScenario] = useState<DisplayScenario | null>(
     null
   );
-  const [isEditing, setIsEditing] = useState(false);
 
-  // 부모의 formState는 더 이상 모달 입력을 직접 제어하지 않음(모달 내부에서 관리)
-  const [formState, setFormState] = useState({
-    title: "",
-    description: "",
-    context: "",
-  });
+  // 삭제 확인용 상태: confirmScenario가 설정되면 "확인 모달"이 뜸
+  const [confirmScenario, setConfirmScenario] =
+    useState<DisplayScenario | null>(null);
 
-  // refs (포커스 용도) — ModalCard 내부에서도 사용하지만 보조로 유지
+  // refs (보조)
   const titleRef = useRef<HTMLInputElement | null>(null);
   const descRef = useRef<HTMLInputElement | null>(null);
   const ctxRef = useRef<HTMLTextAreaElement | null>(null);
@@ -168,14 +161,14 @@ const AITalkPage: React.FC = () => {
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
 
-    if (modalScenario) {
+    if (modalScenario || confirmScenario) {
       document.body.style.overflow = "hidden";
     }
 
     return () => {
       document.body.style.overflow = prevOverflow || "";
     };
-  }, [modalScenario]);
+  }, [modalScenario, confirmScenario]);
 
   const handleScenarioClick = (id: number) => {
     navigate("/ai-talk/chat", { state: { scenarioId: id } });
@@ -196,14 +189,18 @@ const AITalkPage: React.FC = () => {
     navigate("/ai-talk/chat", { state: { scenarioId: s.id } });
   };
 
+  // 실제 삭제 로직: 더 이상 window.confirm 사용하지 않음.
   const deleteScenario = async (id: number) => {
-    if (!window.confirm("정말 삭제하시겠습니까?")) return;
     try {
       await aiTalkService.deleteCustomScenario(id);
       setCustomScenarios((prev) => prev.filter((c) => c.id !== id));
+      // 삭제 후 모든 모달 닫기
+      setConfirmScenario(null);
       setModalScenario(null);
     } catch (error) {
       console.error("삭제 실패:", error);
+      // 실패 시 확인 모달 닫고 원래 모달 복원
+      setConfirmScenario(null);
     }
   };
 
@@ -211,7 +208,6 @@ const AITalkPage: React.FC = () => {
     id: number,
     payload: { title: string; description: string; context: string }
   ) => {
-    // 부모가 시나리오 목록을 업데이트해야 할 때 호출되는 헬퍼
     try {
       await aiTalkService.updateCustomScenario(id, payload);
 
@@ -230,9 +226,8 @@ const AITalkPage: React.FC = () => {
         prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
       );
 
-      // 만약 modalScenario가 열려있다면 업데이트 반영
       if (modalScenario && modalScenario.id === id) {
-        setModalScenario((prev) => (prev ? { ...prev, ...updated } : prev));
+        setModalScenario((prev) => (prev ? { ...prev, ...payload } : prev));
       }
     } catch (error) {
       console.error("수정 실패:", error);
@@ -242,19 +237,25 @@ const AITalkPage: React.FC = () => {
 
   /**
    * ModalCard 컴포넌트
-   * - 모달 내부 입력 상태를 로컬로 관리하여 외부 변경에 의해 입력이 초기화되지 않도록 보장
-   * - key={scenario.id}로 렌더링되므로 다른 시나리오로 바뀌면 컴포넌트가 remount 되어 초기화됨
+   * - 헤더 아이콘/색상을 scenario.icon / scenario.colorClass / scenario.colorHex 로 사용
+   * - 삭제 요청은 onRequestDelete로 부모에 전달
    */
   const ModalCard: React.FC<{
     scenario: DisplayScenario;
     onClose: () => void;
     onStartConversation: (s: DisplayScenario) => void;
-    onDelete: (id: number) => void;
+    onRequestDelete: (s: DisplayScenario) => void;
     onSave: (
       id: number,
       payload: { title: string; description: string; context: string }
     ) => Promise<void>;
-  }> = ({ scenario, onClose, onStartConversation, onDelete, onSave }) => {
+  }> = ({
+    scenario,
+    onClose,
+    onStartConversation,
+    onRequestDelete,
+    onSave,
+  }) => {
     // 로컬 상태: 모달이 마운트될 때 한 번만 초기화됨
     const [localTitle, setLocalTitle] = useState<string>(scenario.title ?? "");
     const [localDescription, setLocalDescription] = useState<string>(
@@ -300,12 +301,9 @@ const AITalkPage: React.FC = () => {
 
       try {
         await onSave(scenario.id, { title, description, context });
-        // 저장 후 편집 모드 종료 및 입력 세션 리셋
         setLocalIsEditing(false);
         editingStartedRef.current = false;
-        // 모달에 반영: (부모가 modalScenario를 업데이트하면 반영됨)
       } catch (err) {
-        // 실패 시 그대로 유지
         console.error(err);
       }
     };
@@ -315,12 +313,16 @@ const AITalkPage: React.FC = () => {
     };
 
     const handleCancelLocal = () => {
-      // 취소 시 로컬 상태를 원본으로 되돌림
       setLocalTitle(scenario.title ?? "");
       setLocalDescription(scenario.description ?? "");
       setLocalContext(scenario.context ?? "");
       setLocalIsEditing(false);
       editingStartedRef.current = false;
+    };
+
+    const handleDeleteRequest = () => {
+      // 부모에게 삭제 요청 전달 -> 부모가 confirmScenario를 설정하여 확인 모달을 띄움
+      onRequestDelete(scenario);
     };
 
     const modalContent = (
@@ -348,11 +350,15 @@ const AITalkPage: React.FC = () => {
             }}
           >
             <div className="flex items-start gap-3">
+              {/* 헤더 아이콘: 카드와 동일한 아이콘/색상 사용 */}
               <div
-                className="bg-gradient-to-br from-rose-500 to-pink-500 text-white p-2.5 rounded-xl shadow-md flex-shrink-0"
-                style={{ border: "1px solid #e11d48" }}
+                className={`${scenario.colorClass} text-white p-2.5 rounded-xl shadow-md flex-shrink-0`}
+                style={{
+                  border: `1px solid ${scenario.colorHex}`,
+                  // 기존 카드와 동일한 스타일 효과 유지
+                }}
               >
-                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+                {scenario.icon}
               </div>
 
               <div className="min-w-0 flex-1">
@@ -495,7 +501,7 @@ const AITalkPage: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => onDelete(scenario.id)}
+                        onClick={handleDeleteRequest}
                         className="w-full flex items-center justify-between bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-50 transition text-red-600"
                         type="button"
                       >
@@ -516,6 +522,94 @@ const AITalkPage: React.FC = () => {
     );
 
     return ReactDOM.createPortal(modalContent, document.body);
+  };
+
+  /**
+   * ConfirmModal 컴포넌트
+   * - 별도의 모달로 렌더링되어 "삭제 하시겠습니까?" 메시지와 예/아니오 버튼을 제공
+   * - 예: 부모의 deleteScenario 호출
+   * - 아니오: confirmScenario를 닫고 원래 modalScenario를 유지(원래 모달 복원)
+   */
+  const ConfirmModal: React.FC<{
+    scenario: DisplayScenario;
+    onConfirm: (id: number) => Promise<void>;
+    onCancel: () => void;
+  }> = ({ scenario, onConfirm, onCancel }) => {
+    const [loading, setLoading] = useState(false);
+
+    const handleConfirm = async () => {
+      setLoading(true);
+      try {
+        await onConfirm(scenario.id);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const content = (
+      <>
+        <div
+          className="fixed inset-0 bg-black/40"
+          onClick={onCancel}
+          aria-hidden="true"
+          style={{ zIndex: 9999 }}
+        />
+
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 flex items-center justify-center px-4 sm:px-6"
+          style={{ zIndex: 10000 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-4 sm:p-5"
+            style={{
+              border: "1px solid rgba(0,0,0,0.06)",
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="bg-red-100 text-red-600 p-2.5 rounded-xl flex-shrink-0"
+                style={{ border: "1px solid rgba(220,38,38,0.08)" }}
+              >
+                <Trash2 className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-base sm:text-lg text-foreground">
+                  삭제 하시겠습니까?
+                </h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  선택한 시나리오 "{scenario.title}" 을(를) 삭제하시겠습니까?
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleConfirm}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-xl"
+                type="button"
+                disabled={loading}
+              >
+                {loading ? "삭제 중..." : "예"}
+              </button>
+              <button
+                onClick={onCancel}
+                className="flex-1 bg-white border px-4 py-2 rounded-xl"
+                type="button"
+                disabled={loading}
+              >
+                아니오
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+
+    return ReactDOM.createPortal(content, document.body);
   };
 
   return (
@@ -606,10 +700,10 @@ const AITalkPage: React.FC = () => {
                 >
                   <div className="flex items-start gap-3 sm:gap-4">
                     <div
-                      className="bg-gradient-to-br from-rose-500 to-pink-500 text-white p-2.5 sm:p-3 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0"
-                      style={{ border: "1px solid #e11d48" }}
+                      className={`${s.colorClass} text-white p-2.5 sm:p-3 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
+                      style={{ border: `1px solid ${s.colorHex}` }}
                     >
-                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+                      {s.icon}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
@@ -629,22 +723,38 @@ const AITalkPage: React.FC = () => {
         </section>
       </main>
 
-      {/* ModalCard는 scenario.id를 key로 하여 렌더링 (같은 id인 동안은 remount 되지 않음) */}
-      {modalScenario && (
-        <ModalCard
-          key={modalScenario.id}
-          scenario={modalScenario}
-          onClose={() => setModalScenario(null)}
-          onStartConversation={startConversation}
-          onDelete={deleteScenario}
-          onSave={async (id, payload) => {
-            // 부모 저장 로직 호출
-            await saveEditParent(id, payload);
-            // 부모에서 업데이트가 반영되면 modalScenario도 업데이트됨
-            // (saveEditParent 내부에서 setModalScenario을 호출하지 않으므로 여기서 직접 반영)
-            setModalScenario((prev) => (prev ? { ...prev, ...payload } : prev));
+      {/* 모달 렌더링 로직
+          - confirmScenario가 있으면 ConfirmModal을 우선 렌더링(기존 모달은 숨김)
+          - confirmScenario가 없고 modalScenario가 있으면 ModalCard 렌더링
+      */}
+      {confirmScenario ? (
+        <ConfirmModal
+          scenario={confirmScenario}
+          onConfirm={async (id) => {
+            await deleteScenario(id);
+          }}
+          onCancel={() => {
+            setConfirmScenario(null);
           }}
         />
+      ) : (
+        modalScenario && (
+          <ModalCard
+            key={modalScenario.id}
+            scenario={modalScenario}
+            onClose={() => setModalScenario(null)}
+            onStartConversation={startConversation}
+            onRequestDelete={(s) => {
+              setConfirmScenario(s);
+            }}
+            onSave={async (id, payload) => {
+              await saveEditParent(id, payload);
+              setModalScenario((prev) =>
+                prev ? { ...prev, ...payload } : prev
+              );
+            }}
+          />
+        )
       )}
     </div>
   );
