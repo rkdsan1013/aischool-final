@@ -19,6 +19,8 @@ import {
   fetchTrainingQuestions,
   verifyAnswer,
 } from "../services/trainingService";
+// [신규] 프로필 업데이트를 위해 useProfile 훅 추가
+import { useProfile } from "../hooks/useProfile";
 
 type ExtendedQuestionItem = QuestionItem & {
   canonical_preferred?: string;
@@ -69,6 +71,9 @@ const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // [신규] 프로필 상태 및 업데이트 함수 가져오기
+  const { profile, setProfileLocal } = useProfile();
+
   const locState = isLocState(location.state)
     ? (location.state as {
         startType?: TrainingType;
@@ -76,9 +81,7 @@ const TrainingPage: React.FC = () => {
       })
     : undefined;
 
-  const rawStart: unknown =
-    locState && (locState as Record<string, unknown>).startType;
-
+  const rawStart = locState && (locState as Record<string, unknown>).startType;
   const startType =
     typeof rawStart === "string" ? (rawStart as TrainingType) : undefined;
 
@@ -90,10 +93,9 @@ const TrainingPage: React.FC = () => {
   );
   const [index, setIndex] = useState<number>(0);
 
-  // --- [신규] 상태 추가 ---
+  // [신규] 정답 개수 및 이번 세션 획득 점수 상태
   const [correctCount, setCorrectCount] = useState<number>(0);
   const [sessionScore, setSessionScore] = useState<number>(0);
-  // --- [신규 완료] ---
 
   // UI 상태
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -125,7 +127,7 @@ const TrainingPage: React.FC = () => {
           const data = await fetchTrainingQuestions(startType);
           setQuestions(data);
           setIndex(0);
-          // 초기화
+          // 상태 초기화
           setCorrectCount(0);
           setSessionScore(0);
         } catch (err) {
@@ -181,31 +183,25 @@ const TrainingPage: React.FC = () => {
     if (showFeedback) return;
     setSelectedAnswer(option);
   };
-
   const handlePickPart = (part: string) => {
     if (showFeedback) return;
     setSelectedOrder((s) => (s.includes(part) ? s : [...s, part]));
   };
-
   const handleRemovePart = (part: string) => {
     if (showFeedback) return;
     setSelectedOrder((s) => s.filter((x) => x !== part));
   };
-
   const handleReorder = (next: string[]) => {
     if (showFeedback) return;
     setSelectedOrder(next);
   };
-
   const handleWritingChange = (v: string) => {
     if (showFeedback) return;
     setWritingValue(v);
   };
-
   const handleRecordToggle = () => {
     if (showFeedback) return;
   };
-
   const handleRecordReceived = (blob: Blob) => {
     if (showFeedback) return;
     setRecordedBlob(blob);
@@ -286,7 +282,11 @@ const TrainingPage: React.FC = () => {
     setIsCorrect(Boolean(localCorrect));
     setShowFeedback(true);
 
-    // 2. 백엔드 검증 및 점수 획득
+    if (localCorrect) {
+      setCorrectCount((prev) => prev + 1);
+    }
+
+    // 2. 백엔드 검증 및 점수 획득 (비동기)
     try {
       const result = await verifyAnswer({
         type: currentQuestion.type,
@@ -294,14 +294,23 @@ const TrainingPage: React.FC = () => {
         correctAnswer: currentQuestion.correct ?? [],
       });
 
-      // 서버가 정답이라고 판정하면 점수 누적 및 정답 카운트 증가
       if (result.isCorrect) {
         setSessionScore((prev) => prev + result.points);
-        setCorrectCount((prev) => prev + 1);
         console.log(`[Server] Correct! Earned ${result.points} points.`);
+
+        // --- [핵심 수정] 서버에서 받은 최신 점수/티어로 전역 상태 즉시 업데이트 ---
+        // 이렇게 하면 TrainingResult 페이지에서 별도의 API 호출이 필요 없습니다.
+        if (profile && (result.totalScore !== undefined || result.tier)) {
+          setProfileLocal({
+            ...profile,
+            score: result.totalScore ?? profile.score,
+            tier: result.tier ?? profile.tier,
+          });
+        }
+        // ---------------------------------------------------------------------
       }
 
-      // (옵션) 로컬 판정과 다르면 서버 판정으로 보정 가능 (현재는 로깅만)
+      // (옵션) 로컬 판정과 다르면 경고 로그
       if (localCorrect !== result.isCorrect) {
         console.warn(
           `[Mismatch] Local: ${localCorrect}, Server: ${result.isCorrect}`

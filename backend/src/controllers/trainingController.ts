@@ -6,7 +6,9 @@ import {
   TrainingType,
   QuestionItem,
 } from "../services/trainingService";
-import { calculatePoints } from "../utils/gamification"; // [신규 import]
+import { calculatePoints } from "../utils/gamification";
+// [신규] 모델 import
+import { updateUserScoreAndTier } from "../models/trainingModel";
 
 // URL 파라미터가 유효한 TrainingType인지 확인하는 헬퍼 함수
 function isValidTrainingType(type: string): type is TrainingType {
@@ -64,7 +66,7 @@ export async function fetchTrainingQuestionsHandler(
 
 /**
  * POST /api/training/verify
- * 정답 검증 및 점수 계산 핸들러
+ * 정답 검증 및 점수/티어 DB 업데이트 핸들러
  */
 export async function verifyAnswerHandler(req: Request, res: Response) {
   try {
@@ -79,24 +81,39 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // 1. 백엔드에서 정답 검증 수행
+    // 1. 정답 검증
     const isCorrect = verifyUserAnswer(
       type as TrainingType,
       userAnswer,
       correctAnswer
     );
 
-    // 2. 정답일 경우 레벨에 따른 점수 계산 (오답이면 0점)
-    //    req.user.level은 위변조 불가능한 인증 토큰/DB 정보입니다.
-    const earnedPoints = isCorrect ? calculatePoints(user.level) : 0;
+    let earnedPoints = 0;
+    let newTotalScore = 0; // 현재 총 점수 (DB 업데이트 후)
+    let newTier = ""; // 현재 티어 (DB 업데이트 후)
 
-    // (TODO: 추후 DB에 점수 컬럼이 생기면 여기서 update 쿼리 실행)
-    // await userService.addExperience(user.user_id, earnedPoints);
+    // 2. 정답일 경우 DB 업데이트
+    if (isCorrect) {
+      // 2-1. 획득할 점수 계산
+      earnedPoints = calculatePoints(user.level);
+
+      // 2-2. DB 업데이트 (점수 누적 & 티어 갱신)
+      const result = await updateUserScoreAndTier(user.user_id, earnedPoints);
+      newTotalScore = result.newScore;
+      newTier = result.newTier;
+
+      console.log(
+        `[DB Updated] User ${user.user_id}: +${earnedPoints} points. Total: ${newTotalScore} (${newTier})`
+      );
+    }
 
     // 3. 결과 반환
     return res.json({
       isCorrect,
-      points: earnedPoints, // 프론트는 이 값을 보여주기만 함
+      points: earnedPoints,
+      // 클라이언트가 즉시 UI를 갱신할 수 있도록 최신 상태 반환 (선택 사항)
+      totalScore: newTotalScore,
+      tier: newTier,
     });
   } catch (err) {
     console.error("[TRAINING CONTROLLER] verify error:", err);
