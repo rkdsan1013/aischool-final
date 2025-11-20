@@ -43,16 +43,35 @@ const SAFE_BOTTOM = 12; // 하단 여백
 const FEEDBACK_AREA_MIN_HEIGHT = 100; // 피드백 내용이 표시될 최소 영역 높이
 const FOOTER_BUTTON_AREA_HEIGHT = FOOTER_BASE_HEIGHT + SAFE_BOTTOM; // 76px
 
-// 문자열 정규화: 프론트에서 deterministic 비교에 사용
+// --- [수정됨] 문자열 정규화 강화 (축약형 처리) ---
 function normalizeForCompare(s: string) {
-  return s
-    .normalize("NFKC") // 유니코드 정규화
-    .replace(/[\u2018\u2019\u201C\u201D]/g, "'") // 스마트 따옴표 치환
-    .replace(/\u00A0/g, " ") // NBSP 치환
-    .replace(/\s+/g, " ") // 연속 공백 축소
-    .trim()
-    .toLowerCase();
+  return (
+    s
+      .normalize("NFKC") // 유니코드 정규화
+      .replace(/[\u2018\u2019\u201C\u201D]/g, "'") // 스마트 따옴표 치환
+      .replace(/\u00A0/g, " ") // NBSP 치환
+      // 일반적인 영어 축약형을 풀어서 정규화 (확장 가능)
+      .replace(/\b(i|you|he|she|it|we|they)'m\b/gi, "$1 am")
+      .replace(/\b(i|you|he|she|it|we|they)'re\b/gi, "$1 are")
+      .replace(/\b(i|you|he|she|it|we|they)'ve\b/gi, "$1 have")
+      .replace(/\b(i|you|he|she|it|we|they)'ll\b/gi, "$1 will")
+      .replace(/\b(i|you|he|she|it|we|they)'d\b/gi, "$1 would")
+      .replace(/\bcan't\b/gi, "cannot")
+      .replace(/\bdon't\b/gi, "do not")
+      .replace(/\bdoesn't\b/gi, "does not")
+      .replace(/\bdidn't\b/gi, "did not")
+      .replace(/\bwon't\b/gi, "will not")
+      .replace(/\bisn't\b/gi, "is not")
+      .replace(/\baren't\b/gi, "are not")
+      .replace(/\bwasn't\b/gi, "was not")
+      .replace(/\bweren't\b/gi, "were not")
+      .replace(/[.,!?]/g, "") // 마침표 등 구두점 제거
+      .replace(/\s+/g, " ") // 연속 공백 축소
+      .trim()
+      .toLowerCase()
+  );
 }
+// --- [수정 완료] ---
 
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -65,7 +84,6 @@ const TrainingPage: React.FC = () => {
       })
     : undefined;
 
-  // 안전한 rawStart 처리
   const rawStart: unknown =
     locState && (locState as Record<string, unknown>).startType;
 
@@ -88,8 +106,10 @@ const TrainingPage: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
-  // writing 오답 시 피드백에 보여줄 정답
+  // writing 피드백 메시지 (오답 시 정답, 또는 정답 시 '다른 표현')
   const [answerToShow, setAnswerToShow] = useState<string | null>(null);
+  // 정답이지만 다른 표현일 때 보여줄 라벨 ('정답' vs '다른 표현')
+  const [answerLabel, setAnswerLabel] = useState<string>("정답");
 
   // 동적 피드백 높이 상태 및 ref
   const [feedbackContentHeight, setFeedbackContentHeight] = useState(
@@ -131,7 +151,6 @@ const TrainingPage: React.FC = () => {
     [questions, index]
   );
 
-  // stableOptions는 writing이면 빈 배열 반환
   const stableOptions = useMemo(() => {
     if (!currentQuestion) return [];
     if (currentQuestion.type === "writing") return [];
@@ -145,7 +164,6 @@ const TrainingPage: React.FC = () => {
       : ((showFeedback ? index + 1 : index) / Math.max(totalSteps, 1)) * 100;
   const isLastQuestion = index === (questions?.length ?? 1) - 1;
 
-  // 닫기 버튼
   const handleClose = () => {
     navigate("/home");
   };
@@ -158,6 +176,7 @@ const TrainingPage: React.FC = () => {
     setShowFeedback(false);
     setIsCorrect(false);
     setAnswerToShow(null);
+    setAnswerLabel("정답");
     setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
@@ -205,6 +224,7 @@ const TrainingPage: React.FC = () => {
     if (!currentQuestion) return;
     let correct = false;
     setAnswerToShow(null);
+    setAnswerLabel("정답"); // 기본값
 
     switch (currentQuestion.type) {
       case "vocabulary":
@@ -233,51 +253,35 @@ const TrainingPage: React.FC = () => {
         break;
       }
       case "writing": {
-        // 우선순위: generator가 제공한 canonical_preferred 필드 사용 시 그것을 우선,
-        // 없으면 currentQuestion.correct 또는 currentQuestion.preferred 사용
-        const canonical =
-          typeof currentQuestion.canonical_preferred === "string" &&
-          currentQuestion.canonical_preferred.trim() !== ""
-            ? currentQuestion.canonical_preferred
-            : typeof currentQuestion.correct === "string" &&
-              String(currentQuestion.correct).trim() !== ""
-            ? String(currentQuestion.correct)
-            : typeof currentQuestion.preferred === "string" &&
-              currentQuestion.preferred.trim() !== ""
-            ? currentQuestion.preferred
-            : "";
+        const userNorm = normalizeForCompare(writingValue);
+        const correctList = Array.isArray(currentQuestion.correct)
+          ? currentQuestion.correct
+          : [currentQuestion.correct as string];
 
-        // 디버그 로그
-        console.debug("[writing compare] userInput:", writingValue);
-        console.debug("[writing compare] canonical/preferred:", canonical);
+        // --- [수정됨] 정답 배열 전체와 비교 (인덱스 추적) ---
+        const matchIndex = correctList.findIndex(
+          (ans) => normalizeForCompare(ans) === userNorm
+        );
 
-        if (canonical === "") {
-          // 정답 데이터가 없으면 안전하게 오답 처리하고 원문(correct)을 보여줌
-          correct = false;
-          setAnswerToShow(String(currentQuestion.correct ?? ""));
-        } else {
-          const userNorm = normalizeForCompare(writingValue);
-          const prefNorm = normalizeForCompare(canonical);
-          console.debug(
-            "[writing compare] userNorm:",
-            userNorm,
-            "prefNorm:",
-            prefNorm
-          );
-          if (userNorm === prefNorm) {
-            correct = true;
+        if (matchIndex !== -1) {
+          // 정답인 경우
+          correct = true;
+          // 첫 번째(preferred) 정답이 아닌 다른 정답(alternate)을 맞춘 경우
+          if (matchIndex > 0) {
+            setAnswerLabel("이런 표현도 있어요");
+            setAnswerToShow(correctList[0] ?? ""); // 의도된 첫 번째 정답 보여줌
           } else {
-            correct = false;
-            // 피드백에는 사람이 읽을 수 있는 preferred(원문)를 보여줌
-            setAnswerToShow(
-              String(
-                currentQuestion.preferred ??
-                  currentQuestion.correct ??
-                  canonical
-              )
-            );
+            // 첫 번째 정답을 맞춘 경우 피드백 없음 (null)
+            setAnswerToShow(null);
           }
+        } else {
+          // 오답인 경우
+          correct = false;
+          // 정답 보여주기
+          setAnswerToShow(correctList[0] ?? "");
+          setAnswerLabel("정답");
         }
+        // --- [수정 완료] ---
         break;
       }
       default:
@@ -303,7 +307,6 @@ const TrainingPage: React.FC = () => {
     navigate("/home");
   };
 
-  // 피드백 컨텐츠 높이 측정 Effect
   useLayoutEffect(() => {
     if (showFeedback && feedbackContentRef.current) {
       const currentContentHeight = feedbackContentRef.current.scrollHeight;
@@ -311,14 +314,12 @@ const TrainingPage: React.FC = () => {
         Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
       );
     }
-  }, [showFeedback, isCorrect, currentQuestion?.correct]);
+  }, [showFeedback, isCorrect, currentQuestion?.correct, answerToShow]);
 
-  // 동적 높이 계산
   const footerVisualHeight = showFeedback
     ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight
     : FOOTER_BUTTON_AREA_HEIGHT;
 
-  // 메인 컨텐츠 패딩도 동적으로 계산
   const MAIN_CONTENT_PADDING_BOTTOM =
     FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight;
 
@@ -392,7 +393,6 @@ const TrainingPage: React.FC = () => {
           />
         );
       case "writing":
-        // Writing 컴포넌트는 controlled 방식으로 value/onChange를 사용
         return (
           <Writing
             sentence={String(item.question ?? "")}
@@ -452,7 +452,6 @@ const TrainingPage: React.FC = () => {
         className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
         style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
       >
-        {/* Interaction blocker when feedback shown */}
         {showFeedback && (
           <div
             className="absolute inset-0 bg-transparent"
@@ -550,15 +549,24 @@ const TrainingPage: React.FC = () => {
                       {isCorrect ? "정답입니다!" : "아쉬워요!"}
                     </div>
 
-                    {/* 오답일 때 speaking을 제외하고 정답 텍스트 노출
-                        writing의 경우 프론트에서 결정한 answerToShow를 우선 사용 */}
-                    {!isCorrect && currentQuestion.type !== "speaking" && (
+                    {/* --- [수정됨] 정답/대체 표현 표시 로직 ---
+                        1. 오답일 경우 (!isCorrect): 항상 정답을 보여줌 (speaking 제외)
+                        2. 정답이지만 대체 표현일 경우 (answerToShow 존재): '이런 표현도 있어요' 라벨과 함께 보여줌
+                     */}
+                    {((!isCorrect && currentQuestion.type !== "speaking") ||
+                      (isCorrect && answerToShow)) && (
                       <div className="mt-1">
-                        <div className="text-sm text-gray-600">정답</div>
+                        <div className="text-sm text-gray-600">
+                          {answerLabel}
+                        </div>
                         <div className="text-base font-bold text-gray-900 mt-1">
                           {currentQuestion.type === "writing"
                             ? String(
-                                answerToShow ?? currentQuestion.correct ?? ""
+                                answerToShow ??
+                                  (Array.isArray(currentQuestion.correct)
+                                    ? currentQuestion.correct[0]
+                                    : currentQuestion.correct) ??
+                                  ""
                               )
                             : Array.isArray(currentQuestion.correct)
                             ? currentQuestion.correct.join(" ")
