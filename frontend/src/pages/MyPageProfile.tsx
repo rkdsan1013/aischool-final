@@ -1,10 +1,6 @@
+// frontend/src/pages/MyPageProfile.tsx
 import React, { useEffect, useRef, useState } from "react";
-import {
-  X, 
-  Camera,
-  AlertTriangle,
-  Check,
-} from "lucide-react";
+import { X, Camera, AlertTriangle, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 type ProfileState = {
