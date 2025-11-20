@@ -2,9 +2,11 @@
 import { Request, Response } from "express";
 import {
   getQuestionsByType,
+  verifyUserAnswer,
   TrainingType,
-  QuestionItem, // QuestionItem을 import 리스트에 추가했습니다.
+  QuestionItem,
 } from "../services/trainingService";
+import { calculatePoints } from "../utils/gamification"; // [신규 import]
 
 // URL 파라미터가 유효한 TrainingType인지 확인하는 헬퍼 함수
 function isValidTrainingType(type: string): type is TrainingType {
@@ -29,34 +31,25 @@ export async function fetchTrainingQuestionsHandler(
   try {
     const { type } = req.params;
 
-    // 1. 타입 유효성 검사 (헬퍼 함수 사용)
     if (!type || !isValidTrainingType(type)) {
       return res
         .status(400)
         .json({ error: "Invalid or missing training type" });
     }
 
-    // --- [수정됨] ---
-    // 2. requireAuth 미들웨어에서 전달된 req.user 객체를 읽습니다.
     const user = req.user;
-
-    // 3. user 객체 확인 (미들웨어를 통과했다면 항상 있어야 함)
     if (!user) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // 4. req.user에서 실제 사용자 레벨과 진행도를 추출합니다.
     const level: string | undefined = user.level;
     const level_progress: number | undefined = user.level_progress;
-    // --- [수정 완료] ---
 
-    // 5. 추출한 사용자 레벨("A1" 등)을 service로 전달합니다.
     const questions: QuestionItem[] = await getQuestionsByType(type, {
       level,
       level_progress,
     });
 
-    // 6. trainingService가 모든 정규화(id, type, shuffle)를 처리한 최종본 로깅
     console.log(
       `[TRAINING CONTROLLER] Final JSON output (for type: ${type}):\n`,
       JSON.stringify(questions, null, 2)
@@ -66,5 +59,47 @@ export async function fetchTrainingQuestionsHandler(
   } catch (err) {
     console.error(`[TRAINING CONTROLLER] unexpected error:`, err);
     return res.status(500).json({ error: "Question generation failed" });
+  }
+}
+
+/**
+ * POST /api/training/verify
+ * 정답 검증 및 점수 계산 핸들러
+ */
+export async function verifyAnswerHandler(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const { type, userAnswer, correctAnswer } = req.body;
+
+    if (!type || userAnswer === undefined || correctAnswer === undefined) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // 1. 백엔드에서 정답 검증 수행
+    const isCorrect = verifyUserAnswer(
+      type as TrainingType,
+      userAnswer,
+      correctAnswer
+    );
+
+    // 2. 정답일 경우 레벨에 따른 점수 계산 (오답이면 0점)
+    //    req.user.level은 위변조 불가능한 인증 토큰/DB 정보입니다.
+    const earnedPoints = isCorrect ? calculatePoints(user.level) : 0;
+
+    // (TODO: 추후 DB에 점수 컬럼이 생기면 여기서 update 쿼리 실행)
+    // await userService.addExperience(user.user_id, earnedPoints);
+
+    // 3. 결과 반환
+    return res.json({
+      isCorrect,
+      points: earnedPoints, // 프론트는 이 값을 보여주기만 함
+    });
+  } catch (err) {
+    console.error("[TRAINING CONTROLLER] verify error:", err);
+    return res.status(500).json({ error: "Verification failed" });
   }
 }

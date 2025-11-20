@@ -5,6 +5,7 @@ import { generateVocabularyQuestionsRaw } from "./models/vocabularyModel";
 import { generateSentenceQuestionsRaw } from "./models/sentenceModel";
 import { generateBlankQuestionsRaw } from "./models/blankModel";
 import { generateWritingQuestionsRaw } from "./models/writingModel";
+import { generateSpeakingQuestionsRaw } from "./models/speakingModel"; // [신규]
 
 /**
  * 유틸리티: 배열 셔플
@@ -20,6 +21,7 @@ function shuffleArray<T>(arr: T[]): void {
 
 /**
  * options 보정: 항상 길이 4의 string[]와 correct:string 리턴
+ * (Vocabulary, Blank 유형 전용)
  */
 function normalizeOptionsAndCorrect(item: unknown): {
   options: string[];
@@ -55,8 +57,6 @@ function normalizeOptionsAndCorrect(item: unknown): {
 
 /**
  * 공통 LLM 호출 및 파싱 유틸
- * - generator: LLM 호출 함수 that returns raw string
- * - maxItems: 최대 문제 개수 to slice to (default 10)
  */
 async function callAndParseLLM(
   generator: (level?: string, level_progress?: number) => Promise<string>,
@@ -76,7 +76,6 @@ async function callAndParseLLM(
       try {
         parsed = JSON.parse(String(raw));
       } catch (err) {
-        // Try to extract first JSON array substring
         const match = String(raw).match(/\[[\s\S]*\]/);
         if (match) {
           try {
@@ -154,7 +153,6 @@ export async function vocabularyHandler(req: Request, res: Response) {
       return out;
     });
 
-    // Padding if less than 10
     if (normalized.length < 10) {
       const padded = normalized.slice();
       for (let i = padded.length; i < 10; i++) {
@@ -178,7 +176,6 @@ export async function vocabularyHandler(req: Request, res: Response) {
 
 /**
  * POST /api/llm/sentence
- * 문장 구성 문제: LLM은 { question: "한글 문장", options: [...distractors], correct: [...] } 배열 반환 예상
  */
 export async function sentenceHandler(req: Request, res: Response) {
   try {
@@ -219,7 +216,6 @@ export async function sentenceHandler(req: Request, res: Response) {
         : [];
 
       const finalOptions = [...correctWords, ...distractorWords];
-      // Remove duplicates while preserving order then shuffle
       const uniq = Array.from(new Set(finalOptions));
       shuffleArray(uniq);
 
@@ -255,7 +251,6 @@ export async function sentenceHandler(req: Request, res: Response) {
 
 /**
  * POST /api/llm/blank
- * 빈칸 문제: LLM은 { question: "문장 ___", options: [...4 items], correct: "one" } 배열 반환 예상
  */
 export async function blankHandler(req: Request, res: Response) {
   try {
@@ -327,12 +322,8 @@ export async function blankHandler(req: Request, res: Response) {
 
 /**
  * POST /api/llm/writing
- * 작문 학습 문제: LLM은
- * { korean, answers: [...], preferred, alternate|null, alt_reason } 배열 반환 예상
- *
- * For UI: we return normalized list with question=korean, options=answers, correct=preferred
- * NOTE: alternate and alt_reason are not embedded into QuestionItem here; if UI needs them,
- * consider exposing a raw endpoint or storing the full LLM response for banner feedback.
+ * 작문 학습 문제:
+ * LLM 반환: { question: "한국어", correct: ["정답1", "정답2"...] }
  */
 export async function writingHandler(req: Request, res: Response) {
   try {
@@ -360,31 +351,32 @@ export async function writingHandler(req: Request, res: Response) {
     const normalized = items.map((item: any) => {
       const id = nanoid();
 
-      const korean =
-        typeof item?.korean === "string" && item.korean.trim() !== ""
-          ? item.korean.trim()
-          : "(unknown korean)";
+      // question: 한국어 문장
+      const question =
+        typeof item?.question === "string" && item.question.trim() !== ""
+          ? item.question.trim()
+          : "(unknown question)";
 
-      const answers: string[] = Array.isArray(item?.answers)
-        ? item.answers.map(String).filter((s: string) => s !== "")
-        : [];
+      // correct: 정답 영어 문장 배열 (여러 표현 가능)
+      let correctArr: string[] = [];
+      if (Array.isArray(item?.correct)) {
+        correctArr = item.correct
+          .map(String)
+          .filter((s: string) => s.trim() !== "");
+      } else if (typeof item?.correct === "string") {
+        correctArr = [item.correct.trim()];
+      }
 
-      const preferred: string =
-        typeof item?.preferred === "string" && item.preferred.trim() !== ""
-          ? item.preferred.trim()
-          : answers.length > 0
-          ? answers[0]!
-          : "(unknown preferred)";
-
-      const uniqueAnswers = Array.from(new Set(answers));
-      const options = uniqueAnswers.length > 0 ? uniqueAnswers : ["(unknown)"];
+      if (correctArr.length === 0) {
+        correctArr.push("(no correct answer provided)");
+      }
 
       return {
         id,
         type: "writing" as const,
-        question: korean,
-        options,
-        correct: preferred,
+        question,
+        options: [], // 작문은 보기가 없음
+        correct: correctArr,
       };
     });
 
@@ -395,8 +387,8 @@ export async function writingHandler(req: Request, res: Response) {
           id: nanoid(),
           type: "writing" as const,
           question: `(random writing ${i + 1})`,
-          options: ["(unknown)"],
-          correct: "(unknown)",
+          options: [],
+          correct: ["(unknown)"],
         });
       }
       return res.json(padded);
@@ -405,6 +397,71 @@ export async function writingHandler(req: Request, res: Response) {
     return res.json(normalized);
   } catch (err) {
     console.error("[LLM CONTROLLER][writing] unexpected error:", err);
+    return res.status(500).json({ error: "LLM generation failed" });
+  }
+}
+
+/**
+ * POST /api/llm/speaking
+ * 말하기/쉐도잉 문제: LLM은 { question: "English Sentence" } 형태 반환
+ */
+export async function speakingHandler(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user)
+      return res.status(401).json({ message: "User not authenticated" });
+
+    const level: string | undefined = (user as any).level;
+    const level_progress: number | undefined = (user as any).level_progress;
+
+    const parsed = await callAndParseLLM(
+      generateSpeakingQuestionsRaw,
+      level,
+      level_progress
+    );
+
+    if (!Array.isArray(parsed)) {
+      const { raw, error } = parsed as any;
+      console.error("[LLM CONTROLLER][speaking] failed:", error);
+      return res
+        .status(502)
+        .json({ error: "LLM returned invalid JSON (expected array).", raw });
+    }
+
+    const items = (parsed as any[]).slice(0, 10);
+    const normalized = items.map((item: any) => {
+      const id = nanoid();
+      const question =
+        typeof item?.question === "string" && item.question.trim() !== ""
+          ? item.question.trim()
+          : "(unknown question)";
+
+      return {
+        id,
+        type: "speaking" as const,
+        question, // 따라 읽을 영어 문장
+        options: [], // 보기 없음
+        correct: question, // 정답(원문)
+      };
+    });
+
+    if (normalized.length < 10) {
+      const padded = normalized.slice();
+      for (let i = padded.length; i < 10; i++) {
+        padded.push({
+          id: nanoid(),
+          type: "speaking" as const,
+          question: `(random speaking ${i + 1})`,
+          options: [],
+          correct: `(random speaking ${i + 1})`,
+        });
+      }
+      return res.json(padded);
+    }
+
+    return res.json(normalized);
+  } catch (err) {
+    console.error("[LLM CONTROLLER][speaking] unexpected error:", err);
     return res.status(500).json({ error: "LLM generation failed" });
   }
 }

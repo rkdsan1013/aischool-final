@@ -1,3 +1,4 @@
+// frontend/src/services/trainingService.ts
 import { apiClient, handleApiError } from "../api";
 
 export type TrainingType =
@@ -17,8 +18,6 @@ export interface QuestionItem {
 
 /**
  * 서버에서 훈련 문제를 불러옵니다.
- * - 엔드포인트: GET /api/training/:type
- * - 더미 데이터 폴백을 제거하고, 에러 발생 시 handleApiError를 실행한 뒤 빈 배열을 반환합니다.
  */
 export async function fetchTrainingQuestions(
   type: TrainingType
@@ -34,8 +33,33 @@ export async function fetchTrainingQuestions(
     try {
       handleApiError(err, "훈련 문제 로드");
     } catch {
-      // handler 자체에서 예외가 발생하면 무시하고 아래에서 빈 배열 반환
+      // handleApiError 내부에서 이미 에러 로그 출력
     }
     return [];
+  }
+}
+
+/**
+ * [수정됨] 백엔드에 정답 검증을 요청하고, 획득한 점수를 반환받습니다.
+ */
+export async function verifyAnswer(payload: {
+  type: TrainingType;
+  userAnswer: string | string[];
+  correctAnswer: string | string[];
+}): Promise<{ isCorrect: boolean; points: number }> {
+  try {
+    // 응답 타입에 points 추가
+    const res = await apiClient.post<{ isCorrect: boolean; points: number }>(
+      "/training/verify",
+      payload
+    );
+
+    return {
+      isCorrect: res.data?.isCorrect ?? false,
+      points: res.data?.points ?? 0,
+    };
+  } catch (err) {
+    console.error("정답 검증 API 오류:", err);
+    return { isCorrect: false, points: 0 };
   }
 }

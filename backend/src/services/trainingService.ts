@@ -1,9 +1,9 @@
-// backend/src/services/trainingService.ts
 import { nanoid } from "nanoid";
 import { generateVocabularyQuestionsRaw } from "../llm/models/vocabularyModel";
 import { generateSentenceQuestionsRaw } from "../llm/models/sentenceModel";
 import { generateBlankQuestionsRaw } from "../llm/models/blankModel";
 import { generateWritingQuestionsRaw } from "../llm/models/writingModel";
+import { generateSpeakingQuestionsRaw } from "../llm/models/speakingModel";
 
 export type TrainingType =
   | "vocabulary"
@@ -20,17 +20,32 @@ export interface QuestionItem {
   correct?: string | string[] | undefined;
 }
 
-// DUMMY 데이터 (생략 - 기존과 동일)
+// DUMMY 데이터 (LLM 실패 시 fallback)
 const DUMMY: Record<TrainingType, QuestionItem[]> = {
-  vocabulary: [],
-  sentence: [],
+  vocabulary: [
+    {
+      id: "v1",
+      type: "vocabulary",
+      question: "사과",
+      options: ["Apple", "Banana", "Orange", "Grape"],
+      correct: "Apple",
+    },
+  ],
+  sentence: [
+    {
+      id: "s1",
+      type: "sentence",
+      question: "나는 배고프다",
+      options: ["I", "hungry", "am", "is", "happy"],
+      correct: ["I", "am", "hungry"],
+    },
+  ],
   blank: [],
   writing: [],
   speaking: [],
 };
 
 // --- [헬퍼 함수] ---
-// (shuffleArray, normalizeOptionsAndCorrect, cleanString 등 기존과 동일)
 function cleanString(s: string): string {
   return s.trim().replace(/[.,!?]$/, "");
 }
@@ -48,16 +63,17 @@ function normalizeOptionsAndCorrect(item: unknown): {
   options: string[];
   correct: string;
 } {
-  // (기존 로직 동일)
   const rawOptions: string[] = Array.isArray((item as any)?.options)
     ? (item as any).options
         .map((o: any) => cleanString(String(o ?? "")))
         .filter((s: string) => s !== "")
     : [];
+
   let correctCandidate: string =
     typeof (item as any)?.correct === "string"
       ? cleanString(String((item as any).correct))
       : "";
+
   const deduped: string[] = Array.from(new Set(rawOptions));
   if (correctCandidate !== "" && !deduped.includes(correctCandidate)) {
     deduped.unshift(correctCandidate);
@@ -65,20 +81,69 @@ function normalizeOptionsAndCorrect(item: unknown): {
   let options = deduped.slice(0, 4);
   while (options.length < 4) options.push("(unknown)");
   if (correctCandidate === "") correctCandidate = options[0]!;
+
   shuffleArray(options);
-  if (!options.includes(correctCandidate)) options[0] = correctCandidate;
+
+  if (!options.includes(correctCandidate)) {
+    options[0] = correctCandidate;
+  }
   return { options, correct: correctCandidate };
+}
+
+/**
+ * 정답 검증 로직
+ */
+export function verifyUserAnswer(
+  type: TrainingType,
+  userAnswer: string | string[],
+  correctAnswer: string | string[]
+): boolean {
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[.,!?]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (type === "vocabulary" || type === "blank") {
+    return normalize(String(userAnswer)) === normalize(String(correctAnswer));
+  } else if (type === "sentence") {
+    if (Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
+      if (userAnswer.length !== correctAnswer.length) return false;
+      return userAnswer.every(
+        // --- [수정됨] ---
+        // correctAnswer[idx]가 undefined일 경우 빈 문자열로 처리하여 타입 오류 해결
+        (word, idx) => normalize(word) === normalize(correctAnswer[idx] ?? "")
+        // --- [수정 완료] ---
+      );
+    }
+    return normalize(String(userAnswer)) === normalize(String(correctAnswer));
+  } else if (type === "writing") {
+    const user = normalize(String(userAnswer));
+    const correctCandidates = Array.isArray(correctAnswer)
+      ? correctAnswer
+      : [String(correctAnswer)];
+    return correctCandidates.some((candidate) => normalize(candidate) === user);
+  } else if (type === "speaking") {
+    return true;
+  }
+  return false;
 }
 // --- [헬퍼 함수 완료] ---
 
+/**
+ * getQuestionsByType
+ * LLM 호출, 재시도, 파싱, 정규화, 패딩 통합
+ */
 export async function getQuestionsByType(
   type: TrainingType,
   opts?: { level?: string | undefined; level_progress?: number | undefined }
 ): Promise<QuestionItem[]> {
-  const level: string | undefined =
-    typeof opts?.level === "string" ? opts.level : undefined;
-  const level_progress: number | undefined =
-    typeof opts?.level_progress === "number" ? opts.level_progress : undefined;
+  // undefined가 될 수 없도록 기본값을 여기서 강제 할당
+  const level: string = typeof opts?.level === "string" ? opts.level : "C2";
+
+  const level_progress: number =
+    typeof opts?.level_progress === "number" ? opts.level_progress : 50;
 
   const MAX_RETRIES = 3;
   let parsed: unknown = null;
@@ -101,6 +166,9 @@ export async function getQuestionsByType(
           case "writing":
             raw = await generateWritingQuestionsRaw(level, level_progress);
             break;
+          case "speaking":
+            raw = await generateSpeakingQuestionsRaw(level, level_progress);
+            break;
           default:
             return DUMMY[type] ?? [];
         }
@@ -108,7 +176,6 @@ export async function getQuestionsByType(
         try {
           parsed = JSON.parse(String(raw));
         } catch (err) {
-          // ... (기존 파싱 재시도 로직 동일) ...
           const match = String(raw).match(/\[[\s\S]*\]/);
           if (match) {
             try {
@@ -128,20 +195,27 @@ export async function getQuestionsByType(
           lastError = new Error("Parsed result is not array");
         }
       } catch (llmError) {
-        // ... (에러 처리 로직) ...
+        lastError = llmError as Error;
+        console.error(
+          `[TRAINING SERVICE] Attempt ${attempt} failed:`,
+          llmError
+        );
       }
     }
 
     if (!Array.isArray(parsed)) {
+      console.error(
+        `[TRAINING SERVICE] All ${MAX_RETRIES} attempts failed. Last error:`,
+        lastError
+      );
       return DUMMY[type] ?? [];
     }
 
     const items = (parsed as any[]).slice(0, 10);
     let normalized: QuestionItem[];
 
-    // --- [수정됨] 유형별 정규화 로직 ---
+    // --- 유형별 정규화 로직 ---
     if (type === "vocabulary" || type === "blank") {
-      // (기존 로직 동일)
       normalized = items.map((item: any) => {
         const id = nanoid();
         const question = item?.question
@@ -151,20 +225,23 @@ export async function getQuestionsByType(
         return { id, type, question, options, correct };
       });
     } else if (type === "sentence") {
-      // (기존 로직 동일)
       normalized = items.map((item: any) => {
         const id = nanoid();
         const question = item?.question
           ? String(item.question).trim()
           : "(unknown)";
+
         const correctWords = Array.isArray(item?.correct)
           ? item.correct.map((s: any) => cleanString(String(s)))
           : [];
+
         const distractorWords = Array.isArray(item?.options)
           ? item.options.map((s: any) => cleanString(String(s)))
           : [];
+
         const finalOptions = [...correctWords, ...distractorWords];
         shuffleArray(finalOptions);
+
         return {
           id,
           type,
@@ -174,14 +251,12 @@ export async function getQuestionsByType(
         };
       });
     } else if (type === "writing") {
-      // --- [수정됨] writing 유형 매핑 ---
       normalized = items.map((item: any) => {
         const id = nanoid();
         const question = item?.question
           ? String(item.question).trim()
           : "(unknown question)";
 
-        // correct는 문자열 배열이어야 함
         let correctArr: string[] = [];
         if (Array.isArray(item?.correct)) {
           correctArr = item.correct
@@ -194,12 +269,26 @@ export async function getQuestionsByType(
         return {
           id,
           type: "writing",
-          question: question, // 한국어 문장
-          options: [], // 작문은 보기 없음
-          correct: correctArr, // 정답 문장 배열 (여러 표현 허용)
+          question: question,
+          options: [],
+          correct: correctArr,
         };
       });
-      // --- [수정 완료] ---
+    } else if (type === "speaking") {
+      normalized = items.map((item: any) => {
+        const id = nanoid();
+        const question = item?.question
+          ? String(item.question).trim()
+          : "(unknown question)";
+
+        return {
+          id,
+          type: "speaking",
+          question: question,
+          options: [],
+          correct: question,
+        };
+      });
     } else {
       return DUMMY[type] ?? [];
     }
@@ -210,16 +299,31 @@ export async function getQuestionsByType(
       for (let i = padded.length; i < 10; i++) {
         const isSentence = type === "sentence";
         const isWriting = type === "writing";
+        const isSpeaking = type === "speaking";
+
+        let options: string[] = [];
+        let correct: string | string[] = "(pad)";
+
+        if (isSentence) {
+          options = [];
+          correct = [];
+        } else if (isWriting) {
+          options = [];
+          correct = ["(pad)"];
+        } else if (isSpeaking) {
+          options = [];
+          correct = "(pad)";
+        } else {
+          options = ["(pad1)", "(pad2)", "(pad3)", "(pad4)"];
+          correct = "(pad1)";
+        }
 
         padded.push({
           id: nanoid(),
           type,
           question: `(random pad ${i + 1})`,
-          options:
-            isSentence || isWriting
-              ? []
-              : ["(pad1)", "(pad2)", "(pad3)", "(pad4)"],
-          correct: isSentence || isWriting ? [] : "(pad1)",
+          options: options,
+          correct: correct,
         });
       }
       return padded;
