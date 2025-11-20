@@ -21,15 +21,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import { aiTalkService } from "../services/aiTalkService";
 
-/**
- * AITalkPage.tsx
- *
- * 변경 요약
- * - 사용자 시나리오 아이콘을 커스텀 SVG 대신 lucide-react의 Pen 아이콘으로 교체
- * - 사용자 시나리오 색상은 이전 요청대로 창의적인 그라데이션 유지
- * - 모달/확인 모달/입력 유지 로직 등 기존 동작은 그대로 유지
- */
-
 /* 화면 표시용 데이터 타입 */
 interface DisplayScenario {
   id: number;
@@ -147,9 +138,7 @@ const AITalkPage: React.FC = () => {
               title: item.title,
               description: item.description,
               context: item.context,
-              // lucide-react Pen 아이콘 사용
               icon: <Pen className="w-5 h-5 sm:w-6 sm:h-6" />,
-              // 창의적인 그라데이션 색상 유지
               colorClass:
                 "bg-gradient-to-br from-cyan-400 via-fuchsia-500 to-amber-400",
               colorHex: "#06b6d4",
@@ -240,6 +229,14 @@ const AITalkPage: React.FC = () => {
     }
   };
 
+  /**
+   * ModalCard
+   * - "더보기"를 누르면 줄임(3줄) -> 확장(약 5~6줄)로 바뀌고,
+   *   확장 상태에서는 내부 영역에 스크롤이 생겨 전체 모달 높이를 크게 만들지 않음.
+   * - 더보기 버튼 색상: gray-500
+   * - 버튼 클릭 시 포커스가 이동하지 않도록 onMouseDown에서 preventDefault 처리
+   * - 버튼에 포커스 스타일 제거 (focus:outline-none, focus:ring-0) 및 tabIndex={-1}으로 키보드 포커스 제외
+   */
   const ModalCard: React.FC<{
     scenario: DisplayScenario;
     onClose: () => void;
@@ -265,6 +262,9 @@ const AITalkPage: React.FC = () => {
     );
     const [localIsEditing, setLocalIsEditing] = useState<boolean>(false);
 
+    // 더보기 토글 상태: false -> 줄임(3줄), true -> 확장(약 5~6줄) + 내부 스크롤
+    const [expandedContext, setExpandedContext] = useState<boolean>(false);
+
     const editingStartedRef = useRef<boolean>(false);
 
     const localTitleRef = useRef<HTMLInputElement | null>(null);
@@ -277,8 +277,9 @@ const AITalkPage: React.FC = () => {
       setLocalContext(scenario.context ?? "");
       setLocalIsEditing(false);
       editingStartedRef.current = false;
+      setExpandedContext(false);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [scenario.id]);
 
     const startEditingLocal = () => {
       if (scenario.userId === null) return;
@@ -319,6 +320,27 @@ const AITalkPage: React.FC = () => {
     const handleDeleteRequest = () => {
       onRequestDelete(scenario);
     };
+
+    // 긴 텍스트 판단 기준 (문자 수 기반)
+    const contextText = scenario.context ?? "";
+    const CONTEXT_LONG_THRESHOLD = 120; // 120자 이상이면 더보기 버튼 표시
+    const isContextLong = contextText.length > CONTEXT_LONG_THRESHOLD;
+
+    /**
+     * 스타일 설명
+     * - 기본(줄임): line-clamp-3 (Tailwind 플러그인 사용 시)
+     * - 확장: 내부 컨텍스트 영역에 maxHeight를 주고 overflowY:auto로 스크롤 가능하게 함
+     *   (줄 수는 약 5~6줄 정도로 설정)
+     */
+    const expandedStyle: React.CSSProperties = {
+      maxHeight: "9rem", // 약 6줄 (줄높이/폰트에 따라 조정 가능)
+      overflowY: "auto",
+      whiteSpace: "pre-wrap",
+      overflowWrap: "break-word",
+      wordBreak: "break-word",
+    };
+
+    const collapsedClass = "line-clamp-3"; // 프로젝트에 line-clamp 플러그인 없으면 전역 CSS로 대체 필요
 
     const modalContent = (
       <>
@@ -364,9 +386,58 @@ const AITalkPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground truncate">
                       {scenario.description}
                     </p>
-                    <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap line-clamp-3">
-                      {scenario.context ?? "상세 컨텍스트가 없습니다."}
-                    </p>
+
+                    {/* 컨텍스트: 기본은 줄임(3줄), 더보기 누르면 2~3줄 더 보여주고 내부 스크롤 허용 */}
+                    {!localIsEditing ? (
+                      <>
+                        <div
+                          className="text-sm text-muted-foreground mt-3"
+                          style={
+                            expandedContext
+                              ? expandedStyle
+                              : { whiteSpace: "pre-wrap" }
+                          }
+                          aria-expanded={expandedContext}
+                        >
+                          <p
+                            className={expandedContext ? "" : collapsedClass}
+                            style={{ margin: 0 }}
+                          >
+                            {contextText || "상세 컨텍스트가 없습니다."}
+                          </p>
+                        </div>
+
+                        {/* 더보기/접기 버튼: 컨텍스트가 길거나 줄임이 적용될 때만 표시 */}
+                        {isContextLong && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => setExpandedContext((v) => !v)}
+                              onMouseDown={(e) => {
+                                // 클릭 시 포커스가 버튼으로 이동하지 않도록 방지
+                                e.preventDefault();
+                              }}
+                              // tabIndex -1: 키보드 탭 포커스 제외 (요청에 따라 포커스 맞추지 않음)
+                              tabIndex={-1}
+                              className={`inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:underline focus:outline-none focus:ring-0`}
+                              type="button"
+                              aria-label={expandedContext ? "접기" : "더보기"}
+                            >
+                              <span>{expandedContext ? "접기" : "더보기"}</span>
+                              <ChevronRight
+                                className={`w-4 h-4 transform transition-transform ${
+                                  expandedContext ? "rotate-90" : ""
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-3 whitespace-pre-wrap line-clamp-3">
+                        편집 모드에서 전체 컨텍스트를 확인하고 수정할 수
+                        있습니다.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
