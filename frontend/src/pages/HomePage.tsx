@@ -1,4 +1,3 @@
-// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,6 +26,7 @@ interface TrainingStep {
   startType: TrainingType;
 }
 
+// [수정됨] 실제 프로필 타입 정의 확장
 type LocalProfileContext = {
   profile: (UserProfileResponse & { tier?: string; score?: number }) | null;
   isLoading?: boolean;
@@ -36,7 +36,6 @@ type LocalProfileContext = {
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
-  // 훅은 항상 최상단에서만 호출
   const profileCtx = useProfile() as LocalProfileContext;
   const profile = profileCtx.profile ?? null;
   const profileLoading: boolean =
@@ -133,18 +132,19 @@ const HomePage: React.FC = () => {
   const displayName = profile.name ?? "학습자";
   const displayLevel = profile.level ?? "대기중";
   const streak = profile.streak_count ?? 0;
-  const tier = profile.tier ?? "Challenger";
-  const score = profile.score ?? 99999;
 
-  // 티어 스타일 맵 — 브론즈만 amber-800 기반 그라데이션으로 변경, 나머지는 기존 스타일 유지
+  // --- [수정됨] 실제 프로필 데이터 사용 ---
+  // 값이 없으면 기본값("Bronze", 0) 사용
+  const tier = profile.tier ?? "Bronze";
+  const score = profile.score ?? 0;
+  // --- [수정 완료] ---
+
   const tierStyles: Record<
     string,
     { bgClass: string; textClass: string; label: string }
   > = {
     Bronze: {
-      // amber-800 계열을 기반으로 한 그라데이션 (tailwind 유틸리티만 사용)
       bgClass: "bg-gradient-to-r from-amber-700 via-amber-600 to-amber-600",
-      // 배경이 진하므로 텍스트는 흰색 유지해 가독성 확보
       textClass: "text-white",
       label: "브론즈",
     },

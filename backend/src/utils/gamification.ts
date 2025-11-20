@@ -5,8 +5,6 @@ const BASE_SCORE = 10;
 
 /**
  * CEFR 레벨별 점수 가중치 계산
- * - A1 (1.0배) ~ C2 (2.0배)
- * - 백엔드에서만 관리하므로 프론트에서 조작 불가능
  */
 export function calculatePoints(level: string | undefined): number {
   const normalized = level?.toUpperCase() ?? "A1";
@@ -35,6 +33,18 @@ export function calculatePoints(level: string | undefined): number {
       multiplier = 1.0;
   }
 
-  // 소수점 버림 처리 (정수 반환)
   return Math.floor(BASE_SCORE * multiplier);
+}
+
+/**
+ * [신규] 총 점수에 따른 티어 계산
+ */
+export function getTierByScore(score: number): string {
+  if (score >= 10000) return "Challenger";
+  if (score >= 5000) return "Master";
+  if (score >= 2500) return "Diamond";
+  if (score >= 1000) return "Platinum";
+  if (score >= 500) return "Gold";
+  if (score >= 200) return "Silver";
+  return "Bronze";
 }

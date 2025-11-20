@@ -1,6 +1,8 @@
 import bcrypt from "bcrypt";
-// ✅ createUser -> createUserAndProfile로 변경
-import { createUserAndProfile, findUserByEmail } from "../models/userModel";
+import {
+  createUserAndProfileTransaction,
+  findUserByEmail,
+} from "../models/userModel";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -9,9 +11,8 @@ import {
 import { Response, Request } from "express";
 
 // 회원가입
-// ✅ name 파라미터 추가
 export async function registerUser(
-  name: string,
+  name: string | undefined, // name은 없을 수도 있으므로 undefined 허용
   email: string,
   password: string
 ) {
@@ -22,8 +23,17 @@ export async function registerUser(
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // ✅ createUserAndProfile 함수 호출 (name, email, password 전달)
-  await createUserAndProfile({ name, email, password: hashedPassword });
+  // [수정됨] TS2322 오류 해결
+  // 1. name이 없으면 이메일의 앞부분(@ 앞)을 사용
+  // 2. email.split("@")[0]이 undefined일 경우를 대비해 "User"라는 기본값 제공 (타입 보장)
+  const profileName = name || (email.split("@")[0] ?? "User");
+
+  // 트랜잭션 함수 호출
+  await createUserAndProfileTransaction({
+    name: profileName,
+    email,
+    password: hashedPassword,
+  });
 
   return { message: "회원가입 성공" };
 }
@@ -35,8 +45,14 @@ export async function loginUser(
   res: Response
 ) {
   const user = await findUserByEmail(email);
+
   if (!user) {
     throw new Error("존재하지 않는 이메일입니다.");
+  }
+
+  // password가 undefined일 수 있으므로 체크 (Social Login 사용자 등 대비)
+  if (!user.password) {
+    throw new Error("비밀번호가 설정되지 않은 계정입니다.");
   }
 
   const isMatch = await bcrypt.compare(password, user.password);

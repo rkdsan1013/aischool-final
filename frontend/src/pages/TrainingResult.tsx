@@ -1,3 +1,4 @@
+// frontend/src/pages/TrainingResult.tsx
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, CheckCircle, Home, RotateCcw } from "lucide-react";
@@ -23,6 +24,7 @@ const TrainingResult: React.FC = () => {
 
   const state = location.state as ResultState;
 
+  // 1. 유효성 검사 및 리다이렉트
   useEffect(() => {
     if (!state || typeof state.correctCount !== "number") {
       navigate("/home", { replace: true });
@@ -52,7 +54,7 @@ const TrainingResult: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
-      {/* [수정됨] 애니메이션 정의 (tailwind.config 없이 작동) */}
+      {/* 커스텀 애니메이션 정의 */}
       <style>{`
         @keyframes soft-glow {
           0%, 100% {
@@ -69,22 +71,20 @@ const TrainingResult: React.FC = () => {
       <div className="max-w-md w-full space-y-8 text-center">
         {/* 1. 아이콘 및 헤더 */}
         <div className="space-y-4">
-          {/* [수정됨] 부모에 relative와 z-0을 명시하여 쌓임 맥락 생성 */}
           <div className="relative inline-block z-0">
-            {/* 1) 배경 빛 효과 (z-0: 뒤쪽) */}
+            {/* 배경 빛 효과 */}
             <div
               className="absolute inset-0 rounded-full"
               style={{
-                // 중앙(진한 노랑) -> 중간(연한 노랑) -> 끝(투명)으로 자연스럽게 퍼지는 그라데이션
                 background:
                   "radial-gradient(circle, rgba(250, 204, 21, 0.6) 0%, rgba(253, 224, 71, 0.3) 60%, rgba(255, 255, 255, 0) 100%)",
                 zIndex: 0,
                 animation: "soft-glow 3s ease-in-out infinite",
-                filter: "blur(12px)", // 블러를 주어 경계선을 없앰
+                filter: "blur(12px)",
               }}
             />
 
-            {/* 2) 트로피 아이콘 (z-10: 앞쪽으로 꺼냄) */}
+            {/* 트로피 아이콘 */}
             <div className="relative bg-yellow-50 p-6 rounded-full border-4 border-yellow-100 z-10">
               <Trophy className="w-16 h-16 text-yellow-500" />
             </div>

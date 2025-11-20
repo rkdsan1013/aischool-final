@@ -1,4 +1,4 @@
-// src/services/userService.ts
+// frontend/src/services/userService.ts
 import { apiClient, handleApiError } from "../api";
 import type { AxiosError } from "axios";
 
@@ -17,23 +17,29 @@ export type UserProfileResponse = {
   profile_img?: string | null;
   // 완료한 레슨 수
   completed_lessons?: number;
-  // backend에 남아있을 수 있는 기타 필드들은 제외 (이번 주 목표 카드 제거에 따라 관련 필드 제거)
+
+  // [신규] 점수 및 티어 추가
+  score?: number;
+  tier?: string;
 };
 
 export async function getMyProfile(): Promise<UserProfileResponse | null> {
   try {
-    console.log("[userService] calling GET /user/me");
+    // console.log("[userService] calling GET /user/me");
     const res = await apiClient.get<UserProfileResponse>("/user/me");
-    console.log("[userService] GET /user/me success:", res.data);
+    // console.log("[userService] GET /user/me success:", res.data);
     return res.data;
   } catch (error: unknown) {
     const axiosErr = error as AxiosError | undefined;
     const status = axiosErr?.response?.status;
-    console.warn("[userService] GET /user/me failed, status:", status);
+
+    // console.warn("[userService] GET /user/me failed, status:", status);
+
     if (status === 401) {
-      console.warn("[userService] 401 -> returning null (not authenticated)");
+      // 인증되지 않은 사용자는 null 반환 (로그인 페이지로 리다이렉트 등은 호출부에서 처리)
       return null;
     }
+
     handleApiError(error, "프로필 조회");
     return null;
   }
