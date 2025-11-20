@@ -1,4 +1,4 @@
-// src/components/Vocabulary.tsx
+// frontend/src/components/Vocabulary.tsx
 import React from "react";
 import { Check } from "lucide-react";
 
@@ -39,10 +39,15 @@ const Vocabulary: React.FC<Props> = ({
       {/* 선택지 그리드 (디자인 조화: bg-white, border, shadow) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         {options.map((option, index) => {
+          // 'index'를 key로 사용할 것입니다.
           const isSelected = selected === option;
           return (
             <button
-              key={option}
+              // --- [수정됨] ---
+              // key={option} 대신, 항상 고유함이 보장되는 index를 사용합니다.
+              // (혹은 ${option}-${index} 조합도 가능합니다)
+              key={index}
+              // --- [수정 완료] ---
               type="button"
               onClick={() => onSelect(option)}
               className={`group w-full rounded-2xl text-left p-4 sm:p-5 transition-all duration-300 ${

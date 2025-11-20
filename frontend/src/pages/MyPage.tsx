@@ -39,6 +39,13 @@ const NavigateRow: React.FC<{
   <div
     className="bg-white shadow rounded-xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg transition group"
     onClick={onClick}
+    role="button"
+    tabIndex={0}
+    onKeyPress={(e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        onClick();
+      }
+    }}
   >
     <div className="flex items-center gap-3 sm:gap-4">
       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
@@ -58,7 +65,7 @@ const NavigateRow: React.FC<{
 const MyPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthLoading, logout } = useAuth();
-  const { profile, isProfileLoading /*, refreshProfile */ } = useProfile();
+  const { profile, isProfileLoading } = useProfile();
 
   const isLoading = isAuthLoading || isProfileLoading;
 
@@ -101,7 +108,10 @@ const MyPage: React.FC = () => {
 
   const handleRetakeTest = () => navigate("/level-test");
 
-  // 변경된 부분: 히스토리 버튼 클릭 시 /my/history로 이동
+  // 프로필 관리 클릭 시 MyPageProfile 컴포넌트로 이동 (/profile 경로)
+  const handleOpenProfile = () => navigate("/my/profile");
+
+  // 히스토리로 이동
   const handleOpenHistory = () => navigate("/my/history");
 
   return (
@@ -210,7 +220,7 @@ const MyPage: React.FC = () => {
             icon={<BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
             title="히스토리"
             subtitle="상세한 학습 기록을 확인하세요"
-            onClick={handleOpenHistory} // 변경된 라우트로 연결
+            onClick={handleOpenHistory}
           />
 
           <NavigateRow
@@ -224,7 +234,7 @@ const MyPage: React.FC = () => {
             icon={<User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
             title="프로필 관리"
             subtitle="개인정보를 수정하세요"
-            onClick={() => navigate("/profile")}
+            onClick={handleOpenProfile}
           />
         </div>
 
@@ -232,6 +242,7 @@ const MyPage: React.FC = () => {
           <button
             className="w-full h-12 border border-rose-500 text-rose-500 rounded-xl font-semibold hover:bg-rose-50 transition"
             onClick={handleLogout}
+            type="button"
           >
             로그아웃
           </button>

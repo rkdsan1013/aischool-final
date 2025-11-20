@@ -1,4 +1,3 @@
-// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -13,6 +12,8 @@ import {
   Repeat,
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
+import { useProfile } from "../hooks/useProfile";
+import type { UserProfileResponse } from "../services/userService";
 
 interface TrainingStep {
   id: string;
@@ -25,32 +26,37 @@ interface TrainingStep {
   startType: TrainingType;
 }
 
+// [수정됨] 실제 프로필 타입 정의 확장
+type LocalProfileContext = {
+  profile: (UserProfileResponse & { tier?: string; score?: number }) | null;
+  isLoading?: boolean;
+  loading?: boolean;
+};
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
-  const [user] = useState<{ name: string; level: string } | null>({
-    name: "홍길동",
-    level: "B1",
-  });
-  const [_isLoading] = useState(false);
-  const [streak] = useState<number>(7);
-  const [todayProgress] = useState<number>(45);
+  const profileCtx = useProfile() as LocalProfileContext;
+  const profile = profileCtx.profile ?? null;
+  const profileLoading: boolean =
+    profileCtx.isLoading ?? profileCtx.loading ?? false;
+
   const [prefetchingType, setPrefetchingType] = useState<TrainingType | null>(
     null
   );
 
   useEffect(() => {
-    if (!_isLoading && !user) navigate("/auth");
-  }, [_isLoading, user, navigate]);
+    if (!profileLoading && !profile) navigate("/auth");
+  }, [profileLoading, profile, navigate]);
 
-  if (_isLoading) {
+  if (profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
       </div>
     );
   }
-  if (!user) return null;
+  if (!profile) return null;
 
   const steps: TrainingStep[] = [
     {
@@ -123,54 +129,96 @@ const HomePage: React.FC = () => {
     }
   };
 
+  const displayName = profile.name ?? "학습자";
+  const displayLevel = profile.level ?? "대기중";
+  const streak = profile.streak_count ?? 0;
+
+  // --- [수정됨] 실제 프로필 데이터 사용 ---
+  // 값이 없으면 기본값("Bronze", 0) 사용
+  const tier = profile.tier ?? "Bronze";
+  const score = profile.score ?? 0;
+  // --- [수정 완료] ---
+
+  const tierStyles: Record<
+    string,
+    { bgClass: string; textClass: string; label: string }
+  > = {
+    Bronze: {
+      bgClass: "bg-gradient-to-r from-amber-700 via-amber-600 to-amber-600",
+      textClass: "text-white",
+      label: "브론즈",
+    },
+    Silver: {
+      bgClass: "bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400",
+      textClass: "text-slate-800",
+      label: "실버",
+    },
+    Gold: {
+      bgClass: "bg-gradient-to-r from-amber-500 via-amber-300 to-yellow-300",
+      textClass: "text-yellow-800",
+      label: "골드",
+    },
+    Platinum: {
+      bgClass: "bg-gradient-to-r from-teal-200 via-cyan-200 to-indigo-300",
+      textClass: "text-indigo-900",
+      label: "플래티넘",
+    },
+    Diamond: {
+      bgClass: "bg-gradient-to-r from-cyan-200 via-sky-300 to-indigo-400",
+      textClass: "text-sky-900",
+      label: "다이아",
+    },
+    Master: {
+      bgClass: "bg-gradient-to-r from-purple-200 via-purple-300 to-purple-500",
+      textClass: "text-purple-900",
+      label: "마스터",
+    },
+    Challenger: {
+      bgClass: "bg-gradient-to-r from-pink-300 via-pink-500 to-rose-600",
+      textClass: "text-rose-900",
+      label: "챌린저",
+    },
+  };
+
+  const chosen = tierStyles[tier] ?? tierStyles.Bronze;
+
   return (
     <div className="min-h-screen bg-white pb-20">
-      <header className="bg-rose-500 text-white p-4 sm:p-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-5 sm:mb-6">
-            <div className="min-w-0 mr-3 sm:mr-4">
+      <header className="bg-rose-500 text-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
               <h1 className="text-base sm:text-2xl font-bold mb-0.5 truncate">
-                안녕하세요, {user.name}님!
+                안녕하세요, {displayName}님!
               </h1>
               <p className="text-white/80 text-xs sm:text-sm">
                 오늘도 영어 학습을 시작해볼까요?
               </p>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <div className="flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1.5 sm:px-4 sm:py-2">
-                <Flame className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="font-bold text-xs sm:text-base">
-                  {streak}일
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1.5 sm:px-4 sm:py-2">
-                <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="font-bold text-xs sm:text-base">
-                  {user.level}
-                </span>
-              </div>
-            </div>
-          </div>
+            <div className="mt-3 sm:mt-0 sm:ml-4">
+              <div className="flex items-center gap-3 whitespace-nowrap overflow-x-auto">
+                <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5 text-sm font-semibold text-white sm:bg-opacity-20">
+                  <Flame className="w-4 h-4" />
+                  <span className="leading-none">{streak}일</span>
+                </div>
 
-          <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4">
-            <div className="flex items-center justify-between mb-3.5">
-              <span className="text-xs sm:text-sm font-medium">
-                오늘의 학습 진행도
-              </span>
-              <span className="text-xs sm:text-sm font-bold">
-                {todayProgress}%
-              </span>
+                <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5 text-sm font-semibold text-white sm:bg-opacity-20">
+                  <Trophy className="w-4 h-4" />
+                  <span className="leading-none">{displayLevel}</span>
+                </div>
+
+                <div
+                  className={`${chosen.bgClass} rounded-full px-3 py-1.5 text-sm font-semibold flex items-center gap-2`}
+                  title={`티어: ${chosen.label} · 점수: ${score}pt`}
+                >
+                  <span className={chosen.textClass}>{chosen.label}</span>
+                  <span className="ml-1 bg-white/20 px-2 py-0.5 rounded-full text-sm">
+                    <span className={chosen.textClass}>{score}pt</span>
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="w-full bg-white/20 h-2 rounded overflow-hidden">
-              <div
-                className="h-2 bg-gradient-to-r from-gray-00 to-white rounded"
-                style={{ width: `${todayProgress}%` }}
-              />
-            </div>
-            <p className="text-[11px] sm:text-xs text-white/70 mt-2">
-              목표까지 {100 - todayProgress}% 남았어요!
-            </p>
           </div>
         </div>
       </header>

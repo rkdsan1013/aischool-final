@@ -1,4 +1,4 @@
-// src/routes/routes.tsx
+// frontend/src/routes/routes.tsx
 import type { RouteObject } from "react-router-dom";
 
 import LayoutWithoutNav from "../layouts/LayoutWithoutNav";
@@ -11,11 +11,13 @@ import MyPage from "../pages/MyPage";
 import AITalk from "../pages/AITalkPage";
 import VoiceRoomPage from "../pages/VoiceRoomPage";
 import TrainingPage from "../pages/Training";
+import TrainingResult from "../pages/TrainingResult"; // [신규 Import]
 import VoiceRoomDetail from "../pages/VoiceRoomDetail";
-import VoiceRoomCreate from "../pages/VoiceRoomCreate"; // [ADDED]
-import AITalkPageDetail from "../pages/AITalkPageDetail"; // [ADDED]
-import AITalkCustomScenario from "../pages/AITalkCustomScenario"; // [ADDED]
+import VoiceRoomCreate from "../pages/VoiceRoomCreate";
+import AITalkPageDetail from "../pages/AITalkPageDetail";
+import AITalkCustomScenario from "../pages/AITalkCustomScenario";
 import MyPageHistory from "../pages/MyPageHistory";
+import MyPageProfile from "../pages/MyPageProfile";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -43,8 +45,23 @@ export const routes: RouteObject[] = [
       },
       {
         path: "/training",
-        element: <TrainingPage />,
+        element: (
+          // 훈련 페이지도 로그인한 사용자만 접근 가능하도록 보호하는 것을 권장합니다.
+          <ProtectedRoute redirectTo="/auth">
+            <TrainingPage />
+          </ProtectedRoute>
+        ),
       },
+      // --- [신규] 결과 페이지 라우트 추가 ---
+      {
+        path: "/training/result",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <TrainingResult />
+          </ProtectedRoute>
+        ),
+      },
+      // --- [추가 완료] ---
       {
         path: "/voiceroom/room/:roomId",
         element: (
@@ -53,7 +70,7 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // [ADDED] VoiceRoom 생성 페이지
+      // VoiceRoom 생성 페이지
       {
         path: "/voiceroom/create",
         element: (
@@ -62,7 +79,6 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // [ADDED] AITalk 커스텀 시나리오 생성/수정 페이지
       {
         path: "/ai-talk/custom-scenario",
         element: (
@@ -71,9 +87,8 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // [ADDED] AITalk 상세 (채팅) 페이지 - :id가 custom-scenario보다 뒤에 와야 함
       {
-        path: "/ai-talk/:id",
+        path: "/ai-talk/chat",
         element: (
           <ProtectedRoute redirectTo="/auth">
             <AITalkPageDetail />
@@ -88,10 +103,18 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
+      {
+        path: "/my/profile",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <MyPageProfile />
+          </ProtectedRoute>
+        ),
+      },
     ],
   },
 
-  // 네비게이션 있는 레이아웃 그룹
+  // --- 네비게이션 있는 레이아웃 그룹 ---
   {
     element: <LayoutWithNav />,
     children: [

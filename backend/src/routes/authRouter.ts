@@ -1,3 +1,4 @@
+// backend/src/routes/authRouter.ts
 import { Router } from "express";
 import {
   register,

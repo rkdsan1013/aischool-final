@@ -1,13 +1,14 @@
-// src/pages/AITalkCustomScenario.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
+// 외부 서비스 임포트
+import { aiTalkService } from "../services/aiTalkService";
+import type { AIScenario } from "../services/aiTalkService";
 
 interface CustomScenario {
   id: string;
   title: string;
   description: string;
-  difficulty: string;
   context: string;
 }
 
@@ -20,206 +21,36 @@ function getEditIdFromSearch(search: string) {
   }
 }
 
-/**
- * CustomDropdown
- * - 디자인 유지
- * - 항상 위로 열리도록(openUpwards forced true)
- * - fade + scale 애니메이션
- * - 키보드 접근성 지원
- * - 외부 클릭/ESC 닫기
- * - TypeScript 이벤트 핸들러 타입 안정성 처리
- */
-const CustomDropdown: React.FC<{
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  id?: string;
-  label?: React.ReactNode;
-}> = ({ value, onChange, options, id, label }) => {
-  const uid = id ?? `cd-${Math.random().toString(36).slice(2, 9)}`;
-  const btnRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState<number>(() =>
-    options.findIndex((o) => o.value === value)
-  );
+function parseError(err: unknown): string {
+  if (typeof err === "string") return err;
+  if (err instanceof Error && err.message) return err.message;
 
-  useEffect(() => {
-    setActiveIndex(options.findIndex((o) => o.value === value));
-  }, [value, options]);
+  if (typeof err === "object" && err !== null) {
+    const e = err as Record<string, unknown>;
 
-  useEffect(() => {
-    function onDocClick(e: Event) {
-      if (!btnRef.current || !panelRef.current) return;
-      const target = e.target as Node | null;
-      if (
-        target &&
-        (btnRef.current.contains(target) || panelRef.current.contains(target))
-      ) {
-        return;
-      }
-      setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("touchstart", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("touchstart", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
+    if (typeof e.message === "string") return e.message;
+    if (typeof e.statusText === "string") return e.statusText;
 
-  useEffect(() => {
-    if (open && panelRef.current) {
-      const el = panelRef.current.querySelector<HTMLElement>(
-        '[data-selected="true"]'
-      ) as HTMLElement | null;
-      if (el) {
-        el.focus();
-        el.scrollIntoView({ block: "nearest" });
-      } else {
-        const first = panelRef.current.querySelector<HTMLElement>(
-          'li[role="option"]'
-        ) as HTMLElement | null;
-        first?.focus();
+    const response = e.response;
+    if (typeof response === "object" && response !== null) {
+      const r = response as Record<string, unknown>;
+      const data = r.data;
+      if (typeof data === "object" && data !== null) {
+        const d = data as Record<string, unknown>;
+        if (typeof d.message === "string") return d.message;
+        if (Array.isArray(d.errors) && d.errors.length > 0) {
+          const first = d.errors[0];
+          if (typeof first === "object" && first !== null) {
+            const f = first as Record<string, unknown>;
+            if (typeof f.message === "string") return f.message;
+          }
+        }
       }
     }
-  }, [open]);
+  }
 
-  const toggleOpen = () => setOpen((s) => !s);
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setOpen(true);
-      setActiveIndex((i) => {
-        const next = i + 1;
-        return next >= options.length ? options.length - 1 : next;
-      });
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setOpen(true);
-      setActiveIndex((i) => {
-        const prev = i - 1;
-        return prev < 0 ? 0 : prev;
-      });
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      setActiveIndex(0);
-    } else if (e.key === "End") {
-      e.preventDefault();
-      setActiveIndex(options.length - 1);
-    } else if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      if (!open) {
-        setOpen(true);
-      } else if (activeIndex >= 0) {
-        onChange(options[activeIndex].value);
-        setOpen(false);
-        btnRef.current?.focus();
-      }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-      btnRef.current?.focus();
-    }
-  };
-
-  useEffect(() => {
-    if (!open || !panelRef.current) return;
-    const items =
-      panelRef.current.querySelectorAll<HTMLElement>('li[role="option"]');
-    const el = items[activeIndex];
-    if (el) el.scrollIntoView({ block: "nearest" });
-  }, [activeIndex, open]);
-
-  const onOptionClick = (index: number) => {
-    onChange(options[index].value);
-    setOpen(false);
-    btnRef.current?.focus();
-  };
-
-  // Force dropdown to open upwards
-  const openUpwards = true;
-
-  return (
-    <div className="relative inline-block w-full">
-      {label}
-      <button
-        ref={btnRef}
-        id={uid}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        type="button"
-        onClick={toggleOpen}
-        onKeyDown={onKeyDown}
-        className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white border border-gray-200 text-sm transition focus:outline-none focus:ring-2 focus:ring-rose-300"
-      >
-        <span className="truncate">
-          {options.find((o) => o.value === value)?.label}
-        </span>
-
-        <ChevronDown
-          className={`w-4 h-4 text-gray-500 transition-transform duration-250 ${
-            open ? "rotate-180" : "rotate-0"
-          }`}
-          aria-hidden
-        />
-      </button>
-
-      <div
-        ref={panelRef}
-        role="listbox"
-        aria-labelledby={uid}
-        tabIndex={-1}
-        className={`absolute z-50 w-full rounded-md bg-white shadow-sm ring-1 ring-gray-100 transform transition-all duration-250 ease-out ${
-          open
-            ? "opacity-100 scale-y-100 pointer-events-auto"
-            : "opacity-0 scale-y-75 pointer-events-none"
-        } ${
-          openUpwards
-            ? "bottom-full mb-2 mt-0 origin-bottom"
-            : "top-full mt-2 origin-top"
-        }`}
-        style={{
-          transformOrigin: openUpwards ? "bottom center" : "top center",
-          maxHeight: "14rem",
-        }}
-        onKeyDown={onKeyDown}
-      >
-        <ul className="max-h-56 overflow-auto py-1">
-          {options.map((opt, i) => {
-            const selected = opt.value === value;
-            const isActive = i === activeIndex;
-            return (
-              <li
-                key={opt.value}
-                role="option"
-                aria-selected={selected}
-                tabIndex={0}
-                data-selected={selected ? "true" : "false"}
-                onClick={() => onOptionClick(i)}
-                onMouseEnter={() => setActiveIndex(i)}
-                className={`cursor-pointer px-3 py-2 text-sm transition-colors ${
-                  selected
-                    ? "bg-rose-50 text-rose-700"
-                    : isActive
-                    ? "bg-gray-100"
-                    : "bg-white"
-                }`}
-              >
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </div>
-  );
-};
+  return "저장 중 오류가 발생했습니다";
+}
 
 const AITalkCustomScenario: React.FC = () => {
   const navigate = useNavigate();
@@ -230,16 +61,11 @@ const AITalkCustomScenario: React.FC = () => {
   );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [difficulty, setDifficulty] = useState("초급");
   const [context, setContext] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const difficultyOptions = [
-    { value: "초급", label: "초급" },
-    { value: "중급", label: "중급" },
-    { value: "고급", label: "고급" },
-  ];
 
   useEffect(() => {
     setEditId(getEditIdFromSearch(location.search));
@@ -249,7 +75,6 @@ const AITalkCustomScenario: React.FC = () => {
     if (!editId) {
       setTitle("");
       setDescription("");
-      setDifficulty("초급");
       setContext("");
       return;
     }
@@ -262,76 +87,122 @@ const AITalkCustomScenario: React.FC = () => {
       if (found) {
         setTitle(found.title ?? "");
         setDescription(found.description ?? "");
-        setDifficulty(found.difficulty ?? "중급");
         setContext(found.context ?? "");
       }
     } catch {
-      // ignore parse errors
+      // parse error 무시
     }
   }, [editId]);
 
-  useEffect(() => {
-    adjustTextareaHeight();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const adjustTextareaHeight = () => {
+  const adjustTextareaHeight = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "0px";
-    const scrollHeight = el.scrollHeight;
-    const max = Math.min(scrollHeight, window.innerHeight * 0.5);
-    el.style.height = `${max}px`;
-  };
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
 
-  const handleContextChange = (value: string) => {
-    setContext(value);
-    requestAnimationFrame(adjustTextareaHeight);
-  };
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [adjustTextareaHeight, context]);
 
-  const handleSave = () => {
-    if (!title.trim() || !description.trim() || !context.trim()) {
-      console.warn("모든 필드를 입력해주세요");
-      return;
-    }
+  const handleContextChange = useCallback(
+    (value: string) => {
+      setContext(value);
+      requestAnimationFrame(adjustTextareaHeight);
+    },
+    [adjustTextareaHeight]
+  );
 
-    let scenarios: CustomScenario[] = [];
-    try {
-      const saved = localStorage.getItem("customScenarios");
-      scenarios = saved ? JSON.parse(saved) : [];
-    } catch {
-      scenarios = [];
-    }
-
-    if (editId) {
-      const idx = scenarios.findIndex((s) => s.id === editId);
-      const payload: CustomScenario = {
-        id: editId,
-        title: title.trim(),
-        description: description.trim(),
-        difficulty,
-        context: context.trim(),
-      };
-      if (idx !== -1) scenarios[idx] = payload;
-      else scenarios.push(payload);
-    } else {
-      const newScenario: CustomScenario = {
-        id: `custom-${Date.now()}`,
-        title: title.trim(),
-        description: description.trim(),
-        difficulty,
-        context: context.trim(),
-      };
-      scenarios.push(newScenario);
-    }
-
+  const persistLocal = (scenarios: CustomScenario[]) => {
     try {
       localStorage.setItem("customScenarios", JSON.stringify(scenarios));
     } catch {
       // ignore
     }
+  };
 
-    navigate("/ai-talk");
+  const handleSave = async () => {
+    setError(null);
+    if (!title.trim() || !description.trim() || !context.trim()) {
+      setError("모든 필드를 입력해주세요");
+      return;
+    }
+
+    setLoading(true);
+    const payload: { title: string; description: string; context: string } = {
+      title: title.trim(),
+      description: description.trim(),
+      context: context.trim(),
+    };
+
+    try {
+      // editId가 존재하지만 숫자가 아닌 경우(로컬 전용 id: 예 UUID) -> 로컬만 업데이트
+      if (editId && Number.isNaN(Number(editId))) {
+        let scenarios: CustomScenario[] = [];
+        try {
+          const saved = localStorage.getItem("customScenarios");
+          scenarios = saved ? JSON.parse(saved) : [];
+        } catch {
+          scenarios = [];
+        }
+
+        const idx = scenarios.findIndex((s) => s.id === editId);
+        const newEntry: CustomScenario = {
+          id: editId,
+          title: payload.title,
+          description: payload.description,
+          context: payload.context,
+        };
+        if (idx !== -1) scenarios[idx] = newEntry;
+        else scenarios.push(newEntry);
+        persistLocal(scenarios);
+        navigate("/ai-talk");
+        return;
+      }
+
+      let savedScenario: AIScenario;
+
+      if (editId) {
+        const scenarioIdNum = Number(editId);
+        if (Number.isNaN(scenarioIdNum)) {
+          throw new Error("유효하지 않은 시나리오 ID입니다");
+        }
+        savedScenario = await aiTalkService.updateCustomScenario(
+          scenarioIdNum,
+          payload
+        );
+      } else {
+        savedScenario = await aiTalkService.createCustomScenario(payload);
+      }
+
+      const savedId = String(savedScenario.scenario_id);
+
+      let scenarios: CustomScenario[] = [];
+      try {
+        const saved = localStorage.getItem("customScenarios");
+        scenarios = saved ? JSON.parse(saved) : [];
+      } catch {
+        scenarios = [];
+      }
+
+      const idx = scenarios.findIndex((s) => s.id === savedId);
+      const newEntry: CustomScenario = {
+        id: savedId,
+        title: savedScenario.title,
+        description: savedScenario.description,
+        context: savedScenario.context,
+      };
+      if (idx !== -1) scenarios[idx] = newEntry;
+      else scenarios.push(newEntry);
+      persistLocal(scenarios);
+
+      navigate("/ai-talk");
+    } catch (err: unknown) {
+      console.error("save error:", err);
+      setError(parseError(err));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -340,43 +211,52 @@ const AITalkCustomScenario: React.FC = () => {
 
   return (
     <div className="h-[100dvh] bg-white flex flex-col">
-      <header className="bg-rose-500 text-white flex-shrink-0">
+      <header className="bg-rose-500 text-white flex-shrink-0 shadow-md">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {/* 헤더 멘트 영역 */}
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
               {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
             </h1>
-            <p className="text-white/90">원하는 대화 상황을 직접 설정하세요</p>
+            <p className="text-white/90 text-sm sm:text-base">
+              원하는 대화 상황을 직접 설정하세요
+            </p>
           </div>
 
-          {/* 상단 우측 X 버튼 */}
           <button
             type="button"
             onClick={() => navigate("/ai-talk")}
-            className="inline-flex items-center text-white hover:bg-white/10 px-2 py-1 rounded"
+            className="inline-flex items-center text-white hover:bg-white/20 p-2 rounded-full transition duration-150"
             aria-label="닫기"
           >
-            <X className="w-5 h-5" aria-hidden="true" />
+            <X className="w-6 h-6" aria-hidden="true" />
           </button>
         </div>
       </header>
 
       <main className="w-full flex-1 overflow-y-auto">
         <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-20">
-          <header className="mb-4 sm:mb-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
-              시나리오 정보
+          <header className="mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+              시나리오 정보 입력
             </h2>
             <p className="text-sm sm:text-base text-gray-600 text-pretty">
-              AI와 대화할 상황을 자세히 설명해주세요
+              AI와 대화할 상황을 자세히 설명해주세요 (모든 필드 필수)
             </p>
           </header>
 
-          <div className="mb-4">
+          {error && (
+            <div
+              className="mb-4 p-3 bg-red-100 border border-red-300 text-sm text-red-700 rounded-lg"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
+          <div className="mb-6">
             <label
               htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-base font-semibold text-gray-700 mb-2"
             >
               시나리오 제목 *
             </label>
@@ -386,14 +266,15 @@ const AITalkCustomScenario: React.FC = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: 병원에서 진료 받기"
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:outline-none focus:ring-4 focus:ring-rose-200 transition duration-150"
+              disabled={loading}
             />
           </div>
 
-          <div className="mb-4">
+          <div className="mb-6">
             <label
               htmlFor="description"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-base font-semibold text-gray-700 mb-2"
             >
               간단한 설명 *
             </label>
@@ -403,25 +284,15 @@ const AITalkCustomScenario: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="예: 병원에서 증상을 설명하고 진료를 받는 상황"
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:outline-none focus:ring-4 focus:ring-rose-200 transition duration-150"
+              disabled={loading}
             />
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              난이도
-            </label>
-            <CustomDropdown
-              value={difficulty}
-              onChange={(v) => setDifficulty(v)}
-              options={difficultyOptions}
-            />
-          </div>
-
-          <div className="mb-4">
+          <div className="mb-6">
             <label
               htmlFor="context"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-base font-semibold text-gray-700 mb-2"
             >
               상황 설명 *
             </label>
@@ -434,8 +305,9 @@ const AITalkCustomScenario: React.FC = () => {
                 "AI가 어떤 역할을 하고, 어떤 상황인지 자세히 설명해주세요.\n\n예시:\n당신은 병원 접수처 직원입니다. 환자가 처음 방문했고, 증상을 듣고 적절한 진료과를 안내해주세요. 친절하고 전문적인 태도로 대화하며, 필요한 서류나 절차에 대해서도 안내해주세요."
               }
               rows={4}
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 overflow-auto"
+              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white resize-none focus:outline-none focus:ring-4 focus:ring-rose-200 overflow-auto transition duration-150"
               onInput={adjustTextareaHeight}
+              disabled={loading}
             />
             <p className="text-sm text-gray-500 mt-2">
               AI의 역할, 상황, 대화 스타일 등을 구체적으로 작성하면 더 좋은
@@ -445,22 +317,27 @@ const AITalkCustomScenario: React.FC = () => {
         </section>
       </main>
 
-      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
+      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0 shadow-lg">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex flex-row gap-3">
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="flex-1 rounded-xl border border-gray-300 px-4 py-3 bg-white text-base font-semibold text-gray-700 hover:bg-gray-100 transition duration-150"
+              disabled={loading}
             >
               취소
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 rounded-lg bg-rose-500 text-white px-4 py-3 inline-flex items-center justify-center gap-2 hover:bg-rose-600 text-sm font-semibold"
+              className="flex-1 rounded-xl bg-rose-500 text-white px-4 py-3 inline-flex items-center justify-center gap-2 hover:bg-rose-600 active:bg-rose-700 disabled:bg-rose-300 text-base font-semibold transition duration-150"
+              disabled={loading}
+              aria-busy={loading}
             >
-              <span>{editId ? "수정하기" : "저장하기"}</span>
+              <span>
+                {loading ? "저장 중..." : editId ? "수정하기" : "저장하기"}
+              </span>
             </button>
           </div>
         </div>
