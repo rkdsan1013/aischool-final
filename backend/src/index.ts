@@ -1,3 +1,4 @@
+// backend/src/index.ts
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -13,7 +14,12 @@ dotenv.config();
 const app = express();
 
 app.use(cookieParser());
-app.use(express.json());
+
+// --- [핵심 수정] ---
+// 오디오/이미지 등 대용량 데이터 전송을 위해 용량 제한을 50mb로 상향 (기본값 100kb)
+// 이 설정이 없으면 오디오 데이터가 중간에 잘려서 'corrupted file' 오류가 발생합니다.
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // CORS 설정: React dev server만 허용, credentials 허용
 app.use(

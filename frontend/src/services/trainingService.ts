@@ -16,10 +16,16 @@ export interface QuestionItem {
   correct?: string | string[];
 }
 
-/**
- * 서버에서 훈련 문제를 불러옵니다.
- * - 엔드포인트: GET /api/training/:type
- */
+// Blob을 Base64로 변환하는 헬퍼 함수
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export async function fetchTrainingQuestions(
   type: TrainingType
 ): Promise<QuestionItem[]> {
@@ -34,40 +40,48 @@ export async function fetchTrainingQuestions(
     try {
       handleApiError(err, "훈련 문제 로드");
     } catch {
-      // handler 자체 예외 무시
+      // Ignore
     }
     return [];
   }
 }
 
-/**
- * [수정됨] 백엔드에 정답 검증을 요청합니다.
- * - 반환값에 totalScore(누적 점수)와 tier(현재 티어)를 추가했습니다.
- * - 이를 통해 프론트엔드에서 즉시 프로필 상태를 업데이트할 수 있습니다.
- */
 export async function verifyAnswer(payload: {
   type: TrainingType;
-  userAnswer: string | string[];
+  userAnswer: string | string[] | Blob;
   correctAnswer: string | string[];
 }): Promise<{
   isCorrect: boolean;
   points: number;
-  totalScore?: number; // [신규] 갱신된 총 점수
-  tier?: string; // [신규] 갱신된 티어
+  totalScore?: number;
+  tier?: string;
+  transcript?: string;
 }> {
   try {
+    let finalUserAnswer = payload.userAnswer;
+
+    // Speaking 타입이고 Blob(오디오)인 경우 Base64 변환
+    if (payload.type === "speaking" && payload.userAnswer instanceof Blob) {
+      finalUserAnswer = await blobToBase64(payload.userAnswer);
+    }
+
     const res = await apiClient.post<{
       isCorrect: boolean;
       points: number;
       totalScore?: number;
       tier?: string;
-    }>("/training/verify", payload);
+      transcript?: string;
+    }>("/training/verify", {
+      ...payload,
+      userAnswer: finalUserAnswer,
+    });
 
     return {
       isCorrect: res.data?.isCorrect ?? false,
       points: res.data?.points ?? 0,
       totalScore: res.data?.totalScore,
       tier: res.data?.tier,
+      transcript: res.data?.transcript,
     };
   } catch (err) {
     console.error("정답 검증 API 오류:", err);

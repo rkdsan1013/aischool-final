@@ -7,10 +7,10 @@ import {
   QuestionItem,
 } from "../services/trainingService";
 import { calculatePoints } from "../utils/gamification";
-// [신규] 모델 import
 import { updateUserScoreAndTier } from "../models/trainingModel";
+import { verifySpeakingWithAudio } from "../llm/models/speakingModel";
+import { normalizeForCompare } from "../utils/normalization"; // [추가]
 
-// URL 파라미터가 유효한 TrainingType인지 확인하는 헬퍼 함수
 function isValidTrainingType(type: string): type is TrainingType {
   const validTypes: TrainingType[] = [
     "vocabulary",
@@ -22,10 +22,6 @@ function isValidTrainingType(type: string): type is TrainingType {
   return validTypes.includes(type as TrainingType);
 }
 
-/**
- * GET /api/training/:type
- * (requireAuth 미들웨어를 통과한 후 실행됨)
- */
 export async function fetchTrainingQuestionsHandler(
   req: Request,
   res: Response
@@ -64,10 +60,6 @@ export async function fetchTrainingQuestionsHandler(
   }
 }
 
-/**
- * POST /api/training/verify
- * 정답 검증 및 점수/티어 DB 업데이트 핸들러
- */
 export async function verifyAnswerHandler(req: Request, res: Response) {
   try {
     const user = req.user;
@@ -81,23 +73,73 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // 1. 정답 검증
-    const isCorrect = verifyUserAnswer(
-      type as TrainingType,
-      userAnswer,
-      correctAnswer
-    );
+    let isCorrect = false;
+    let feedbackTranscript = "";
+
+    if (type === "speaking") {
+      const base64String = String(userAnswer);
+
+      // Base64 데이터인지 확인
+      if (base64String.startsWith("data:audio")) {
+        // 1. 확장자(MIME Type) 감지
+        let fileExtension = "webm";
+        const mimeEndIndex = base64String.indexOf(";");
+        if (mimeEndIndex > 0) {
+          const mimeType = base64String.substring(5, mimeEndIndex);
+          if (mimeType.includes("mp4") || mimeType.includes("m4a"))
+            fileExtension = "mp4";
+          else if (mimeType.includes("mpeg") || mimeType.includes("mp3"))
+            fileExtension = "mp3";
+          else if (mimeType.includes("wav")) fileExtension = "wav";
+          else if (mimeType.includes("ogg")) fileExtension = "ogg";
+        }
+
+        console.log(`[Verify Speaking] Detected Ext: ${fileExtension}`);
+
+        // 2. Base64 데이터 추출
+        const base64Data = base64String.split(",")[1];
+
+        if (base64Data) {
+          const audioBuffer = Buffer.from(base64Data, "base64");
+
+          const result = await verifySpeakingWithAudio(
+            audioBuffer,
+            String(correctAnswer),
+            fileExtension
+          );
+
+          isCorrect = result.isCorrect;
+          feedbackTranscript = result.transcript;
+        } else {
+          console.error("[Verify Speaking] Failed to extract base64 data");
+          isCorrect = false;
+        }
+      } else {
+        // [수정] 텍스트 비교 Fallback에도 정규화 적용
+        const userText = base64String.trim();
+        const targetText = String(correctAnswer).trim();
+
+        const normUser = normalizeForCompare(userText);
+        const normTarget = normalizeForCompare(targetText);
+
+        isCorrect = normUser === normTarget;
+        feedbackTranscript = userText;
+      }
+    } else {
+      // 기존 텍스트 기반 검증 (Vocabulary, Sentence 등)
+      isCorrect = verifyUserAnswer(
+        type as TrainingType,
+        userAnswer,
+        correctAnswer
+      );
+    }
 
     let earnedPoints = 0;
-    let newTotalScore = 0; // 현재 총 점수 (DB 업데이트 후)
-    let newTier = ""; // 현재 티어 (DB 업데이트 후)
+    let newTotalScore = 0;
+    let newTier = "";
 
-    // 2. 정답일 경우 DB 업데이트
     if (isCorrect) {
-      // 2-1. 획득할 점수 계산
       earnedPoints = calculatePoints(user.level);
-
-      // 2-2. DB 업데이트 (점수 누적 & 티어 갱신)
       const result = await updateUserScoreAndTier(user.user_id, earnedPoints);
       newTotalScore = result.newScore;
       newTier = result.newTier;
@@ -107,13 +149,12 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
       );
     }
 
-    // 3. 결과 반환
     return res.json({
       isCorrect,
       points: earnedPoints,
-      // 클라이언트가 즉시 UI를 갱신할 수 있도록 최신 상태 반환 (선택 사항)
       totalScore: newTotalScore,
       tier: newTier,
+      transcript: feedbackTranscript,
     });
   } catch (err) {
     console.error("[TRAINING CONTROLLER] verify error:", err);

@@ -1,3 +1,4 @@
+// backend/src/services/trainingService.ts
 import { nanoid } from "nanoid";
 import { generateVocabularyQuestionsRaw } from "../llm/models/vocabularyModel";
 import { generateSentenceQuestionsRaw } from "../llm/models/sentenceModel";
@@ -92,6 +93,7 @@ function normalizeOptionsAndCorrect(item: unknown): {
 
 /**
  * 정답 검증 로직
+ * (백엔드에서 정답 여부를 판단할 때 사용)
  */
 export function verifyUserAnswer(
   type: TrainingType,
@@ -111,10 +113,8 @@ export function verifyUserAnswer(
     if (Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
       if (userAnswer.length !== correctAnswer.length) return false;
       return userAnswer.every(
-        // --- [수정됨] ---
-        // correctAnswer[idx]가 undefined일 경우 빈 문자열로 처리하여 타입 오류 해결
+        // [수정됨] correctAnswer[idx]가 undefined일 경우 빈 문자열로 처리하여 타입 오류 해결
         (word, idx) => normalize(word) === normalize(correctAnswer[idx] ?? "")
-        // --- [수정 완료] ---
       );
     }
     return normalize(String(userAnswer)) === normalize(String(correctAnswer));
@@ -139,7 +139,7 @@ export async function getQuestionsByType(
   type: TrainingType,
   opts?: { level?: string | undefined; level_progress?: number | undefined }
 ): Promise<QuestionItem[]> {
-  // undefined가 될 수 없도록 기본값을 여기서 강제 할당
+  // [수정됨] undefined가 될 수 없도록 기본값("C2")을 여기서 강제 할당 (TS2345 해결)
   const level: string = typeof opts?.level === "string" ? opts.level : "C2";
 
   const level_progress: number =

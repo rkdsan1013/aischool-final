@@ -7,7 +7,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 
 import Vocabulary from "../components/Vocabulary";
 import Sentence from "../components/Sentence";
@@ -19,7 +19,6 @@ import {
   fetchTrainingQuestions,
   verifyAnswer,
 } from "../services/trainingService";
-// [신규] 프로필 업데이트를 위해 useProfile 훅 추가
 import { useProfile } from "../hooks/useProfile";
 
 type ExtendedQuestionItem = QuestionItem & {
@@ -71,7 +70,6 @@ const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // [신규] 프로필 상태 및 업데이트 함수 가져오기
   const { profile, setProfileLocal } = useProfile();
 
   const locState = isLocState(location.state)
@@ -93,7 +91,6 @@ const TrainingPage: React.FC = () => {
   );
   const [index, setIndex] = useState<number>(0);
 
-  // [신규] 정답 개수 및 이번 세션 획득 점수 상태
   const [correctCount, setCorrectCount] = useState<number>(0);
   const [sessionScore, setSessionScore] = useState<number>(0);
 
@@ -101,12 +98,16 @@ const TrainingPage: React.FC = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
   const [writingValue, setWritingValue] = useState<string>("");
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+
   const [showFeedback, setShowFeedback] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
+  const [verifying, setVerifying] = useState<boolean>(false);
 
   const [answerToShow, setAnswerToShow] = useState<string | null>(null);
   const [answerLabel, setAnswerLabel] = useState<string>("정답");
+
+  // [신규] 서버에서 인식된 텍스트를 별도로 저장 (정답/오답 무관하게 저장)
+  const [finalTranscript, setFinalTranscript] = useState<string | null>(null);
 
   const [feedbackContentHeight, setFeedbackContentHeight] = useState(
     FEEDBACK_AREA_MIN_HEIGHT
@@ -127,7 +128,6 @@ const TrainingPage: React.FC = () => {
           const data = await fetchTrainingQuestions(startType);
           setQuestions(data);
           setIndex(0);
-          // 상태 초기화
           setCorrectCount(0);
           setSessionScore(0);
         } catch (err) {
@@ -171,55 +171,95 @@ const TrainingPage: React.FC = () => {
     setSelectedAnswer(null);
     setSelectedOrder([]);
     setWritingValue("");
-    setRecordedBlob(null);
     setShowFeedback(false);
     setIsCorrect(false);
+    setVerifying(false);
     setAnswerToShow(null);
     setAnswerLabel("정답");
+    setFinalTranscript(null); // 초기화
     setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
   const handleSelect = (option: string) => {
-    if (showFeedback) return;
+    if (showFeedback || verifying) return;
     setSelectedAnswer(option);
   };
   const handlePickPart = (part: string) => {
-    if (showFeedback) return;
+    if (showFeedback || verifying) return;
     setSelectedOrder((s) => (s.includes(part) ? s : [...s, part]));
   };
   const handleRemovePart = (part: string) => {
-    if (showFeedback) return;
+    if (showFeedback || verifying) return;
     setSelectedOrder((s) => s.filter((x) => x !== part));
   };
   const handleReorder = (next: string[]) => {
-    if (showFeedback) return;
+    if (showFeedback || verifying) return;
     setSelectedOrder(next);
   };
   const handleWritingChange = (v: string) => {
-    if (showFeedback) return;
+    if (showFeedback || verifying) return;
     setWritingValue(v);
-  };
-  const handleRecordToggle = () => {
-    if (showFeedback) return;
-  };
-  const handleRecordReceived = (blob: Blob) => {
-    if (showFeedback) return;
-    setRecordedBlob(blob);
   };
 
   const arraysEqual = (a: string[], b: string[]) =>
     a.length === b.length &&
     a.every((v, i) => v.trim() === (b[i] ?? "").trim());
 
-  // --- [수정됨] 정답 확인 핸들러 ---
-  const handleCheckAnswer = async () => {
+  // Speaking 완료 핸들러
+  const handleSpeakingComplete = async (audioBlob: Blob) => {
     if (!currentQuestion) return;
 
-    // 1. 로컬 검증 (UI 즉시 반응용)
+    setVerifying(true);
+    setShowFeedback(true);
+
+    try {
+      const result = await verifyAnswer({
+        type: "speaking",
+        userAnswer: audioBlob,
+        correctAnswer: currentQuestion.correct ?? [],
+      });
+
+      setIsCorrect(result.isCorrect);
+
+      // [수정] 정답이든 오답이든 서버가 인식한 텍스트 저장
+      // 이를 Speaking 컴포넌트에 넘겨서 하이라이트 기준으로 사용
+      if (result.transcript) {
+        setFinalTranscript(result.transcript);
+      }
+
+      if (result.isCorrect) {
+        setCorrectCount((prev) => prev + 1);
+        setSessionScore((prev) => prev + result.points);
+        setAnswerToShow(null);
+
+        if (profile && (result.totalScore !== undefined || result.tier)) {
+          setProfileLocal({
+            ...profile,
+            score: result.totalScore ?? profile.score,
+            tier: result.tier ?? profile.tier,
+          });
+        }
+      } else {
+        setAnswerLabel("인식된 문장");
+        setAnswerToShow(result.transcript ?? "인식 실패");
+      }
+    } catch (err) {
+      console.error(err);
+      setAnswerLabel("오류 발생");
+      setAnswerToShow("채점 중 오류가 발생했습니다.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleCheckAnswer = async () => {
+    if (!currentQuestion || verifying) return;
+
     let localCorrect = false;
     setAnswerToShow(null);
     setAnswerLabel("정답");
-    let userAnswerForBackend: string | string[] = "";
+
+    let userAnswerForBackend: string | string[] | Blob = "";
 
     switch (currentQuestion.type) {
       case "vocabulary":
@@ -235,9 +275,7 @@ const TrainingPage: React.FC = () => {
         break;
       }
       case "speaking": {
-        userAnswerForBackend = "(audio)";
-        localCorrect = Boolean(recordedBlob);
-        break;
+        return;
       }
       case "sentence": {
         userAnswerForBackend = selectedOrder;
@@ -264,8 +302,6 @@ const TrainingPage: React.FC = () => {
           if (matchIndex > 0) {
             setAnswerLabel("이런 표현도 있어요");
             setAnswerToShow(correctList[0] ?? "");
-          } else {
-            setAnswerToShow(null);
           }
         } else {
           localCorrect = false;
@@ -278,7 +314,6 @@ const TrainingPage: React.FC = () => {
         localCorrect = false;
     }
 
-    // UI 즉시 업데이트
     setIsCorrect(Boolean(localCorrect));
     setShowFeedback(true);
 
@@ -286,7 +321,6 @@ const TrainingPage: React.FC = () => {
       setCorrectCount((prev) => prev + 1);
     }
 
-    // 2. 백엔드 검증 및 점수 획득 (비동기)
     try {
       const result = await verifyAnswer({
         type: currentQuestion.type,
@@ -296,10 +330,6 @@ const TrainingPage: React.FC = () => {
 
       if (result.isCorrect) {
         setSessionScore((prev) => prev + result.points);
-        console.log(`[Server] Correct! Earned ${result.points} points.`);
-
-        // --- [핵심 수정] 서버에서 받은 최신 점수/티어로 전역 상태 즉시 업데이트 ---
-        // 이렇게 하면 TrainingResult 페이지에서 별도의 API 호출이 필요 없습니다.
         if (profile && (result.totalScore !== undefined || result.tier)) {
           setProfileLocal({
             ...profile,
@@ -307,20 +337,11 @@ const TrainingPage: React.FC = () => {
             tier: result.tier ?? profile.tier,
           });
         }
-        // ---------------------------------------------------------------------
-      }
-
-      // (옵션) 로컬 판정과 다르면 경고 로그
-      if (localCorrect !== result.isCorrect) {
-        console.warn(
-          `[Mismatch] Local: ${localCorrect}, Server: ${result.isCorrect}`
-        );
       }
     } catch (err) {
       console.error("[Frontend] Background verification failed", err);
     }
   };
-  // --- [수정 완료] ---
 
   const handleNext = () => {
     if (!questions) return;
@@ -332,7 +353,6 @@ const TrainingPage: React.FC = () => {
     }
   };
 
-  // --- [수정됨] 학습 완료 핸들러 ---
   const handleTrainingComplete = () => {
     console.log("학습 종료. 결과 페이지로 이동");
     navigate("/training/result", {
@@ -341,11 +361,10 @@ const TrainingPage: React.FC = () => {
         correctCount: correctCount,
         totalCount: questions?.length ?? 0,
         trainingType: startType,
-        earnedScore: sessionScore, // 서버에서 받은 총 점수
+        earnedScore: sessionScore,
       },
     });
   };
-  // --- [수정 완료] ---
 
   useLayoutEffect(() => {
     if (showFeedback && feedbackContentRef.current) {
@@ -354,7 +373,13 @@ const TrainingPage: React.FC = () => {
         Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
       );
     }
-  }, [showFeedback, isCorrect, currentQuestion?.correct, answerToShow]);
+  }, [
+    showFeedback,
+    isCorrect,
+    currentQuestion?.correct,
+    answerToShow,
+    verifying,
+  ]);
 
   const footerVisualHeight = showFeedback
     ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight
@@ -371,17 +396,11 @@ const TrainingPage: React.FC = () => {
       case "writing":
         return writingValue.trim().length > 0;
       case "speaking":
-        return Boolean(recordedBlob);
+        return false;
       default:
         return selectedAnswer != null;
     }
-  }, [
-    currentQuestion,
-    selectedOrder,
-    writingValue,
-    recordedBlob,
-    selectedAnswer,
-  ]);
+  }, [currentQuestion, selectedOrder, writingValue, selectedAnswer]);
 
   if (loading) {
     return (
@@ -444,15 +463,17 @@ const TrainingPage: React.FC = () => {
             sentence={String(item.question ?? "")}
             value={writingValue}
             onChange={handleWritingChange}
-            disabled={showFeedback}
+            disabled={showFeedback || verifying}
           />
         );
       case "speaking":
         return (
           <Speaking
+            key={item.id}
             prompt={item.question}
-            onRecord={handleRecordReceived}
-            onToggleRecord={handleRecordToggle}
+            onRecord={handleSpeakingComplete}
+            // [수정] isSuccess는 제거하고, serverTranscript를 전달
+            serverTranscript={finalTranscript}
           />
         );
       default:
@@ -469,7 +490,6 @@ const TrainingPage: React.FC = () => {
       {/* Header */}
       <header className="flex-none border-b border-gray-200 bg-white">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Progress */}
           <div className="flex-1 px-3">
             <div className="mt-2">
               <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
@@ -481,7 +501,6 @@ const TrainingPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Close */}
           <button
             onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
@@ -507,7 +526,7 @@ const TrainingPage: React.FC = () => {
         )}
 
         <fieldset
-          disabled={showFeedback}
+          disabled={showFeedback || verifying}
           className="w-full flex flex-col gap-4 h-full"
         >
           {renderQuestionComponent(currentQuestion)}
@@ -533,7 +552,9 @@ const TrainingPage: React.FC = () => {
             className={`absolute bottom-0 left-0 right-0 transition-transform duration-300 ease-out ${
               showFeedback ? "translate-y-0" : "translate-y-full"
             } ${
-              isCorrect
+              verifying
+                ? "bg-gray-50 border-t border-gray-200"
+                : isCorrect
                 ? "bg-green-100 border-t border-green-200"
                 : "bg-rose-100 border-t border-rose-200"
             } rounded-t-2xl shadow-2xl`}
@@ -550,73 +571,87 @@ const TrainingPage: React.FC = () => {
             >
               {showFeedback && (
                 <>
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      isCorrect ? "bg-green-500" : "bg-rose-500"
-                    }`}
-                  >
-                    {isCorrect ? (
-                      <svg
-                        className="w-6 h-6 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="w-6 h-6 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    )}
-                  </div>
-
-                  <div className="flex-1">
-                    <div
-                      className={`text-lg font-semibold ${
-                        isCorrect ? "text-green-800" : "text-rose-800"
-                      }`}
-                    >
-                      {isCorrect ? "정답입니다!" : "아쉬워요!"}
+                  {verifying ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                      <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+                      <span className="text-gray-600 font-semibold">
+                        채점 중입니다...
+                      </span>
                     </div>
-
-                    {((!isCorrect && currentQuestion.type !== "speaking") ||
-                      (isCorrect && answerToShow)) && (
-                      <div className="mt-1">
-                        <div className="text-sm text-gray-600">
-                          {answerLabel}
-                        </div>
-                        <div className="text-base font-bold text-gray-900 mt-1">
-                          {currentQuestion.type === "writing"
-                            ? String(
-                                answerToShow ??
-                                  (Array.isArray(currentQuestion.correct)
-                                    ? currentQuestion.correct[0]
-                                    : currentQuestion.correct) ??
-                                  ""
-                              )
-                            : Array.isArray(currentQuestion.correct)
-                            ? currentQuestion.correct.join(" ")
-                            : String(currentQuestion.correct ?? "")}
-                        </div>
+                  ) : (
+                    <>
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isCorrect ? "bg-green-500" : "bg-rose-500"
+                        }`}
+                      >
+                        {isCorrect ? (
+                          <svg
+                            className="w-6 h-6 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={3}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        ) : (
+                          <svg
+                            className="w-6 h-6 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={3}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        )}
                       </div>
-                    )}
-                  </div>
+
+                      <div className="flex-1">
+                        <div
+                          className={`text-lg font-semibold ${
+                            isCorrect ? "text-green-800" : "text-rose-800"
+                          }`}
+                        >
+                          {isCorrect ? "정답입니다!" : "아쉬워요!"}
+                        </div>
+
+                        {((!isCorrect && currentQuestion.type !== "speaking") ||
+                          (isCorrect && answerToShow) ||
+                          (!isCorrect &&
+                            currentQuestion.type === "speaking")) && (
+                          <div className="mt-1">
+                            <div className="text-sm text-gray-600">
+                              {answerLabel}
+                            </div>
+                            <div className="text-base font-bold text-gray-900 mt-1 break-keep">
+                              {currentQuestion.type === "writing" ||
+                              currentQuestion.type === "speaking"
+                                ? String(
+                                    answerToShow ??
+                                      (Array.isArray(currentQuestion.correct)
+                                        ? currentQuestion.correct[0]
+                                        : currentQuestion.correct) ??
+                                      ""
+                                  )
+                                : Array.isArray(currentQuestion.correct)
+                                ? currentQuestion.correct.join(" ")
+                                : String(currentQuestion.correct ?? "")}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -639,18 +674,34 @@ const TrainingPage: React.FC = () => {
               }}
             >
               <div className="w-full px-0">
-                {!showFeedback ? (
+                {verifying ? (
+                  <button
+                    disabled
+                    className="w-full h-12 rounded-xl font-semibold text-base bg-gray-200 text-gray-400 cursor-wait flex items-center justify-center gap-2"
+                    style={{ pointerEvents: "auto" }}
+                  >
+                    채점 중...
+                  </button>
+                ) : !showFeedback ? (
                   <button
                     onClick={handleCheckAnswer}
-                    disabled={!canCheck}
+                    disabled={
+                      !canCheck ||
+                      currentQuestion.type === "speaking" ||
+                      verifying
+                    }
                     className={`w-full h-12 rounded-xl font-semibold text-base transition duration-200 ${
-                      canCheck
+                      canCheck &&
+                      currentQuestion.type !== "speaking" &&
+                      !verifying
                         ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20 active:scale-[.98]"
                         : "bg-gray-200 text-gray-400 cursor-not-allowed"
                     }`}
                     style={{ pointerEvents: "auto" }}
                   >
-                    정답 확인
+                    {currentQuestion.type === "speaking"
+                      ? "말하기를 완료하세요"
+                      : "정답 확인"}
                   </button>
                 ) : isLastQuestion ? (
                   <button

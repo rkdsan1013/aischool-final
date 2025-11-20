@@ -2,7 +2,7 @@
 import { Router } from "express";
 import {
   fetchTrainingQuestionsHandler,
-  verifyAnswerHandler, // [신규]
+  verifyAnswerHandler,
 } from "../controllers/trainingController";
 import { requireAuth } from "../middlewares/auth";
 
@@ -16,8 +16,10 @@ router.get("/:type", requireAuth, fetchTrainingQuestionsHandler);
 
 /**
  * POST /api/training/verify
- * 정답 검증
+ * 정답 검증 (최종 제출용)
  */
 router.post("/verify", requireAuth, verifyAnswerHandler);
+
+// [삭제됨] /transcribe-chunk 라우트 제거
 
 export default router;
