@@ -1,4 +1,4 @@
-// backend/src/llm/router.ts
+// backend/src/ai/router.ts
 import { Router } from "express";
 import {
   vocabularyHandler,

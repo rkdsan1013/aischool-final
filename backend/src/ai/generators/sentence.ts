@@ -1,8 +1,7 @@
-// backend/src/llm/models/sentenceModel.ts
-import { callLLM } from "../llmService";
+import { generateText } from "../text";
 
 /**
- * [수정됨] C1/C2의 최대 길이를 12개에서 15개로 현실적으로 완화
+ * CEFR 레벨별 문장 구성(순서 맞추기) 난이도 규칙
  */
 function getSentenceComplexityRule(level: string): string {
   switch (level) {
@@ -19,14 +18,11 @@ function getSentenceComplexityRule(level: string): string {
     case "B2":
       return `4. **(핵심 규칙: B2)** \`correct\` 배열의 길이는 **반드시 6~10개**여야 하며, 이 길이 안에서 관계대명사 절이나 다양한 시제를 활용해야 합니다. (길이 제한 절대 준수)`;
 
-    // C1/C2: 8-15 단어, 복잡/추상적 구조
+    // C1/C2: 8-15 단어, 복잡/추상적 구조 (15개로 완화됨)
     case "C1":
     case "C2":
     default:
-      // --- [수정됨] ---
-      // 12개 제한이 너무 짧아 모델이 규칙을 무시하므로 15개로 완화합니다.
       return `4. **(핵심 규칙: C1/C2)** \`correct\` 배열의 길이는 **반드시 8개에서 15개 사이**여야 하며, 이 길이 제한 안에서 고급 문법, 추상적 개념, 또는 관용적 표현을 포함한 복잡한 문장을 생성해야 합니다. (길이 제한을 절대 초과하지 마세요.)`;
-    // --- [수정 완료] ---
   }
 }
 
@@ -36,7 +32,7 @@ function getSentenceComplexityRule(level: string): string {
  */
 export async function generateSentenceQuestionsRaw(
   level: string = "C2",
-  level_progress: number = 50 // 파라미터는 받지만, 프롬프트에서 의도적으로 무시
+  level_progress: number = 50
 ): Promise<string> {
   const allowedLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
   const normalizedLevel = allowedLevels.includes(String(level).toUpperCase())
@@ -70,17 +66,14 @@ export async function generateSentenceQuestionsRaw(
     `10. JSON 구조: {"question": "...", "options": ["오답1", "오답2"], "correct": ["정답1", "정답2", "..."]}`,
   ].join("\n");
 
-  console.log("[SENTENCE MODEL] Full prompt:\n", prompt);
+  console.log("[SENTENCE GEN] Prompt generated.");
 
-  const res = await callLLM({
+  const res = await generateText({
     prompt,
-    model: "gpt-5.1", // 상위 모델
+    model: "gpt-5.1",
     maxTokens: 2000,
-    temperature: 0.7, // 다양한 문제 생성
+    temperature: 0.7,
   });
 
-  const rawOutput = String(res.text ?? "");
-  console.log("[SENTENCE MODEL] Full raw output:\n", rawOutput);
-
-  return rawOutput;
+  return res.text;
 }

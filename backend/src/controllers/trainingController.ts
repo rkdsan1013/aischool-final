@@ -8,7 +8,7 @@ import {
 } from "../services/trainingService";
 import { calculatePoints } from "../utils/gamification";
 import { updateUserScoreAndTier } from "../models/trainingModel";
-import { verifySpeakingWithAudio } from "../llm/models/speakingModel";
+import { verifySpeakingWithAudio } from "../ai/generators/speaking";
 import { normalizeForCompare } from "../utils/normalization"; // [추가]
 
 function isValidTrainingType(type: string): type is TrainingType {

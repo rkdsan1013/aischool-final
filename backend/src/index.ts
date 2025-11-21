@@ -7,7 +7,7 @@ import authRouter from "./routes/authRouter";
 import userRouter from "./routes/userRouter";
 import trainingRouter from "./routes/trainingRouter";
 import aiTalkRoutes from "./routes/aiTalkRouter";
-import llmRouter from "./llm/router";
+import llmRouter from "./ai/router";
 
 dotenv.config();
 

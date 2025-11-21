@@ -1,5 +1,4 @@
-// backend/src/llm/models/writingModel.ts
-import { callLLM } from "../llmService";
+import { generateText } from "../text";
 
 /**
  * generateWritingQuestionsRaw
@@ -39,19 +38,14 @@ export async function generateWritingQuestionsRaw(
     `8. JSON 구조: {"question": "한국어 문장", "correct": ["English sentence 1", "English sentence 2"]}`,
   ].join("\n");
 
-  console.log("[WRITING MODEL] Full prompt:\n", prompt);
+  console.log("[WRITING GEN] Prompt generated.");
 
-  const res = await callLLM({
+  const res = await generateText({
     prompt,
     model: "gpt-5.1",
     maxTokens: 2000,
     temperature: 0.7,
   });
 
-  const rawOutput = String(res.text ?? "");
-  console.log("[WRITING MODEL] Full raw output:\n", rawOutput);
-
-  return rawOutput;
+  return res.text;
 }
-
-// [삭제됨] checkWritingAnswer 함수

@@ -1,21 +1,21 @@
-// backend/src/llm/llmService.ts
+// backend/src/ai/text.ts
 import { sendChat } from "./client";
 
-export interface LLMResponse {
+export interface TextGenResponse {
   text: string;
   raw?: unknown;
 }
 
 /**
- * callLLM: 공통 래퍼
+ * 텍스트 생성 공통 함수 (구 callLLM)
  */
-export async function callLLM(params: {
+export async function generateText(params: {
   prompt: string;
-  model?: string | undefined;
-  maxTokens?: number | undefined;
-  temperature?: number | undefined;
-  system?: string; // 시스템 프롬프트 오버라이드 허용
-}): Promise<LLMResponse> {
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
+  system?: string;
+}): Promise<TextGenResponse> {
   const systemMsg =
     params.system ||
     `You are a helpful assistant. When asked to produce JSON, output only valid JSON with no extra text.`;
@@ -34,22 +34,20 @@ export async function callLLM(params: {
 
     return { text: res.text, raw: res.raw };
   } catch (err) {
-    console.error("[LLM SERVICE] callLLM error:", err);
+    console.error("[AI Text] Generation error:", err);
     throw err;
   }
 }
 
 /**
- * JSON 파싱 헬퍼 (Markdown 코드블록 제거)
- * -> 다른 모델 파일에서도 쓰기 위해 export 추가
+ * JSON 파싱 헬퍼
  */
 export function parseJSON<T>(text: string): T {
   try {
-    // ```json ... ``` 패턴 제거
     const cleaned = text.replace(/```json\s?|```/g, "").trim();
     return JSON.parse(cleaned);
   } catch (e) {
-    console.error("JSON Parse Error:", text);
+    console.error("JSON Parse Error. Input text:", text);
     throw new Error("AI response is not valid JSON");
   }
 }

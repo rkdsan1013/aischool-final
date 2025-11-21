@@ -1,9 +1,13 @@
 // backend/src/services/aiTalkService.ts
 import { aiTalkModel } from "../models/aiTalkModel";
-import { aiTalkLLM } from "../llm/models/aiTalkModel";
+// [수정] 리팩토링된 생성 함수들을 import
+import {
+  generateTalkOpening,
+  generateTalkResponse,
+} from "../ai/generators/talk";
 
 export const aiTalkService = {
-  // --- 시나리오 CRUD ---
+  // --- 시나리오 CRUD (기존 유지) ---
   getScenarios: async (userId: number) => {
     return await aiTalkModel.getScenarios(userId);
   },
@@ -46,7 +50,8 @@ export const aiTalkService = {
     // ✅ AI의 첫 마디 생성 (LLM 호출)
     let openingText = "";
     try {
-      openingText = await aiTalkLLM.generateOpening(scenario.context);
+      // [수정] 함수 호출 방식 변경
+      openingText = await generateTalkOpening(scenario.context);
     } catch (e) {
       console.error("LLM Opening Error:", e);
       openingText = "Hello! I'm ready to talk. (System Error)";
@@ -78,10 +83,9 @@ export const aiTalkService = {
       content
     );
 
-    // 2. 시나리오 Context 조회 (실제로는 세션 테이블 조인 필요, 여기선 임시 처리)
-    // 성능을 위해 세션 시작시 Context를 캐싱하거나, 여기서 DB 조회를 한 번 더 해야 함.
-    // 여기서는 쿼리가 복잡해지므로 간소화를 위해 하드코딩된 fallback 혹은 DB 조회 로직 추가 필요.
-    // (아래는 DB 모델에 getScenarioBySessionId가 있다고 가정하거나, 임시 컨텍스트 사용)
+    // 2. 시나리오 Context 조회
+    // TODO: 실제로는 세션 ID를 통해 DB에서 해당 시나리오의 context를 가져와야 합니다.
+    // 현재는 임시 하드코딩 상태입니다.
     const context = "You are a helpful English tutor.";
 
     // ✅ LLM 호출 (응답 + 피드백)
@@ -89,10 +93,8 @@ export const aiTalkService = {
     let feedback = null;
 
     try {
-      const llmResult = await aiTalkLLM.generateResponseAndFeedback(
-        context,
-        content
-      );
+      // [수정] 함수 호출 방식 변경
+      const llmResult = await generateTalkResponse(context, content);
       reply = llmResult.reply;
       feedback = llmResult.feedback;
     } catch (e) {
