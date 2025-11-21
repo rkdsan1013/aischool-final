@@ -249,7 +249,7 @@ const TrainingPage: React.FC = () => {
     }
   };
 
-  // 정답 확인 핸들러 (핵심 수정 부분)
+  // 정답 확인 핸들러
   const handleCheckAnswer = async () => {
     if (!currentQuestion || verifying) return;
 
@@ -278,6 +278,12 @@ const TrainingPage: React.FC = () => {
       setIsCorrect(localCorrect);
       if (localCorrect) setCorrectCount((prev) => prev + 1);
       setShowFeedback(true);
+
+      // [수정] 오답일 경우 정답 텍스트 설정
+      if (!localCorrect) {
+        const correct = currentQuestion.correct;
+        setAnswerToShow(Array.isArray(correct) ? correct[0] : correct ?? "");
+      }
     } else if (currentQuestion.type === "sentence") {
       userAnswerForBackend = selectedOrder;
       if (Array.isArray(currentQuestion.correct)) {
@@ -289,6 +295,16 @@ const TrainingPage: React.FC = () => {
       setIsCorrect(localCorrect);
       if (localCorrect) setCorrectCount((prev) => prev + 1);
       setShowFeedback(true);
+
+      // [수정] Sentence 오답 시 전체 문장 보여주기
+      if (!localCorrect) {
+        const correct = currentQuestion.correct;
+        if (Array.isArray(correct)) {
+          setAnswerToShow(correct.join(" ")); // 배열이면 공백으로 합침
+        } else {
+          setAnswerToShow(correct ?? "");
+        }
+      }
     } else if (currentQuestion.type === "writing") {
       userAnswerForBackend = writingValue;
       // Writing은 로컬 채점 건너뛰고 바로 Loading 상태로 진입
@@ -305,7 +321,7 @@ const TrainingPage: React.FC = () => {
         extra: { questionText: currentQuestion.question }, // [추가] Writing 검증용
       });
 
-      // 3. 결과 처리
+      // 3. 결과 처리 (Writing만 서버 결과 사용, 나머지는 로컬 결과 유지)
       if (currentQuestion.type === "writing") {
         const serverCorrect = result.isCorrect;
         setIsCorrect(serverCorrect);
@@ -314,7 +330,6 @@ const TrainingPage: React.FC = () => {
           setCorrectCount((prev) => prev + 1);
           setSessionScore((prev) => prev + result.points);
 
-          // [핵심 로직] 정답이지만, 의도한 정답(Best Answer)과 표현이 다르면 알려주기
           const intended = Array.isArray(currentQuestion.correct)
             ? currentQuestion.correct[0]
             : currentQuestion.correct;
@@ -322,16 +337,13 @@ const TrainingPage: React.FC = () => {
           const normUser = normalizeForCompare(writingValue);
           const normIntended = normalizeForCompare(intended || "");
 
-          // 사용자가 맞았지만 의도한 정답과 텍스트가 다를 때
           if (intended && normUser !== normIntended) {
             setAnswerLabel("이런 표현도 있어요");
             setAnswerToShow(intended);
           } else {
-            // 완벽히 일치하면 추가 텍스트 없음
             setAnswerToShow(null);
           }
         } else {
-          // 오답인 경우 의도한 정답 보여주기
           setAnswerLabel("정답");
           setAnswerToShow(
             Array.isArray(currentQuestion.correct)
@@ -340,7 +352,7 @@ const TrainingPage: React.FC = () => {
           );
         }
       } else {
-        // Writing 외 타입: 점수 업데이트 (UI는 이미 반영됨)
+        // Writing 외 타입: 점수 업데이트
         if (result.isCorrect) {
           setSessionScore((prev) => prev + result.points);
         }
@@ -463,6 +475,10 @@ const TrainingPage: React.FC = () => {
             options={stableOptions}
             selected={selectedAnswer}
             onSelect={handleSelect}
+            correctAnswer={
+              Array.isArray(item.correct) ? item.correct[0] : item.correct ?? ""
+            }
+            showFeedback={showFeedback}
           />
         );
       case "sentence":
@@ -474,6 +490,9 @@ const TrainingPage: React.FC = () => {
             onPick={handlePickPart}
             onRemove={handleRemovePart}
             onReorder={handleReorder}
+            // [추가] 정답 여부 및 피드백 모드 전달
+            showFeedback={showFeedback}
+            isCorrect={isCorrect}
           />
         );
       case "blank":
@@ -483,6 +502,11 @@ const TrainingPage: React.FC = () => {
             options={stableOptions}
             selected={selectedAnswer}
             onSelect={handleSelect}
+            // [추가] 정답 및 피드백 모드 전달
+            correctAnswer={
+              Array.isArray(item.correct) ? item.correct[0] : item.correct ?? ""
+            }
+            showFeedback={showFeedback}
           />
         );
       case "writing":
@@ -652,9 +676,8 @@ const TrainingPage: React.FC = () => {
                           {isCorrect ? "정답입니다!" : "아쉬워요!"}
                         </div>
 
-                        {/* 피드백 텍스트 (정답표시 or 이런표현도있어요) */}
                         {((!isCorrect && currentQuestion.type !== "speaking") ||
-                          (isCorrect && answerToShow) || // 정답이지만 "이런 표현도 있어요" 보여줄 때
+                          (isCorrect && answerToShow) ||
                           (!isCorrect &&
                             currentQuestion.type === "speaking")) && (
                           <div className="mt-1">

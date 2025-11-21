@@ -359,7 +359,8 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
           <Volume2 className="w-6 h-6" />
         </button>
 
-        <div className="text-center text-2xl sm:text-3xl font-semibold text-gray-800 leading-relaxed flex flex-wrap justify-center gap-x-2 pt-6">
+        {/* [수정] justify-center -> justify-start, text-center -> text-left, w-full 추가 */}
+        <div className="w-full text-left text-2xl sm:text-3xl font-semibold text-gray-800 leading-relaxed flex flex-wrap justify-start gap-x-2 pt-6">
           {promptWords.map((word, i) => {
             const isMatched = matchStatuses[i];
 
