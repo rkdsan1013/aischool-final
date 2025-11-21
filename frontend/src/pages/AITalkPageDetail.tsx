@@ -1,3 +1,4 @@
+// frontend/src/pages/AITalkPageDetail.tsx
 import React, {
   useCallback,
   useEffect,
@@ -6,14 +7,12 @@ import React, {
   useMemo,
 } from "react";
 import { Mic, Volume2, Languages, AlertCircle } from "lucide-react";
-// ✅ useLocation과 useNavigate를 import하여 state를 읽고 목록으로 복귀
 import { useLocation, useNavigate } from "react-router-dom";
 import FloatingFeedbackCard, {
   type FeedbackPayload,
   type ErrorType,
 } from "../components/FloatingFeedbackCard";
 
-// ✅ [수정] ErrorType을 명시적으로 사용하여 타입 오류 해결
 type DummyErrorInput = {
   index?: number;
   word?: string;
@@ -88,7 +87,7 @@ const STATIC_SCENARIOS = {
   },
 };
 
-// ✅ [수정] feedbackErrors: type 캐스팅 및 word null 처리로 타입 오류 해결
+// ✅ [수정] 모든 에러 타입(Word, Grammar, Spelling, Style)을 포함한 더미 데이터 생성
 function buildDummyMessages(initial: string): Message[] {
   const feedbackErrors = (errors: DummyErrorInput[]) =>
     errors.map((e) => ({
@@ -99,7 +98,10 @@ function buildDummyMessages(initial: string): Message[] {
   const now = () => new Date();
 
   return [
+    // 0. AI 인사말
     { id: "ai-0", role: "ai", content: initial, timestamp: now() },
+
+    // 1. Word Error (비표준/단어 선택) - 파란색 밑줄
     {
       id: "user-1",
       role: "user",
@@ -111,13 +113,14 @@ function buildDummyMessages(initial: string): Message[] {
             index: 1,
             word: "ain't",
             type: "word" as ErrorType,
-            message: "비표준적이고 구어체적인 표현",
+            message: "비표준적이고 구어체적인 표현입니다.",
           },
         ]),
         explanation: "공식적 맥락에서는 'isn't' 또는 'is not'을 사용합니다.",
         suggestion: "He isn't coming to the meeting.",
       },
     },
+
     {
       id: "ai-1",
       role: "ai",
@@ -125,6 +128,8 @@ function buildDummyMessages(initial: string): Message[] {
         "Thanks for letting me know. Is there a reason he can't make it?",
       timestamp: now(),
     },
+
+    // 2. Grammar Error (문법) - 보라색 점선 밑줄
     {
       id: "user-2",
       role: "user",
@@ -136,47 +141,69 @@ function buildDummyMessages(initial: string): Message[] {
             index: 1,
             word: "go",
             type: "grammar" as ErrorType,
-            message: "주어 'She'에 맞게 현재형 동사에 -s 필요",
+            message: "주어 'She'에 맞게 현재형 동사에 -s가 필요합니다.",
           },
         ]),
         explanation: "3인칭 단수 주어에는 현재형 동사에 -s를 붙입니다.",
         suggestion: "She goes to the office every day.",
       },
     },
+
     {
       id: "ai-2",
       role: "ai",
       content: "Got it. What does she usually do there?",
       timestamp: now(),
     },
+
+    // 3. Spelling Error (철자) - 주황색 물결 밑줄
     {
       id: "user-3",
       role: "user",
-      content: "I didn't receive the email yet.",
+      content: "I didn't recieve the email yet.",
       timestamp: now(),
       feedback: {
         errors: feedbackErrors([
           {
             index: 3,
-            word: "receive",
+            word: "recieve",
             type: "spelling" as ErrorType,
-            message: "'receive'로 철자 수정 필요",
+            message: "'receive' 철자가 틀렸습니다.",
           },
         ]),
-        explanation: "'receive'가 올바른 철자입니다.",
+        explanation: "'receive'는 'ei' 순서로 적어야 합니다.",
         suggestion: "I didn't receive the email yet.",
+      },
+    },
+
+    {
+      id: "ai-3",
+      role: "ai",
+      content: "I'll check the server logs. Anything else?",
+      timestamp: now(),
+    },
+
+    // 4. Style Error (스타일/뉘앙스) - 메시지 전체 노란색 배경 + 경고 아이콘
+    {
+      id: "user-4",
+      role: "user",
+      content: "Give me the report right now.",
+      timestamp: now(),
+      feedback: {
+        errors: feedbackErrors([
+          {
+            type: "style" as ErrorType,
+            message: "너무 직설적이고 무례하게 들릴 수 있습니다.",
+            // Style 에러는 특정 단어 인덱스가 없어도 됨
+          },
+        ]),
+        explanation:
+          "비즈니스 상황에서는 좀 더 정중한 표현을 사용하는 것이 좋습니다.",
+        suggestion: "Could you please send me the report?",
       },
     },
   ];
 }
-
-// Props 정의를 비활성화합니다. 라우터 State에서 정보를 가져옵니다.
-/*
-type Props = {
-  scenarioId: number;
-  onBack: () => void;
-};
-*/
 
 // --- 유틸리티 함수들 (변화 없음) ---
 function tokenizeWithIndices(text: string): { token: string; index: number }[] {
@@ -207,13 +234,10 @@ const LAST_MESSAGE_SPACING = 16;
 const TOOLTIP_GAP_BELOW = 12;
 const TOOLTIP_GAP_ABOVE = 6;
 
-// ✅ [수정] Props 제거
 const AITalkPageDetail: React.FC = () => {
-  // 라우터 훅을 사용하여 State에서 데이터를 가져옵니다.
   const location = useLocation();
   const navigate = useNavigate();
 
-  // URL State에서 scenarioId 추출
   const scenarioId = location.state?.scenarioId as number | undefined;
 
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -224,7 +248,6 @@ const AITalkPageDetail: React.FC = () => {
 
   const [isRecording, setIsRecording] = useState(false);
 
-  // 툴팁 관련 상태 (이전과 동일)
   const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
     null
   );
@@ -240,25 +263,19 @@ const AITalkPageDetail: React.FC = () => {
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isMobile = isMobileUA();
 
-  // ✅ [수정] 데이터 로드 로직: scenarioId를 문자열 키로 변환하여 접근
   useEffect(() => {
-    // scenarioId가 없으면 목록으로 복귀
     if (!scenarioId) {
       navigate("/ai-talk", { replace: true });
       return;
     }
 
-    // 1. scenarioId(number)를 string으로 변환하여 객체 접근
     const scenarioKey = String(scenarioId) as keyof typeof STATIC_SCENARIOS;
-
-    // 2. 안전한 접근 (키가 없으면 기본값인 1번(자유 대화) 사용)
     const scenario = STATIC_SCENARIOS[scenarioKey] || STATIC_SCENARIOS["1"];
 
     setScenarioTitle(scenario.title);
     setMessages(buildDummyMessages(scenario.initialMessage));
   }, [scenarioId, navigate]);
 
-  // 자동 스크롤
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -270,10 +287,8 @@ const AITalkPageDetail: React.FC = () => {
     }, 100);
   }, [messages]);
 
-  // --- 메시지 전송 로직 (더미) ---
   const toggleRecording = () => {
     if (isRecording) {
-      // 녹음 중지 시 더미 응답 추가
       setMessages((prev) => [
         ...prev,
         {
@@ -295,12 +310,10 @@ const AITalkPageDetail: React.FC = () => {
     }
   };
 
-  // ✅ [수정] 대화 종료 버튼 핸들러: 목록 페이지로 복귀
   const handleEndConversation = () => {
     navigate("/ai-talk");
   };
 
-  // --- UI 헬퍼 함수들 (이전과 동일) ---
   const playAIVoice = (text: string) =>
     console.log("[v0] Playing AI voice:", text);
   const translateText = (text: string) =>
@@ -447,7 +460,7 @@ const AITalkPageDetail: React.FC = () => {
           <div className="flex items-center">
             <button
               type="button"
-              onClick={handleEndConversation} // ✅ 수정된 함수 사용
+              onClick={handleEndConversation}
               className="ml-3 inline-flex items-center gap-2 rounded-md bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium hover:bg-rose-100 shadow-sm"
             >
               대화 종료
