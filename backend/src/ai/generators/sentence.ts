@@ -1,3 +1,4 @@
+// backend/src/ai/generators/sentence.ts
 import { generateText } from "../text";
 
 /**
