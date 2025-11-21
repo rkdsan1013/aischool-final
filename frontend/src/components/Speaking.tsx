@@ -100,7 +100,7 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasSpokenRef = useRef(false);
 
-  // [신규] 컴포넌트 언마운트 시(페이지 이동 시) TTS 중단
+  // 컴포넌트 언마운트 시 TTS 중단
   useEffect(() => {
     return () => {
       window.speechSynthesis.cancel();
@@ -113,7 +113,6 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
     setIsRecording(false);
     hasSpokenRef.current = false;
 
-    // 페이지 이동이 아니더라도 문제가 바뀌면 TTS 중단
     window.speechSynthesis.cancel();
 
     if (
@@ -140,19 +139,26 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
     return normalized.split(" ").filter((s) => s !== "");
   }, [transcript, serverTranscript]);
 
+  // [수정됨] 순차적 매칭 로직 (Sequential Matching Logic)
   const matchStatuses = useMemo(() => {
-    const availableWords = [...spokenWords];
+    // 현재까지 매칭된 spokenWords의 인덱스 위치를 추적합니다.
+    let currentSpokenIndex = 0;
 
     return promptWords.map((word) => {
+      // I'm -> ["i", "am"] 처럼 분리될 수 있음
       const normTargetParts = normalizeText(word).split(" ");
 
+      let tempIndex = currentSpokenIndex;
       let allPartsFound = true;
-      const tempAvailable = [...availableWords];
 
+      // 분리된 단어 파트들이 '순서대로' 존재하는지 확인
       for (const part of normTargetParts) {
-        const idx = tempAvailable.indexOf(part);
-        if (idx !== -1) {
-          tempAvailable.splice(idx, 1);
+        // tempIndex(이전 단어가 찾은 위치) 이후부터 검색
+        const foundIndex = spokenWords.indexOf(part, tempIndex);
+
+        if (foundIndex !== -1) {
+          // 찾았으면 다음 파트는 그 뒤에서부터 찾도록 인덱스 업데이트
+          tempIndex = foundIndex + 1;
         } else {
           allPartsFound = false;
           break;
@@ -160,13 +166,13 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
       }
 
       if (allPartsFound) {
-        for (const part of normTargetParts) {
-          const idx = availableWords.indexOf(part);
-          if (idx !== -1) availableWords.splice(idx, 1);
-        }
+        // 해당 단어(혹은 구)가 순서대로 발견되었다면,
+        // 다음 promptWord는 이 단어가 끝난 지점 이후부터 찾도록 main 포인터 업데이트
+        currentSpokenIndex = tempIndex;
         return true;
       }
 
+      // 찾지 못했으면 currentSpokenIndex를 업데이트하지 않음 (건너뛰고 다음 단어 매칭 시도 가능)
       return false;
     });
   }, [promptWords, spokenWords]);
@@ -217,7 +223,6 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
 
   const startRecording = useCallback(async () => {
     try {
-      // 녹음 시작 시 TTS 중단
       window.speechSynthesis.cancel();
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -327,7 +332,6 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
   ]);
 
   const playTTS = () => {
-    // 기존 재생 중인 것 취소 후 재생
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(prompt);
     u.lang = "en-US";
@@ -345,7 +349,6 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
       </div>
 
       <div className="bg-gray-50 border border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[200px] relative">
-        {/* [수정] 녹음 중(isRecording)일 때 버튼 비활성화 및 스타일 변경 */}
         <button
           onClick={playTTS}
           disabled={isRecording}
@@ -359,7 +362,6 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
           <Volume2 className="w-6 h-6" />
         </button>
 
-        {/* [수정] justify-center -> justify-start, text-center -> text-left, w-full 추가 */}
         <div className="w-full text-left text-2xl sm:text-3xl font-semibold text-gray-800 leading-relaxed flex flex-wrap justify-start gap-x-2 pt-6">
           {promptWords.map((word, i) => {
             const isMatched = matchStatuses[i];
@@ -377,11 +379,9 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
           })}
         </div>
 
-        <div className="mt-6 text-sm font-medium text-gray-500 h-6 flex items-center gap-2 justify-center">
+        <div className="w-full mt-6 text-sm font-medium text-gray-500 h-6 flex items-center gap-2 justify-center">
           {isRecording && <Loader2 className="w-3 h-3 animate-spin" />}
-          {serverTranscript ||
-            transcript ||
-            (isRecording ? "듣고 있습니다..." : "대기 중")}
+          {isRecording ? "듣고 있습니다..." : "대기 중"}
         </div>
       </div>
 

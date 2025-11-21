@@ -1,4 +1,4 @@
-/* cspell:disable */
+// backend/src/ai/generators/talk.ts
 import { generateText, parseJSON } from "../text";
 
 /**

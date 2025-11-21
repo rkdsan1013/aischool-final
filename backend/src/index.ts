@@ -1,4 +1,3 @@
-// backend/src/index.ts
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -7,7 +6,7 @@ import authRouter from "./routes/authRouter";
 import userRouter from "./routes/userRouter";
 import trainingRouter from "./routes/trainingRouter";
 import aiTalkRoutes from "./routes/aiTalkRouter";
-import llmRouter from "./ai/router";
+import aiRouter from "./ai/router";
 
 dotenv.config();
 
@@ -35,7 +34,7 @@ app.use("/api/user", userRouter);
 app.use("/api/training", trainingRouter);
 app.use("/api/ai-talk", aiTalkRoutes);
 
-app.use("/api/llm", llmRouter);
+// app.use("/api/ai", aiRouter);
 
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => {
