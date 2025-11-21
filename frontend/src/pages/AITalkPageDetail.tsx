@@ -1,4 +1,3 @@
-// frontend/src/pages/AITalkPageDetail.tsx
 import React, {
   useCallback,
   useEffect,
@@ -87,7 +86,7 @@ const STATIC_SCENARIOS = {
   },
 };
 
-// ✅ [수정] 모든 에러 타입(Word, Grammar, Spelling, Style)을 포함한 더미 데이터 생성
+// ✅ 모든 에러 타입(Word, Grammar, Spelling, Style)을 포함한 더미 데이터
 function buildDummyMessages(initial: string): Message[] {
   const feedbackErrors = (errors: DummyErrorInput[]) =>
     errors.map((e) => ({
@@ -101,7 +100,7 @@ function buildDummyMessages(initial: string): Message[] {
     // 0. AI 인사말
     { id: "ai-0", role: "ai", content: initial, timestamp: now() },
 
-    // 1. Word Error (비표준/단어 선택) - 파란색 밑줄
+    // 1. Word Error (비표준/단어 선택)
     {
       id: "user-1",
       role: "user",
@@ -129,7 +128,7 @@ function buildDummyMessages(initial: string): Message[] {
       timestamp: now(),
     },
 
-    // 2. Grammar Error (문법) - 보라색 점선 밑줄
+    // 2. Grammar Error (문법)
     {
       id: "user-2",
       role: "user",
@@ -156,7 +155,7 @@ function buildDummyMessages(initial: string): Message[] {
       timestamp: now(),
     },
 
-    // 3. Spelling Error (철자) - 주황색 물결 밑줄
+    // 3. Spelling Error (철자)
     {
       id: "user-3",
       role: "user",
@@ -183,7 +182,7 @@ function buildDummyMessages(initial: string): Message[] {
       timestamp: now(),
     },
 
-    // 4. Style Error (스타일/뉘앙스) - 메시지 전체 노란색 배경 + 경고 아이콘
+    // 4. Style Error (스타일/뉘앙스)
     {
       id: "user-4",
       role: "user",
@@ -194,7 +193,6 @@ function buildDummyMessages(initial: string): Message[] {
           {
             type: "style" as ErrorType,
             message: "너무 직설적이고 무례하게 들릴 수 있습니다.",
-            // Style 에러는 특정 단어 인덱스가 없어도 됨
           },
         ]),
         explanation:
@@ -205,7 +203,7 @@ function buildDummyMessages(initial: string): Message[] {
   ];
 }
 
-// --- 유틸리티 함수들 (변화 없음) ---
+// --- 유틸리티 함수들 ---
 function tokenizeWithIndices(text: string): { token: string; index: number }[] {
   const parts = text.split(/(\s+)/);
   const tokens: { token: string; index: number }[] = [];
@@ -370,20 +368,20 @@ const AITalkPageDetail: React.FC = () => {
     let top: number;
 
     if (spaceBelow >= estimatedCardHeight + TOOLTIP_GAP_BELOW) {
+      // 아래 공간 충분
       top = rect.bottom + TOOLTIP_GAP_BELOW;
       preferAbove = false;
     } else if (spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE) {
-      top = rect.top - estimatedCardHeight - TOOLTIP_GAP_ABOVE;
+      // 위 공간 충분
       preferAbove = true;
+      // ✅ [수정] 말풍선 바로 위 좌표를 기준점으로 잡습니다.
+      // (estimatedCardHeight를 빼지 않고, CSS transform으로 처리)
+      top = rect.top - TOOLTIP_GAP_ABOVE;
     } else {
       preferAbove = spaceAbove >= spaceBelow;
       if (preferAbove) {
-        top = Math.max(
-          8,
-          rect.top -
-            Math.min(estimatedCardHeight, spaceAbove) -
-            TOOLTIP_GAP_ABOVE
-        );
+        // ✅ [수정] 공간 부족해도 위쪽 선호 시 기준점 동일하게 잡음
+        top = rect.top - TOOLTIP_GAP_ABOVE;
       } else {
         const maxAllowedTop = Math.max(
           8,
@@ -646,6 +644,8 @@ const AITalkPageDetail: React.FC = () => {
         mobile={isMobile}
         feedback={messages.find((mm) => mm.id === activeTooltipMsgId)?.feedback}
         activeWordIndexes={activeTooltipWordIndexes}
+        // ✅ [추가] 위쪽 배치 여부 전달
+        isAbove={cardPos.preferAbove}
       />
 
       <style>
