@@ -5,7 +5,7 @@ import { ChevronDown, X } from "lucide-react";
 
 type FormState = {
   name: string;
-  topic: string;
+  description: string;
   maxParticipants: string;
   level: string;
 };
@@ -22,7 +22,7 @@ function useAuth() {
 /**
  * CustomDropdown
  * - 디자인 유지
- * - 항상 위로 열리도록(openUpwards forced true)
+ * - openUpwards prop으로 위/아래 열기 제어 (기본: false -> 아래로 열림)
  * - fade + scale 애니메이션
  * - 키보드 접근성 지원
  * - 외부 클릭/ESC 닫기
@@ -34,7 +34,15 @@ const CustomDropdown: React.FC<{
   options: { value: string; label: string }[];
   id?: string;
   label?: React.ReactNode;
-}> = ({ value, onChange, options, id, label }) => {
+  openUpwards?: boolean;
+}> = ({
+  value,
+  onChange,
+  options,
+  id,
+  label,
+  openUpwards: propOpenUpwards,
+}) => {
   const uid = id ?? `cd-${Math.random().toString(36).slice(2, 9)}`;
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -142,8 +150,8 @@ const CustomDropdown: React.FC<{
     btnRef.current?.focus();
   };
 
-  // Force dropdown to open upwards for both instances
-  const openUpwards = true;
+  // 기본값: 아래로 열림(false). prop으로 제어 가능.
+  const openUpwards = propOpenUpwards ?? false;
 
   return (
     <div className="relative inline-block w-full">
@@ -227,9 +235,9 @@ const VoiceRoomCreate: React.FC = () => {
 
   const [formData, setFormData] = useState<FormState>({
     name: "",
-    topic: "",
+    description: "",
     maxParticipants: "8",
-    level: "전체",
+    level: "A1",
   });
 
   useEffect(() => {
@@ -250,21 +258,13 @@ const VoiceRoomCreate: React.FC = () => {
     navigate("/voiceroom");
   };
 
-  const maxOptions = [
-    { value: "4", label: "4명" },
-    { value: "6", label: "6명" },
-    { value: "8", label: "8명" },
-    { value: "10", label: "10명" },
-    { value: "12", label: "12명" },
-  ];
-
   const levelOptions = [
-    { value: "전체", label: "전체" },
-    { value: "A1-A2", label: "A1-A2 (초급)" },
-    { value: "A2-B1", label: "A2-B1 (초중급)" },
-    { value: "B1-B2", label: "B1-B2 (중급)" },
-    { value: "B2-C1", label: "B2-C1 (중고급)" },
-    { value: "C1-C2", label: "C1-C2 (고급)" },
+    { value: "A1", label: "A1" },
+    { value: "A2", label: "A2" },
+    { value: "B1", label: "B1" },
+    { value: "B2", label: "B2" },
+    { value: "C1", label: "C1" },
+    { value: "C2", label: "C2" },
   ];
 
   return (
@@ -325,41 +325,53 @@ const VoiceRoomCreate: React.FC = () => {
 
               <div className="space-y-2">
                 <label
-                  htmlFor="topic"
+                  htmlFor="description"
                   className="block text-sm font-medium text-gray-900"
                 >
-                  주제
+                  방 설명
                 </label>
                 <input
-                  id="topic"
-                  name="topic"
+                  id="description"
+                  name="description"
                   placeholder="예: 일상 대화 연습"
-                  value={formData.topic}
+                  value={formData.description}
                   onChange={(e) =>
-                    setFormData({ ...formData, topic: e.target.value })
+                    setFormData({ ...formData, description: e.target.value })
                   }
                   required
                   className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                 />
               </div>
 
+              {/* 최대 참여 인원 먼저 배치 (숫자 입력) */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-900">
+                <label
+                  htmlFor="maxParticipants"
+                  className="block text-sm font-medium text-gray-900"
+                >
                   최대 참여 인원
                 </label>
                 <div className="mt-1">
-                  <CustomDropdown
+                  <input
                     id="maxParticipants"
+                    name="maxParticipants"
+                    type="number"
+                    min={1}
+                    max={100}
                     value={formData.maxParticipants}
-                    onChange={(v) =>
-                      setFormData((p) => ({ ...p, maxParticipants: v }))
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        maxParticipants: e.target.value,
+                      }))
                     }
-                    options={maxOptions}
-                    label={null}
+                    required
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
                   />
                 </div>
               </div>
 
+              {/* 권장 레벨은 최대 참여 인원 아래에 배치하고 드롭다운 유지 (아래로 열림) */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-900">
                   권장 레벨
@@ -371,6 +383,7 @@ const VoiceRoomCreate: React.FC = () => {
                     onChange={(v) => setFormData((p) => ({ ...p, level: v }))}
                     options={levelOptions}
                     label={null}
+                    /* openUpwards 기본값(false) -> 아래로 열림 */
                   />
                 </div>
               </div>
