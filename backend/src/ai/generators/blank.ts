@@ -1,14 +1,8 @@
-// backend/src/llm/models/blankModel.ts
-import { callLLM } from "../llmService";
+import { generateText } from "../text";
 
 /**
  * getBlankDifficultyRule
  * CEFR 수준에 따라 빈칸 문제의 난이도와 정답/오답 규칙을 반환
- *
- * 변경 요지:
- * - "수능식·과도하게 꼬인" 표현을 피하도록 명확히 지시
- * - 실제 사용 빈도 높은 자연스러운 문장 우선
- * - 오답은 '완전한 오답'이 아닌 현실적인 혼동 후보(시제/형태/전치사/어법)로 구성
  */
 function getBlankDifficultyRule(level: string): string {
   switch (level) {
@@ -29,13 +23,6 @@ function getBlankDifficultyRule(level: string): string {
 /**
  * generateBlankQuestionsRaw
  * 'blank' 유형(빈칸 채우기) 문제 10개 생성
- *
- * 반환: LLM이 출력한 RAW 텍스트(예: JSON 배열)
- *
- * 변경 요지:
- * - 프롬프트에 '자연스러움' 관련 규칙을 추가
- * - 오답은 현실적 혼동 후보로 만들 것, 비문·비일상적 표현 지양
- * - 다양성(문체/장르/문법 포인트) 유지 지시 강화
  */
 export async function generateBlankQuestionsRaw(
   level: string = "C2",
@@ -66,7 +53,7 @@ export async function generateBlankQuestionsRaw(
     `6. 정답 필드 'correct'는 'options' 중 정확히 하나의 문자열과 일치해야 합니다.`,
     `7. 문장에는 문화적/정치적/성적으로 민감한 내용이 없어야 합니다.`,
     `8. **(다양성 규칙)** 문제 10개는 서로 중복되지 않아야 하며, 다양한 문법 포인트(시제, 수일치, 전치사, 조동사, 관용구 등)를 고루 다루세요. 또한 빈칸의 위치도 문장 앞/중간/뒤로 다양하게 배치하고, 문장의 종류(평서문, 의문문, 부정문 등)도 섞어서 구성하세요.`,
-    `9. 출력은 "오직" JSON 배열 단일 파일 하나로만 하세요. (설명 금지)`,
+    `9. 출력은 "오직" JSON 배열 단일 파일로만 하세요. (설명 금지)`,
     `10. 예시 (형식 참고만, 자연스러운 문장 예): {"question":"She ___ to work by bus every morning","options":["goes","go","going","went"],"correct":"goes"}`,
     difficultyRule,
     `11. 추가 제약:`,
@@ -75,17 +62,14 @@ export async function generateBlankQuestionsRaw(
     `   - 각 문제마다 어떤 문법 포인트를 다루는지 내부적으로는 고려하되(출력엔 표시 금지), 동일 유형의 문제가 연속으로 나오지 않게 하세요.`,
   ].join("\n");
 
-  console.log("[BLANK MODEL] Full prompt:\n", prompt);
+  console.log("[BLANK GEN] Prompt generated.");
 
-  const res = await callLLM({
+  const res = await generateText({
     prompt,
-    model: "gpt-5.1",
+    model: "gpt-5.1", // 또는 gpt-4o
     maxTokens: 2000,
     temperature: 0.7,
   });
 
-  const rawOutput = String(res.text ?? "");
-  console.log("[BLANK MODEL] Full raw output:\n", rawOutput);
-
-  return rawOutput;
+  return res.text;
 }

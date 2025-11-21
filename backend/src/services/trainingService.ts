@@ -1,10 +1,10 @@
 // backend/src/services/trainingService.ts
 import { nanoid } from "nanoid";
-import { generateVocabularyQuestionsRaw } from "../llm/models/vocabularyModel";
-import { generateSentenceQuestionsRaw } from "../llm/models/sentenceModel";
-import { generateBlankQuestionsRaw } from "../llm/models/blankModel";
-import { generateWritingQuestionsRaw } from "../llm/models/writingModel";
-import { generateSpeakingQuestionsRaw } from "../llm/models/speakingModel";
+import { generateVocabularyQuestionsRaw } from "../ai/generators/vocabulary";
+import { generateSentenceQuestionsRaw } from "../ai/generators/sentence";
+import { generateBlankQuestionsRaw } from "../ai/generators/blank";
+import { generateWritingQuestionsRaw } from "../ai/generators/writing";
+import { generateSpeakingQuestionsRaw } from "../ai/generators/speaking";
 
 export type TrainingType =
   | "vocabulary"

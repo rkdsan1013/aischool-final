@@ -1,11 +1,11 @@
-// backend/src/llm/controller.ts
+// backend/src/ai/controller.ts
 import { Request, Response } from "express";
 import { nanoid } from "nanoid";
-import { generateVocabularyQuestionsRaw } from "./models/vocabularyModel";
-import { generateSentenceQuestionsRaw } from "./models/sentenceModel";
-import { generateBlankQuestionsRaw } from "./models/blankModel";
-import { generateWritingQuestionsRaw } from "./models/writingModel";
-import { generateSpeakingQuestionsRaw } from "./models/speakingModel"; // [신규]
+import { generateVocabularyQuestionsRaw } from "./generators/vocabulary";
+import { generateSentenceQuestionsRaw } from "./generators/sentence";
+import { generateBlankQuestionsRaw } from "./generators/blank";
+import { generateWritingQuestionsRaw } from "./generators/writing";
+import { generateSpeakingQuestionsRaw } from "./generators/speaking"; // [신규]
 
 /**
  * 유틸리티: 배열 셔플
