@@ -106,7 +106,6 @@ const TrainingPage: React.FC = () => {
   const [answerToShow, setAnswerToShow] = useState<string | null>(null);
   const [answerLabel, setAnswerLabel] = useState<string>("정답");
 
-  // [신규] 서버에서 인식된 텍스트를 별도로 저장 (정답/오답 무관하게 저장)
   const [finalTranscript, setFinalTranscript] = useState<string | null>(null);
 
   const [feedbackContentHeight, setFeedbackContentHeight] = useState(
@@ -176,7 +175,7 @@ const TrainingPage: React.FC = () => {
     setVerifying(false);
     setAnswerToShow(null);
     setAnswerLabel("정답");
-    setFinalTranscript(null); // 초기화
+    setFinalTranscript(null);
     setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
@@ -221,8 +220,6 @@ const TrainingPage: React.FC = () => {
 
       setIsCorrect(result.isCorrect);
 
-      // [수정] 정답이든 오답이든 서버가 인식한 텍스트 저장
-      // 이를 Speaking 컴포넌트에 넘겨서 하이라이트 기준으로 사용
       if (result.transcript) {
         setFinalTranscript(result.transcript);
       }
@@ -252,94 +249,124 @@ const TrainingPage: React.FC = () => {
     }
   };
 
+  // 정답 확인 핸들러 (핵심 수정 부분)
   const handleCheckAnswer = async () => {
     if (!currentQuestion || verifying) return;
 
-    let localCorrect = false;
+    // UI 초기화
     setAnswerToShow(null);
     setAnswerLabel("정답");
 
     let userAnswerForBackend: string | string[] | Blob = "";
+    let localCorrect = false;
 
-    switch (currentQuestion.type) {
-      case "vocabulary":
-      case "blank": {
-        userAnswerForBackend = selectedAnswer ?? "";
-        const correctField = currentQuestion.correct;
-        localCorrect =
-          typeof correctField === "string"
-            ? correctField === selectedAnswer
-            : Array.isArray(correctField)
-            ? !!selectedAnswer && correctField.includes(selectedAnswer)
-            : false;
-        break;
-      }
-      case "speaking": {
-        return;
-      }
-      case "sentence": {
-        userAnswerForBackend = selectedOrder;
-        if (Array.isArray(currentQuestion.correct)) {
-          localCorrect = arraysEqual(currentQuestion.correct, selectedOrder);
-        } else if (typeof currentQuestion.correct === "string") {
-          localCorrect = currentQuestion.correct === selectedOrder.join(" ");
-        }
-        break;
-      }
-      case "writing": {
-        userAnswerForBackend = writingValue;
-        const userNorm = normalizeForCompare(writingValue);
-        const correctList = Array.isArray(currentQuestion.correct)
-          ? currentQuestion.correct
-          : [currentQuestion.correct as string];
+    // 1. 사용자 입력 준비 및 로컬 채점(Writing, Speaking 제외)
+    if (
+      currentQuestion.type === "vocabulary" ||
+      currentQuestion.type === "blank"
+    ) {
+      userAnswerForBackend = selectedAnswer ?? "";
+      const correctField = currentQuestion.correct;
+      localCorrect =
+        typeof correctField === "string"
+          ? correctField === selectedAnswer
+          : Array.isArray(correctField)
+          ? !!selectedAnswer && correctField.includes(selectedAnswer)
+          : false;
 
-        const matchIndex = correctList.findIndex(
-          (ans) => normalizeForCompare(ans) === userNorm
-        );
-
-        if (matchIndex !== -1) {
-          localCorrect = true;
-          if (matchIndex > 0) {
-            setAnswerLabel("이런 표현도 있어요");
-            setAnswerToShow(correctList[0] ?? "");
-          }
-        } else {
-          localCorrect = false;
-          setAnswerToShow(correctList[0] ?? "");
-          setAnswerLabel("정답");
-        }
-        break;
+      // 로컬 채점 결과 즉시 반영
+      setIsCorrect(localCorrect);
+      if (localCorrect) setCorrectCount((prev) => prev + 1);
+      setShowFeedback(true);
+    } else if (currentQuestion.type === "sentence") {
+      userAnswerForBackend = selectedOrder;
+      if (Array.isArray(currentQuestion.correct)) {
+        localCorrect = arraysEqual(currentQuestion.correct, selectedOrder);
+      } else if (typeof currentQuestion.correct === "string") {
+        localCorrect = currentQuestion.correct === selectedOrder.join(" ");
       }
-      default:
-        localCorrect = false;
+
+      setIsCorrect(localCorrect);
+      if (localCorrect) setCorrectCount((prev) => prev + 1);
+      setShowFeedback(true);
+    } else if (currentQuestion.type === "writing") {
+      userAnswerForBackend = writingValue;
+      // Writing은 로컬 채점 건너뛰고 바로 Loading 상태로 진입
+      setVerifying(true);
+      setShowFeedback(true);
     }
 
-    setIsCorrect(Boolean(localCorrect));
-    setShowFeedback(true);
-
-    if (localCorrect) {
-      setCorrectCount((prev) => prev + 1);
-    }
-
+    // 2. 서버 검증 요청
     try {
       const result = await verifyAnswer({
         type: currentQuestion.type,
         userAnswer: userAnswerForBackend,
         correctAnswer: currentQuestion.correct ?? [],
+        extra: { questionText: currentQuestion.question }, // [추가] Writing 검증용
       });
 
-      if (result.isCorrect) {
-        setSessionScore((prev) => prev + result.points);
-        if (profile && (result.totalScore !== undefined || result.tier)) {
-          setProfileLocal({
-            ...profile,
-            score: result.totalScore ?? profile.score,
-            tier: result.tier ?? profile.tier,
-          });
+      // 3. 결과 처리
+      if (currentQuestion.type === "writing") {
+        const serverCorrect = result.isCorrect;
+        setIsCorrect(serverCorrect);
+
+        if (serverCorrect) {
+          setCorrectCount((prev) => prev + 1);
+          setSessionScore((prev) => prev + result.points);
+
+          // [핵심 로직] 정답이지만, 의도한 정답(Best Answer)과 표현이 다르면 알려주기
+          const intended = Array.isArray(currentQuestion.correct)
+            ? currentQuestion.correct[0]
+            : currentQuestion.correct;
+
+          const normUser = normalizeForCompare(writingValue);
+          const normIntended = normalizeForCompare(intended || "");
+
+          // 사용자가 맞았지만 의도한 정답과 텍스트가 다를 때
+          if (intended && normUser !== normIntended) {
+            setAnswerLabel("이런 표현도 있어요");
+            setAnswerToShow(intended);
+          } else {
+            // 완벽히 일치하면 추가 텍스트 없음
+            setAnswerToShow(null);
+          }
+        } else {
+          // 오답인 경우 의도한 정답 보여주기
+          setAnswerLabel("정답");
+          setAnswerToShow(
+            Array.isArray(currentQuestion.correct)
+              ? currentQuestion.correct[0]
+              : currentQuestion.correct ?? ""
+          );
+        }
+      } else {
+        // Writing 외 타입: 점수 업데이트 (UI는 이미 반영됨)
+        if (result.isCorrect) {
+          setSessionScore((prev) => prev + result.points);
         }
       }
+
+      // 프로필 업데이트
+      if (
+        result.isCorrect &&
+        profile &&
+        (result.totalScore !== undefined || result.tier)
+      ) {
+        setProfileLocal({
+          ...profile,
+          score: result.totalScore ?? profile.score,
+          tier: result.tier ?? profile.tier,
+        });
+      }
     } catch (err) {
-      console.error("[Frontend] Background verification failed", err);
+      console.error("[Frontend] Verification failed", err);
+      if (currentQuestion.type === "writing") {
+        setIsCorrect(false);
+        setAnswerLabel("오류");
+        setAnswerToShow("채점 중 문제가 발생했습니다.");
+      }
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -379,6 +406,7 @@ const TrainingPage: React.FC = () => {
     currentQuestion?.correct,
     answerToShow,
     verifying,
+    answerLabel,
   ]);
 
   const footerVisualHeight = showFeedback
@@ -472,7 +500,6 @@ const TrainingPage: React.FC = () => {
             key={item.id}
             prompt={item.question}
             onRecord={handleSpeakingComplete}
-            // [수정] isSuccess는 제거하고, serverTranscript를 전달
             serverTranscript={finalTranscript}
           />
         );
@@ -625,8 +652,9 @@ const TrainingPage: React.FC = () => {
                           {isCorrect ? "정답입니다!" : "아쉬워요!"}
                         </div>
 
+                        {/* 피드백 텍스트 (정답표시 or 이런표현도있어요) */}
                         {((!isCorrect && currentQuestion.type !== "speaking") ||
-                          (isCorrect && answerToShow) ||
+                          (isCorrect && answerToShow) || // 정답이지만 "이런 표현도 있어요" 보여줄 때
                           (!isCorrect &&
                             currentQuestion.type === "speaking")) && (
                           <div className="mt-1">
@@ -634,18 +662,7 @@ const TrainingPage: React.FC = () => {
                               {answerLabel}
                             </div>
                             <div className="text-base font-bold text-gray-900 mt-1 break-keep">
-                              {currentQuestion.type === "writing" ||
-                              currentQuestion.type === "speaking"
-                                ? String(
-                                    answerToShow ??
-                                      (Array.isArray(currentQuestion.correct)
-                                        ? currentQuestion.correct[0]
-                                        : currentQuestion.correct) ??
-                                      ""
-                                  )
-                                : Array.isArray(currentQuestion.correct)
-                                ? currentQuestion.correct.join(" ")
-                                : String(currentQuestion.correct ?? "")}
+                              {answerToShow}
                             </div>
                           </div>
                         )}

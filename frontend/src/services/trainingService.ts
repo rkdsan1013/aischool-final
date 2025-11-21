@@ -50,6 +50,8 @@ export async function verifyAnswer(payload: {
   type: TrainingType;
   userAnswer: string | string[] | Blob;
   correctAnswer: string | string[];
+  // [추가] Writing 검증 시 원문(한국어 질문) 전달을 위한 옵셔널 필드
+  extra?: { questionText: string };
 }): Promise<{
   isCorrect: boolean;
   points: number;
@@ -72,8 +74,11 @@ export async function verifyAnswer(payload: {
       tier?: string;
       transcript?: string;
     }>("/training/verify", {
-      ...payload,
+      type: payload.type,
       userAnswer: finalUserAnswer,
+      correctAnswer: payload.correctAnswer,
+      // [수정] 백엔드에서 Writing LLM 검증에 사용할 원문 텍스트 전달
+      questionText: payload.extra?.questionText,
     });
 
     return {

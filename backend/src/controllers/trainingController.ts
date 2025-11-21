@@ -3,13 +3,14 @@ import { Request, Response } from "express";
 import {
   getQuestionsByType,
   verifyUserAnswer,
+  verifyWritingAnswerService, // [추가]
   TrainingType,
   QuestionItem,
 } from "../services/trainingService";
 import { calculatePoints } from "../utils/gamification";
 import { updateUserScoreAndTier } from "../models/trainingModel";
 import { verifySpeakingWithAudio } from "../ai/generators/speaking";
-import { normalizeForCompare } from "../utils/normalization"; // [추가]
+import { normalizeForCompare } from "../utils/normalization";
 
 function isValidTrainingType(type: string): type is TrainingType {
   const validTypes: TrainingType[] = [
@@ -67,7 +68,8 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    const { type, userAnswer, correctAnswer } = req.body;
+    // [수정] questionText(한국어 원문)를 추가로 받음 (Writing 검증용)
+    const { type, userAnswer, correctAnswer, questionText } = req.body;
 
     if (!type || userAnswer === undefined || correctAnswer === undefined) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -76,7 +78,32 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
     let isCorrect = false;
     let feedbackTranscript = "";
 
-    if (type === "speaking") {
+    // --- 유형별 검증 로직 ---
+    if (type === "writing") {
+      // [신규] LLM을 이용한 작문 검증
+      const intendedAnswer = Array.isArray(correctAnswer)
+        ? correctAnswer[0]
+        : String(correctAnswer);
+
+      // userAnswer는 string으로 간주
+      const userText = String(userAnswer);
+
+      // AI 폴더의 로직을 호출하는 서비스 함수 사용
+      const result = await verifyWritingAnswerService(
+        String(questionText || ""), // 프론트에서 보내줘야 함
+        intendedAnswer,
+        userText
+      );
+
+      isCorrect = result.isCorrect;
+      // Writing은 transcript에 사용자 입력을 그대로 반환하거나, 피드백을 담을 수 있음
+      // 여기서는 프론트엔드 UI 로직(사용자 입력 vs 정답 비교)을 위해 사용자 입력 그대로 반환
+      feedbackTranscript = userText;
+
+      console.log(
+        `[Verify Writing] User: "${userText}", Correct: ${isCorrect}`
+      );
+    } else if (type === "speaking") {
       const base64String = String(userAnswer);
 
       // Base64 데이터인지 확인
@@ -115,7 +142,7 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
           isCorrect = false;
         }
       } else {
-        // [수정] 텍스트 비교 Fallback에도 정규화 적용
+        // 텍스트 비교 Fallback에도 정규화 적용
         const userText = base64String.trim();
         const targetText = String(correctAnswer).trim();
 
