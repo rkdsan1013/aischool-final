@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
+import VoiceRoomService from "../services/voiceroomService"; // 서비스 경로 확인
 
 type FormState = {
   name: string;
@@ -30,6 +31,8 @@ const VoiceRoomCreate: React.FC = () => {
     level: "ANY",
   });
 
+  const [submitting, setSubmitting] = useState<boolean>(false);
+
   useEffect(() => {
     if (!isLoading && !user) navigate("/login");
   }, [user, isLoading, navigate]);
@@ -42,10 +45,60 @@ const VoiceRoomCreate: React.FC = () => {
     );
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  // 폼 제출 처리: 서비스 호출하여 실제로 방 생성
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    // 중복 제출 방지
+    if (submitting) return;
+
+    // 프론트 로그
     console.log("Form Data:", formData);
-    navigate("/voiceroom");
+
+    // 페이로드 준비 (숫자 변환)
+    const payload = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      level: formData.level as any,
+      max_participants: Number(formData.maxParticipants),
+    };
+
+    try {
+      // 간단한 프론트 유효성 검사 (서비스의 validate도 사용)
+      VoiceRoomService.validateCreatePayload({
+        name: payload.name,
+        description: payload.description,
+        level: payload.level,
+        max_participants: payload.max_participants,
+      });
+
+      setSubmitting(true);
+      console.log("Sending POST /voice-room with:", payload);
+
+      // 실제 API 호출
+      const created = await VoiceRoomService.createRoom({
+        name: payload.name,
+        description: payload.description,
+        level: payload.level,
+        max_participants: payload.max_participants,
+      });
+
+      console.log("Created room:", created);
+
+      // 생성 성공 시 목록(또는 방 상세)로 이동
+      navigate("/voiceroom");
+    } catch (err: any) {
+      // 에러 로깅 및 사용자 알림
+      console.error("방 생성 실패:", err);
+      // 서버/서비스에서 던진 메시지 우선 표시
+      const message =
+        err?.message ||
+        (err?.response && err.response.data && err.response.data.message) ||
+        "방 생성 중 오류가 발생했습니다.";
+      alert(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -171,10 +224,6 @@ const VoiceRoomCreate: React.FC = () => {
                   권장 레벨
                 </label>
                 <div className="mt-1">
-                  {/* 모바일: flex + overflow-x-auto (가로 스크롤)
-                    PC: grid (한 줄 배치)
-                    scrollbar-hide: 스크롤바 숨김 (필요 시 Tailwind 플러그인 혹은 커스텀 CSS 필요, 여기선 기본 동작)
-                  */}
                   <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 sm:grid sm:grid-cols-7 sm:overflow-visible">
                     {levelOptions.map((opt) => {
                       const isSelected = formData.level === opt.value;
@@ -185,7 +234,6 @@ const VoiceRoomCreate: React.FC = () => {
                           onClick={() =>
                             setFormData((p) => ({ ...p, level: opt.value }))
                           }
-                          // flex-shrink-0: 모바일 스크롤 시 찌그러짐 방지
                           className={`
                             flex-shrink-0 px-4 py-2.5 sm:px-0 rounded-lg text-sm font-medium border transition-all
                             focus:outline-none focus:ring-2 focus:ring-rose-300 whitespace-nowrap
@@ -219,6 +267,7 @@ const VoiceRoomCreate: React.FC = () => {
               type="button"
               onClick={handleCancel}
               className="flex-1 h-12 rounded-lg border border-gray-200 bg-white text-gray-700 text-lg font-semibold hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition"
+              disabled={submitting}
             >
               취소
             </button>
@@ -226,9 +275,10 @@ const VoiceRoomCreate: React.FC = () => {
             <button
               type="submit"
               form="room-create-form"
-              className="flex-1 h-12 rounded-lg bg-rose-500 text-white text-lg font-semibold shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300 transition"
+              className="flex-1 h-12 rounded-lg bg-rose-500 text-white text-lg font-semibold shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300 transition disabled:opacity-60"
+              disabled={submitting}
             >
-              방 만들기
+              {submitting ? "생성 중..." : "방 만들기"}
             </button>
           </div>
         </div>

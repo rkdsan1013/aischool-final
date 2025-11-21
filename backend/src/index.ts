@@ -8,6 +8,7 @@ import userRouter from "./routes/userRouter";
 import trainingRouter from "./routes/trainingRouter";
 import aiTalkRoutes from "./routes/aiTalkRouter";
 import llmRouter from "./ai/router";
+import voiceroomRouter from "./routes/voiceroomRouter"; // 추가
 
 dotenv.config();
 
@@ -34,8 +35,15 @@ app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/training", trainingRouter);
 app.use("/api/ai-talk", aiTalkRoutes);
-
 app.use("/api/llm", llmRouter);
+app.use("/api/voice-room", voiceroomRouter); // 추가
+
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("[global error]", err && err.stack ? err.stack : err);
+  const status = err?.status || 500;
+  const message = err?.message || "서버 내부 오류";
+  res.status(status).json({ message });
+});
 
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => {
