@@ -3,8 +3,7 @@ import { generateText } from "../text";
 
 /**
  * generateWritingQuestionsRaw
- * 'writing' 유형(작문 학습) 문제 10개 생성
- * 수정사항: correct를 배열이 아닌 '단일 문장'으로 생성하여 의도한 정답을 명확히 함.
+ * (기존 코드와 동일, 변경 없음)
  */
 export async function generateWritingQuestionsRaw(
   level: string = "C2",
@@ -43,7 +42,7 @@ export async function generateWritingQuestionsRaw(
 
   const res = await generateText({
     prompt,
-    model: "gpt-4o", // 고품질 생성을 위해 고성능 모델 사용 권장
+    model: "gpt-4o",
     maxTokens: 2500,
     temperature: 0.7,
   });
@@ -53,60 +52,56 @@ export async function generateWritingQuestionsRaw(
 
 /**
  * verifyWritingWithLLM
- * 작문 정답 검증을 위한 LLM 호출
- * 입력: 한국어 질문, 의도한 정답(영어), 사용자 답변(영어)
- * 출력: 정답 여부 및 피드백
+ * reasoning을 생성하지만, 반환 시에는 필요한 데이터만 정제하여 리턴합니다.
  */
 export async function verifyWritingWithLLM(
   question: string,
   intendedAnswer: string,
   userAnswer: string
-): Promise<{ isCorrect: boolean; feedback: string }> {
-  // 빠른 응답을 위해 gpt-4o-mini 혹은 gpt-3.5-turbo 등 경량 모델 사용 권장
+): Promise<{ isCorrect: boolean; feedback?: string }> {
   const prompt = [
     `Role: English Language Teacher`,
-    `Task: Evaluate if the user's English translation is correct based on the Korean source sentence.`,
+    `Task: Verify the user's translation.`,
+    `Source(KR): "${question}"`,
+    `Intended(EN): "${intendedAnswer}"`,
+    `User(EN): "${userAnswer}"`,
     `---`,
-    `[Source Sentence (KR)]: "${question}"`,
-    `[Intended Answer (EN)]: "${intendedAnswer}"`,
-    `[User Answer (EN)]: "${userAnswer}"`,
-    `---`,
-    `Criteria:`,
-    `1. Meaning: Does the User Answer convey the same meaning as the Source Sentence?`,
-    `2. Grammar: Is the User Answer grammatically correct?`,
-    `3. Nuance: Minor stylistic differences are okay if the meaning is accurate.`,
-    `4. Typos: Ignore minor punctuation or capitalization errors.`,
-    `5. Output: Return valid JSON only.`,
-    `Format: { "isCorrect": boolean, "reasoning": "short explanation" }`,
+    `Guidelines:`,
+    `1. Analyze the meaning, grammar, and nuance. (Think step-by-step)`,
+    `2. If the meaning matches and grammar is natural, it is Correct.`,
+    `3. Minor typos or punctuation errors are acceptable.`,
+    `4. Output JSON: { "isCorrect": boolean, "reasoning": "Why?" }`,
+    // reasoning 필드는 정확한 판단을 유도하기 위한 장치입니다 (Chain of Thought).
   ].join("\n");
 
   try {
     const res = await generateText({
       prompt,
-      model: "gpt-4o-mini", // 빠른 모델 사용
+      model: "gpt-4o-mini",
       maxTokens: 300,
-      temperature: 0.0, // 일관성을 위해 0
+      temperature: 0.0,
     });
 
-    // JSON 파싱 (가끔 마크다운이 섞일 수 있으므로 처리)
     const jsonMatch = res.text.match(/\{[\s\S]*\}/);
     const jsonStr = jsonMatch ? jsonMatch[0] : "{}";
-
     const parsed = JSON.parse(jsonStr);
+
+    // [수정] reasoning은 로그로만 남기고, 실제 리턴값에서는 제외하거나 선택적으로 사용
+    if (!parsed.isCorrect) {
+      console.log(`[Wrong Reasoning]: ${parsed.reasoning}`);
+    }
 
     return {
       isCorrect: !!parsed.isCorrect,
-      feedback: parsed.reasoning || "",
+      // feedback: parsed.reasoning // 프론트에서 안 쓰면 굳이 리턴하지 않아도 됨
     };
   } catch (e) {
     console.error("[Verify Writing] LLM Error:", e);
-    // LLM 실패 시 Fallback: 단순 정규화 비교
     const normUser = userAnswer.toLowerCase().replace(/[^a-z0-9]/g, "");
     const normIntended = intendedAnswer.toLowerCase().replace(/[^a-z0-9]/g, "");
 
     return {
       isCorrect: normUser === normIntended,
-      feedback: "System fallback verification used.",
     };
   }
 }

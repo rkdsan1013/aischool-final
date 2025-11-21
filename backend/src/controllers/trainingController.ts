@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import {
   getQuestionsByType,
   verifyUserAnswer,
-  verifyWritingAnswerService, // [추가]
+  verifyWritingAnswerService,
   TrainingType,
   QuestionItem,
 } from "../services/trainingService";
@@ -41,22 +41,14 @@ export async function fetchTrainingQuestionsHandler(
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    const level: string | undefined = user.level;
-    const level_progress: number | undefined = user.level_progress;
-
     const questions: QuestionItem[] = await getQuestionsByType(type, {
-      level,
-      level_progress,
+      level: user.level,
+      level_progress: user.level_progress,
     });
-
-    console.log(
-      `[TRAINING CONTROLLER] Final JSON output (for type: ${type}):\n`,
-      JSON.stringify(questions, null, 2)
-    );
 
     return res.json(questions);
   } catch (err) {
-    console.error(`[TRAINING CONTROLLER] unexpected error:`, err);
+    console.error(`[TRAINING CONTROLLER] error:`, err);
     return res.status(500).json({ error: "Question generation failed" });
   }
 }
@@ -68,7 +60,6 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // [수정] questionText(한국어 원문)를 추가로 받음 (Writing 검증용)
     const { type, userAnswer, correctAnswer, questionText } = req.body;
 
     if (!type || userAnswer === undefined || correctAnswer === undefined) {
@@ -76,40 +67,29 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
     }
 
     let isCorrect = false;
-    let feedbackTranscript = "";
+    let feedbackTranscript = ""; // 프론트엔드에 보여줄 텍스트 (주로 사용자 입력)
 
     // --- 유형별 검증 로직 ---
     if (type === "writing") {
-      // [신규] LLM을 이용한 작문 검증
       const intendedAnswer = Array.isArray(correctAnswer)
         ? correctAnswer[0]
         : String(correctAnswer);
-
-      // userAnswer는 string으로 간주
       const userText = String(userAnswer);
 
-      // AI 폴더의 로직을 호출하는 서비스 함수 사용
       const result = await verifyWritingAnswerService(
-        String(questionText || ""), // 프론트에서 보내줘야 함
+        String(questionText || ""),
         intendedAnswer,
         userText
       );
 
       isCorrect = result.isCorrect;
-      // Writing은 transcript에 사용자 입력을 그대로 반환하거나, 피드백을 담을 수 있음
-      // 여기서는 프론트엔드 UI 로직(사용자 입력 vs 정답 비교)을 위해 사용자 입력 그대로 반환
+      // [수정] 불필요한 reasoning은 제거하고, 사용자가 입력한 텍스트만 돌려줌 (UI 표시용)
       feedbackTranscript = userText;
-
-      console.log(
-        `[Verify Writing] User: "${userText}", Correct: ${isCorrect}`
-      );
     } else if (type === "speaking") {
       const base64String = String(userAnswer);
-
-      // Base64 데이터인지 확인
       if (base64String.startsWith("data:audio")) {
-        // 1. 확장자(MIME Type) 감지
         let fileExtension = "webm";
+        // ... (확장자 추출 로직 생략 없이 유지)
         const mimeEndIndex = base64String.indexOf(";");
         if (mimeEndIndex > 0) {
           const mimeType = base64String.substring(5, mimeEndIndex);
@@ -121,39 +101,30 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
           else if (mimeType.includes("ogg")) fileExtension = "ogg";
         }
 
-        console.log(`[Verify Speaking] Detected Ext: ${fileExtension}`);
-
-        // 2. Base64 데이터 추출
         const base64Data = base64String.split(",")[1];
-
         if (base64Data) {
           const audioBuffer = Buffer.from(base64Data, "base64");
-
           const result = await verifySpeakingWithAudio(
             audioBuffer,
             String(correctAnswer),
             fileExtension
           );
-
           isCorrect = result.isCorrect;
           feedbackTranscript = result.transcript;
         } else {
-          console.error("[Verify Speaking] Failed to extract base64 data");
           isCorrect = false;
         }
       } else {
-        // 텍스트 비교 Fallback에도 정규화 적용
+        // Fallback
         const userText = base64String.trim();
         const targetText = String(correctAnswer).trim();
-
         const normUser = normalizeForCompare(userText);
         const normTarget = normalizeForCompare(targetText);
-
         isCorrect = normUser === normTarget;
         feedbackTranscript = userText;
       }
     } else {
-      // 기존 텍스트 기반 검증 (Vocabulary, Sentence 등)
+      // Vocabulary, Sentence, Blank
       isCorrect = verifyUserAnswer(
         type as TrainingType,
         userAnswer,
@@ -170,12 +141,9 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
       const result = await updateUserScoreAndTier(user.user_id, earnedPoints);
       newTotalScore = result.newScore;
       newTier = result.newTier;
-
-      console.log(
-        `[DB Updated] User ${user.user_id}: +${earnedPoints} points. Total: ${newTotalScore} (${newTier})`
-      );
     }
 
+    // [최종 응답] reasoning 없이 깔끔한 JSON 리턴
     return res.json({
       isCorrect,
       points: earnedPoints,
