@@ -661,7 +661,6 @@ const AITalkPage: React.FC = () => {
                       {s.description}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
                 </div>
               </button>
             ))}

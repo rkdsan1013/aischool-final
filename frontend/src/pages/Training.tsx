@@ -7,7 +7,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Check } from "lucide-react";
 
 import Vocabulary from "../components/Vocabulary";
 import Sentence from "../components/Sentence";
@@ -307,7 +307,7 @@ const TrainingPage: React.FC = () => {
       }
     } else if (currentQuestion.type === "writing") {
       userAnswerForBackend = writingValue;
-      // Writing은 로컬 채점 건너뛰고 바로 Loading 상태로 진입
+      // Writing은 로컬 채점 건너뛰고 바로 Loa
       setVerifying(true);
       setShowFeedback(true);
     }
@@ -637,33 +637,9 @@ const TrainingPage: React.FC = () => {
                         }`}
                       >
                         {isCorrect ? (
-                          <svg
-                            className="w-6 h-6 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
+                          <Check className="w-6 h-6 text-white" />
                         ) : (
-                          <svg
-                            className="w-6 h-6 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
+                          <X className="w-6 h-6 text-white" />
                         )}
                       </div>
 
