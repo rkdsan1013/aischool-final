@@ -1,4 +1,4 @@
-// src/pages/VoiceRoomPage.tsx
+// frontend/src/pages/VoiceRoomPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, Lock, Plus, Radio, Sparkles, Search } from "lucide-react";

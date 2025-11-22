@@ -1,4 +1,4 @@
-// src/pages/VoiceRoomDetail.tsx
+// frontend/src/pages/VoiceRoomDetail.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
