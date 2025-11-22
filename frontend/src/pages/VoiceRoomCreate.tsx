@@ -2,14 +2,27 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
-import VoiceRoomService from "../services/voiceroomService"; // 서비스 경로 확인
+import VoiceRoomService from "../services/voiceroomService";
+
+// 레벨 타입 정의
+type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 type FormState = {
   name: string;
   description: string;
   maxParticipants: string;
-  level: string;
+  level: VoiceRoomLevel; // string -> 구체적인 타입으로 변경
 };
+
+// API 에러 응답 타입 정의 (Axios 구조 가정)
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
 
 function useAuth() {
   const [isLoading] = useState<boolean>(false);
@@ -45,26 +58,23 @@ const VoiceRoomCreate: React.FC = () => {
     );
   }
 
-  // 폼 제출 처리: 서비스 호출하여 실제로 방 생성
+  // 폼 제출 처리
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    // 중복 제출 방지
     if (submitting) return;
 
-    // 프론트 로그
     console.log("Form Data:", formData);
 
-    // 페이로드 준비 (숫자 변환)
     const payload = {
       name: formData.name.trim(),
       description: formData.description.trim(),
-      level: formData.level as any,
+      level: formData.level, // 더 이상 as any 불필요
       max_participants: Number(formData.maxParticipants),
     };
 
     try {
-      // 간단한 프론트 유효성 검사 (서비스의 validate도 사용)
+      // 유효성 검사
       VoiceRoomService.validateCreatePayload({
         name: payload.name,
         description: payload.description,
@@ -75,26 +85,26 @@ const VoiceRoomCreate: React.FC = () => {
       setSubmitting(true);
       console.log("Sending POST /voice-room with:", payload);
 
-      // 실제 API 호출
-      const created = await VoiceRoomService.createRoom({
-        name: payload.name,
-        description: payload.description,
-        level: payload.level,
-        max_participants: payload.max_participants,
-      });
+      const created = await VoiceRoomService.createRoom(payload);
 
       console.log("Created room:", created);
 
-      // 생성 성공 시 목록(또는 방 상세)로 이동
       navigate("/voiceroom");
-    } catch (err: any) {
-      // 에러 로깅 및 사용자 알림
+    } catch (err: unknown) {
+      // [수정] any 대신 unknown 사용 및 타입 좁히기(Type Narrowing)
       console.error("방 생성 실패:", err);
-      // 서버/서비스에서 던진 메시지 우선 표시
-      const message =
-        err?.message ||
-        (err?.response && err.response.data && err.response.data.message) ||
-        "방 생성 중 오류가 발생했습니다.";
+
+      let message = "방 생성 중 오류가 발생했습니다.";
+      const apiError = err as ApiErrorResponse;
+
+      if (apiError.response?.data?.message) {
+        message = apiError.response.data.message;
+      } else if (apiError.message) {
+        message = apiError.message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+
       alert(message);
     } finally {
       setSubmitting(false);
@@ -105,7 +115,7 @@ const VoiceRoomCreate: React.FC = () => {
     navigate("/voiceroom");
   };
 
-  const levelOptions = [
+  const levelOptions: { value: VoiceRoomLevel; label: string }[] = [
     { value: "ANY", label: "제한 없음" },
     { value: "A1", label: "A1" },
     { value: "A2", label: "A2" },
@@ -119,10 +129,7 @@ const VoiceRoomCreate: React.FC = () => {
     <div className="h-[100dvh] bg-white flex flex-col">
       <header className="w-full bg-rose-500 text-white flex-shrink-0">
         <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">
-          {/* 좌측: 헤더 멘트 */}
           <h1 className="text-lg font-semibold">새로운 방 만들기</h1>
-
-          {/* 우측: X 버튼 */}
           <button
             type="button"
             onClick={handleCancel}
@@ -218,7 +225,6 @@ const VoiceRoomCreate: React.FC = () => {
                 </div>
               </div>
 
-              {/* 권장 레벨 */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-900">
                   권장 레벨
@@ -262,7 +268,6 @@ const VoiceRoomCreate: React.FC = () => {
       <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex gap-3">
-            {/* 취소 버튼 추가 */}
             <button
               type="button"
               onClick={handleCancel}
@@ -271,7 +276,6 @@ const VoiceRoomCreate: React.FC = () => {
             >
               취소
             </button>
-            {/* 방 만들기 버튼 */}
             <button
               type="submit"
               form="room-create-form"
