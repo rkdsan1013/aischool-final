@@ -91,6 +91,10 @@ interface IWebkitSpeechRecognition {
 
 /* -------------------------------- Component -------------------------------- */
 
+// 툴팁 간격 상수 정의
+const TOOLTIP_GAP_BELOW = 12;
+const TOOLTIP_GAP_ABOVE = 6;
+
 export default function VoiceRoomDetail(): React.ReactElement {
   const navigate = useNavigate();
   const [isMuted, setIsMuted] = useState(false);
@@ -112,15 +116,19 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const [activeTooltipWordIndexes, setActiveTooltipWordIndexes] = useState<
     number[]
   >([]);
+
+  // ✅ [수정] isAbove 상태 추가
   const [cardPos, setCardPos] = useState<{
     top: number;
     left: number;
     width: number;
-  }>({ top: 0, left: 0, width: 0 });
+    isAbove: boolean;
+  }>({ top: 0, left: 0, width: 0, isAbove: false });
+
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isMobile = isMobileUA();
 
-  // 푸터 높이 상수 (px) — 필요시 조정
+  // 푸터 높이 상수 (px)
   const FOOTER_HEIGHT = 92;
 
   // initial data
@@ -432,12 +440,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
     return Boolean(feedback?.errors.find((e) => e.type === "style"));
   }
 
-  // card position (clamped to viewport)
+  // ✅ [수정] 카드 위치 계산 로직 개선
   const updateCardPosition = useCallback((msgId: string) => {
     const node = bubbleRefs.current[msgId];
     if (!node) return;
     const rect = node.getBoundingClientRect();
-    const margin = 8;
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
 
@@ -446,23 +453,36 @@ export default function VoiceRoomDetail(): React.ReactElement {
     let left = center - desiredWidth / 2;
     left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
 
+    const estimatedCardHeight = 160; // 공간 계산용 추정치
+
     const spaceBelow = viewportH - rect.bottom;
     const spaceAbove = rect.top;
-    const cardHeightEstimate = 160;
 
     let top: number;
-    if (spaceBelow >= cardHeightEstimate + margin) {
-      top = rect.bottom + margin;
-    } else if (spaceAbove >= cardHeightEstimate + margin) {
-      top = Math.max(8, rect.top - cardHeightEstimate - margin);
+    let isAbove = false;
+
+    if (spaceBelow >= estimatedCardHeight + TOOLTIP_GAP_BELOW) {
+      // 아래 공간 충분 -> 아래 배치
+      top = rect.bottom + TOOLTIP_GAP_BELOW;
+      isAbove = false;
+    } else if (spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE) {
+      // 위 공간 충분 -> 위 배치
+      isAbove = true;
+      // ✅ [수정] 높이를 빼지 않고 말풍선 상단 기준점 설정 (CSS transform이 위로 올림)
+      top = rect.top - TOOLTIP_GAP_ABOVE;
     } else {
-      top = Math.max(
-        8,
-        Math.min(rect.bottom + margin, viewportH - cardHeightEstimate - 8)
-      );
+      // 둘 다 부족할 때 더 넓은 쪽 선택
+      isAbove = spaceAbove >= spaceBelow;
+      if (isAbove) {
+        top = rect.top - TOOLTIP_GAP_ABOVE;
+      } else {
+        // Fallback 아래쪽
+        const maxAllowedTop = Math.max(8, viewportH - estimatedCardHeight - 8);
+        top = Math.min(rect.bottom + TOOLTIP_GAP_BELOW, maxAllowedTop);
+      }
     }
 
-    setCardPos({ top, left, width: desiredWidth });
+    setCardPos({ top, left, width: desiredWidth, isAbove });
 
     const outOfView = rect.bottom < 0 || rect.top > viewportH;
     if (outOfView) {
@@ -504,10 +524,17 @@ export default function VoiceRoomDetail(): React.ReactElement {
     function onResize() {
       if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
     }
-    window.addEventListener("scroll", onScroll, { passive: true });
+    // transcript scroll event handling needs to be attached to the scrollable container
+    const scrollContainer = transcriptRef.current;
+    if (scrollContainer) {
+      scrollContainer.addEventListener("scroll", onScroll, { passive: true });
+    }
     window.addEventListener("resize", onResize);
+
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener("scroll", onScroll);
+      }
       window.removeEventListener("resize", onResize);
     };
   }, [activeTooltipMsgId, updateCardPosition]);
@@ -632,8 +659,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
               </div>
             </div>
 
-            {/* transcript 컨테이너: bottom을 FOOTER_HEIGHT로 띄워 푸터와 겹치지 않게 함.
-                paddingBottom은 내부 여유만 주도록 작게 설정 (푸터와 붙어 보이게). */}
+            {/* transcript 컨테이너 */}
             <div
               ref={transcriptRef}
               className="absolute inset-x-0 top-[56px] overflow-y-auto px-3"
@@ -778,10 +804,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
               })}
             </div>
 
-            {/* 채팅 푸터: 푸터 내부 padding-bottom/외부 마진 제거하여 화면 바닥에 딱 붙게 함 */}
+            {/* 채팅 푸터 */}
             <div
               className="absolute left-0 right-0 bottom-0 border-t border-gray-100 bg-white flex items-center"
-              style={{ height: FOOTER_HEIGHT, padding: 0, boxShadow: "none" }}
+              style={{
+                height: FOOTER_HEIGHT,
+                padding: 0,
+                boxShadow: "none",
+              }}
             >
               <div className="max-w-4xl mx-auto w-full px-0 sm:px-6 flex items-center gap-3">
                 <div className="flex-1">
@@ -811,7 +841,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
         </div>
       </main>
 
-      {/* FloatingFeedbackCard는 푸터 위에 떠야 하므로 컴포넌트 내부 또는 전역 CSS에서 z-index 처리 필요 */}
       <FloatingFeedbackCard
         show={Boolean(activeTooltipMsgId)}
         top={cardPos.top}
@@ -821,6 +850,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
         mobile={isMobile}
         feedback={transcript.find((t) => t.id === activeTooltipMsgId)?.feedback}
         activeWordIndexes={activeTooltipWordIndexes}
+        // ✅ [추가] 위쪽 배치 여부 전달
+        isAbove={cardPos.isAbove}
       />
 
       <style>
@@ -835,6 +866,3 @@ export default function VoiceRoomDetail(): React.ReactElement {
     </div>
   );
 }
-
-/* ----------------
--------------- End of file ------------------------------ */
