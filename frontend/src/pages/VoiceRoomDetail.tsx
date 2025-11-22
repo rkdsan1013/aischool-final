@@ -1,4 +1,4 @@
-/* cspell:disable */
+// frontend/src/pages/VoiceRoomDetail.tsx
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Mic, MicOff, Users, Volume2, PhoneOff, Loader2 } from "lucide-react";
