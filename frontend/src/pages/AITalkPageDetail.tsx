@@ -1,4 +1,3 @@
-// frontend/src/pages/AITalkPageDetail.tsx
 import React, {
   useCallback,
   useEffect,
@@ -80,6 +79,7 @@ const AITalkPageDetail: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
+  const [isConversationEnded, setIsConversationEnded] = useState(false);
 
   // --- 오디오/VAD 관련 Refs ---
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -128,8 +128,8 @@ const AITalkPageDetail: React.FC = () => {
       if (isUnmountedRef.current) return;
 
       if (!base64Audio || !audioPlayerRef.current) {
-        // 오디오가 없으면 바로 녹음 시작
-        if (!isUnmountedRef.current) {
+        // 오디오가 없으면 바로 마이크 켜기 (종료된 상태가 아니라면)
+        if (!isUnmountedRef.current && !isConversationEnded) {
           startRecordingAutoRef.current();
         }
         return;
@@ -140,34 +140,39 @@ const AITalkPageDetail: React.FC = () => {
         player.src = `data:audio/mp3;base64,${base64Audio}`;
 
         setIsAISpeaking(true);
-        // AI 발화 시 내 마이크 끄기
         stopRecordingInternalRef.current(false);
 
         player
           .play()
-          .then(() => {
-            // 재생 시작 성공
-          })
+          .then(() => {})
           .catch((e) => {
             console.error("Autoplay blocked:", e);
             setIsAISpeaking(false);
-            if (!isUnmountedRef.current) startRecordingAutoRef.current();
+            if (!isUnmountedRef.current && !isConversationEnded)
+              startRecordingAutoRef.current();
           });
       } catch (error) {
         console.error("Failed to play audio:", error);
         setIsAISpeaking(false);
-        if (!isUnmountedRef.current) startRecordingAutoRef.current();
+        if (!isUnmountedRef.current && !isConversationEnded)
+          startRecordingAutoRef.current();
       }
     },
-    []
+    [isConversationEnded]
   );
 
   const handleAIThinkingEnd = () => {
     if (isUnmountedRef.current) return;
-    console.log("AI 발화 종료 -> 마이크 자동 활성화");
+
+    console.log("AI 발화 종료");
     setIsAISpeaking(false);
-    // AI 말이 끝나면 무조건 녹음 시작 시도
-    startRecordingAutoRef.current();
+
+    if (isConversationEnded) {
+      // 대화 종료됨 -> 아무것도 안 함 (마이크 안 켬)
+    } else {
+      // 계속 진행 중 -> 마이크 켜기
+      startRecordingAutoRef.current();
+    }
   };
 
   // -----------------------------------------------------------------------
@@ -189,7 +194,7 @@ const AITalkPageDetail: React.FC = () => {
       setMessages((prev) => [...prev, newUserMsg]);
 
       try {
-        const { userMessage, aiMessage, audioData } =
+        const { userMessage, aiMessage, audioData, ended } =
           await aiTalkService.sendAudioMessage(sessionId, audioBlob);
 
         if (isUnmountedRef.current) return;
@@ -214,11 +219,18 @@ const AITalkPageDetail: React.FC = () => {
           ];
         });
 
-        if (audioData) {
-          playAudioData(audioData);
+        if (ended) {
+          setIsConversationEnded(true); // 종료 상태 설정
+          if (audioData) {
+            playAudioData(audioData); // 마지막 작별 인사 재생
+          }
         } else {
-          setIsProcessing(false);
-          startRecordingAutoRef.current();
+          if (audioData) {
+            playAudioData(audioData);
+          } else {
+            setIsProcessing(false);
+            startRecordingAutoRef.current();
+          }
         }
 
         setIsProcessing(false);
@@ -227,7 +239,6 @@ const AITalkPageDetail: React.FC = () => {
         if (!isUnmountedRef.current) {
           setMessages((prev) => prev.filter((m) => m.id !== tempUserMsgId));
           setIsProcessing(false);
-          // 실패했더라도 다시 대화 시도할 수 있게 마이크 켜기
           startRecordingAutoRef.current();
         }
       }
@@ -240,7 +251,6 @@ const AITalkPageDetail: React.FC = () => {
   // -----------------------------------------------------------------------
 
   const stopRecordingInternal = useCallback((shouldSend: boolean = false) => {
-    // VAD 루프 중지
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -250,14 +260,12 @@ const AITalkPageDetail: React.FC = () => {
       silenceTimerRef.current = null;
     }
 
-    // AudioContext 정리
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
     analyserRef.current = null;
 
-    // MediaRecorder 정지
     if (
       mediaRecorderRef.current &&
       mediaRecorderRef.current.state !== "inactive"
@@ -265,7 +273,6 @@ const AITalkPageDetail: React.FC = () => {
       mediaRecorderRef.current.stop();
     }
 
-    // 하드웨어 마이크 끄기
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -278,16 +285,15 @@ const AITalkPageDetail: React.FC = () => {
     setIsRecording(false);
   }, []);
 
-  // Ref 동기화
   useEffect(() => {
     stopRecordingInternalRef.current = stopRecordingInternal;
   }, [stopRecordingInternal]);
 
   const startRecordingAuto = useCallback(async () => {
     if (isUnmountedRef.current) return;
-
-    // 녹음/처리 중이면 중복 실행 방지
     if (isRecording || isProcessing) return;
+    // 종료된 상태면 녹음 시작 안 함
+    if (isConversationEnded) return;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -318,7 +324,6 @@ const AITalkPageDetail: React.FC = () => {
       setIsRecording(true);
       speechStartedRef.current = false;
 
-      // VAD Setup
       const AudioContextClass =
         window.AudioContext ||
         (window as unknown as SafariWindow).webkitAudioContext;
@@ -355,7 +360,6 @@ const AITalkPageDetail: React.FC = () => {
           const average = sum / bufferLength;
 
           if (average > VOLUME_THRESHOLD) {
-            // 말하는 중
             if (!speechStartedRef.current) {
               speechStartedRef.current = true;
             }
@@ -364,7 +368,6 @@ const AITalkPageDetail: React.FC = () => {
               silenceTimerRef.current = null;
             }
           } else {
-            // 조용함
             if (speechStartedRef.current) {
               if (!silenceTimerRef.current) {
                 silenceTimerRef.current = window.setTimeout(() => {
@@ -384,9 +387,8 @@ const AITalkPageDetail: React.FC = () => {
     } catch (error) {
       console.error("마이크 접근 실패:", error);
     }
-  }, [handleSendAudio, isRecording, isProcessing]);
+  }, [handleSendAudio, isRecording, isProcessing, isConversationEnded]);
 
-  // Ref 동기화
   useEffect(() => {
     startRecordingAutoRef.current = startRecordingAuto;
   }, [startRecordingAuto]);
@@ -394,8 +396,6 @@ const AITalkPageDetail: React.FC = () => {
   // --- 초기화 및 정리 ---
   useEffect(() => {
     isUnmountedRef.current = false;
-
-    // ref.current를 effect 내부 변수에 복사 (Cleanup 경고 해결)
     const playerNode = audioPlayerRef.current;
 
     if (!scenarioId) {
@@ -441,15 +441,14 @@ const AITalkPageDetail: React.FC = () => {
     return () => {
       isUnmountedRef.current = true;
       stopRecordingInternalRef.current(false);
-
-      // 복사해둔 변수 사용
       if (playerNode) {
         playerNode.pause();
         playerNode.src = "";
       }
     };
-    // ✅ [Fix] 의존성 배열에 playAudioData 추가
-  }, [scenarioId, navigate, playAudioData]);
+    // ✅ [중요 수정] playAudioData가 변경되어도 초기화가 다시 실행되지 않도록 의존성 제거
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarioId, navigate]);
 
   // 스크롤 자동 이동
   useEffect(() => {
@@ -459,7 +458,7 @@ const AITalkPageDetail: React.FC = () => {
         el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       }, 100);
     }
-  }, [messages, isProcessing]);
+  }, [messages, isProcessing, isConversationEnded]);
 
   const handleEndConversation = async () => {
     stopRecordingInternal(false);
@@ -607,146 +606,158 @@ const AITalkPageDetail: React.FC = () => {
               <p>AI가 대화를 준비하고 있어요...</p>
             </div>
           ) : (
-            messages.map((m) => {
-              const isUser = m.role === "user";
-              const tokens = memoizedTokens[m.id];
-              // 스타일 에러 여부 확인
-              const styleError = m.feedback?.errors?.find(
-                (e) => e.type === "style"
-              );
+            <>
+              {messages.map((m) => {
+                const isUser = m.role === "user";
+                const tokens = memoizedTokens[m.id];
+                const styleError = m.feedback?.errors?.find(
+                  (e) => e.type === "style"
+                );
 
-              return (
-                <div
-                  key={m.id}
-                  className={`relative flex items-start ${
-                    isUser ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <div className="flex-1 max-w-[88%] sm:max-w-[70%]">
-                    <div
-                      ref={(el) => {
-                        bubbleRefs.current[m.id] = el;
-                      }}
-                      className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug break-words 
-                      ${
-                        isUser
-                          ? "bg-rose-500 text-white"
-                          : "bg-gray-100 text-gray-800"
-                      } 
-                      ${
-                        styleError && isUser
-                          ? "ring-2 ring-yellow-300 cursor-pointer"
-                          : ""
-                      }`}
-                      // 말풍선 전체에 마우스 올리거나 클릭하면 스타일 피드백 표시
-                      onMouseEnter={() => {
-                        if (!isMobile && styleError && isUser)
-                          onSentenceInteract(m.id, m.feedback);
-                      }}
-                      onMouseLeave={() => {
-                        if (!isMobile) closeTooltip();
-                      }}
-                      onClick={() => {
-                        if (isMobile && styleError && isUser)
-                          onSentenceInteract(m.id, m.feedback);
-                      }}
-                    >
+                return (
+                  <div
+                    key={m.id}
+                    className={`relative flex items-start ${
+                      isUser ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div className="flex-1 max-w-[88%] sm:max-w-[70%]">
                       <div
-                        className={`whitespace-pre-wrap break-words ${
-                          styleError && isUser ? "bg-yellow-50/20" : ""
+                        ref={(el) => {
+                          bubbleRefs.current[m.id] = el;
+                        }}
+                        className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug break-words 
+                        ${
+                          isUser
+                            ? "bg-rose-500 text-white"
+                            : "bg-gray-100 text-gray-800"
+                        } 
+                        ${
+                          styleError && isUser
+                            ? "ring-2 ring-yellow-300 cursor-pointer"
+                            : ""
                         }`}
+                        onMouseEnter={() => {
+                          if (!isMobile && styleError && isUser)
+                            onSentenceInteract(m.id, m.feedback);
+                        }}
+                        onMouseLeave={() => {
+                          if (!isMobile) closeTooltip();
+                        }}
+                        onClick={() => {
+                          if (isMobile && styleError && isUser)
+                            onSentenceInteract(m.id, m.feedback);
+                        }}
                       >
-                        {isUser ? (
-                          <span>
-                            {tokens.map(({ token, index }, i) => {
-                              if (index === -1)
-                                return <span key={i}>{token}</span>;
+                        <div
+                          className={`whitespace-pre-wrap break-words ${
+                            styleError && isUser ? "bg-yellow-50/20" : ""
+                          }`}
+                        >
+                          {isUser ? (
+                            <span>
+                              {tokens.map(({ token, index }, i) => {
+                                if (index === -1)
+                                  return <span key={i}>{token}</span>;
 
-                              // 스타일이 아닌 다른 에러(문법, 철자 등)만 찾기
-                              const err = m.feedback?.errors?.find(
-                                (e) => e.index === index && e.type !== "style"
-                              );
+                                const err = m.feedback?.errors?.find(
+                                  (e) => e.index === index && e.type !== "style"
+                                );
 
-                              let cls = "rounded-sm px-0.5 inline-block ";
-                              if (err) {
-                                cls += "cursor-pointer ";
-                                if (err.type === "word")
-                                  cls +=
-                                    "bg-blue-600/30 underline decoration-2 ";
-                                else if (err.type === "grammar")
-                                  cls +=
-                                    "bg-purple-600/30 underline decoration-dotted ";
-                                else if (err.type === "spelling")
-                                  cls +=
-                                    "bg-orange-500/30 underline decoration-wavy ";
-                              }
-                              return (
-                                <span
-                                  key={i}
-                                  className={cls}
-                                  onMouseEnter={(e) => {
-                                    if (err) {
-                                      e.stopPropagation();
-                                      if (!isMobile)
+                                let cls = "rounded-sm px-0.5 inline-block ";
+                                if (err) {
+                                  cls += "cursor-pointer ";
+                                  if (err.type === "word")
+                                    cls +=
+                                      "bg-blue-600/30 underline decoration-2 ";
+                                  else if (err.type === "grammar")
+                                    cls +=
+                                      "bg-purple-600/30 underline decoration-dotted ";
+                                  else if (err.type === "spelling")
+                                    cls +=
+                                      "bg-orange-500/30 underline decoration-wavy ";
+                                }
+                                return (
+                                  <span
+                                    key={i}
+                                    className={cls}
+                                    onMouseEnter={(e) => {
+                                      if (err) {
+                                        e.stopPropagation();
+                                        if (!isMobile)
+                                          onWordInteract(
+                                            m.id,
+                                            index,
+                                            m.feedback
+                                          );
+                                      }
+                                    }}
+                                    onClick={(e) => {
+                                      if (err && isMobile) {
+                                        e.stopPropagation();
                                         onWordInteract(m.id, index, m.feedback);
-                                    }
-                                  }}
-                                  onClick={(e) => {
-                                    if (err && isMobile) {
-                                      e.stopPropagation();
-                                      onWordInteract(m.id, index, m.feedback);
-                                    }
-                                  }}
-                                >
-                                  {token}
-                                </span>
-                              );
-                            })}
-                          </span>
-                        ) : (
-                          <span>{m.content}</span>
+                                      }
+                                    }}
+                                  >
+                                    {token}
+                                  </span>
+                                );
+                              })}
+                            </span>
+                          ) : (
+                            <span>{m.content}</span>
+                          )}
+                        </div>
+
+                        {m.role === "ai" && (
+                          <div className="flex gap-3 mt-2">
+                            <button
+                              onClick={() => playAudioData(null)}
+                              className="inline-flex items-center text-gray-400 hover:text-gray-600"
+                            >
+                              <Volume2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => console.log(m.content)}
+                              className="inline-flex items-center text-gray-400 hover:text-gray-600"
+                            >
+                              <Languages size={18} />
+                            </button>
+                          </div>
+                        )}
+
+                        {styleError && isUser && (
+                          <div className="mt-2 flex items-center gap-2 text-yellow-900">
+                            <AlertCircle size={16} />
+                            <span className="text-[14px]">
+                              문장 전체 스타일 개선 필요
+                            </span>
+                          </div>
                         )}
                       </div>
-
-                      {m.role === "ai" && (
-                        <div className="flex gap-3 mt-2">
-                          <button
-                            onClick={() => playAudioData(null)}
-                            className="inline-flex items-center text-gray-400 hover:text-gray-600"
-                          >
-                            <Volume2 size={18} />
-                          </button>
-                          <button
-                            onClick={() => console.log(m.content)}
-                            className="inline-flex items-center text-gray-400 hover:text-gray-600"
-                          >
-                            <Languages size={18} />
-                          </button>
-                        </div>
-                      )}
-
-                      {styleError && isUser && (
-                        <div className="mt-2 flex items-center gap-2 text-yellow-900">
-                          <AlertCircle size={16} />
-                          <span className="text-[14px]">
-                            문장 전체 스타일 개선 필요
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })}
 
-          {isProcessing && !isAISpeaking && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-xl px-4 py-3 text-gray-500 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>생각하는 중...</span>
-              </div>
-            </div>
+              {isProcessing && !isAISpeaking && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 rounded-xl px-4 py-3 text-gray-500 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>생각하는 중...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 대화 종료 시스템 메시지 */}
+              {isConversationEnded && (
+                <div className="flex justify-center my-6">
+                  <span className="bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-medium shadow-sm">
+                    대화가 종료되었습니다.
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
@@ -761,7 +772,7 @@ const AITalkPageDetail: React.FC = () => {
               className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md transition-all duration-300
                 ${
                   isRecording
-                    ? "bg-rose-500 scale-110"
+                    ? "bg-rose-500 ring-4 ring-rose-300 ring-offset-2 animate-pulse"
                     : isProcessing
                     ? "bg-gray-400"
                     : isAISpeaking
@@ -769,13 +780,9 @@ const AITalkPageDetail: React.FC = () => {
                     : "bg-gray-300"
                 }
               `}
-              style={{ transform: "translateY(15px)" }}
             >
               {isRecording ? (
-                <>
-                  <Mic size={30} />
-                  <span className="pointer-events-none absolute inset-0 rounded-full animate-ping bg-rose-400 opacity-75" />
-                </>
+                <Mic size={30} />
               ) : isProcessing ? (
                 <Loader2 size={30} className="animate-spin" />
               ) : isAISpeaking ? (
@@ -783,16 +790,6 @@ const AITalkPageDetail: React.FC = () => {
               ) : (
                 <Mic size={30} />
               )}
-            </div>
-
-            <div className="absolute bottom-2 text-xs font-medium text-gray-500">
-              {isRecording
-                ? "듣고 있어요..."
-                : isProcessing
-                ? "생각 중..."
-                : isAISpeaking
-                ? "AI 말하는 중..."
-                : "대기 중"}
             </div>
           </div>
         </div>

@@ -1,28 +1,22 @@
 // backend/src/ai/generators/talk.ts
 import { generateText, parseJSON } from "../text";
 
-/**
- * 레벨별 프롬프트 가이드 생성 유틸
- */
 function getLevelInstruction(level: string = "A1"): string {
   switch (level.toUpperCase()) {
     case "A1":
     case "A2":
-      return "The user is a beginner (A1-A2). Use very simple vocabulary, short sentences, and avoid complex grammar. Speak slowly and clearly.";
+      return "The user is a beginner (A1-A2). Use simple vocabulary and short, clear sentences. Speak slowly.";
     case "B1":
     case "B2":
-      return "The user is intermediate (B1-B2). Use natural daily conversation skills, moderate vocabulary, and standard grammar. You can use common idioms.";
+      return "The user is intermediate (B1-B2). Use natural daily conversation skills and common idioms.";
     case "C1":
     case "C2":
-      return "The user is advanced (C1-C2). Use sophisticated vocabulary, nuanced expressions, and complex sentence structures. Speak like a native intellectual.";
+      return "The user is advanced (C1-C2). Use sophisticated vocabulary and nuanced expressions.";
     default:
       return "The user is a beginner. Use simple English.";
   }
 }
 
-/**
- * 프론트엔드와 동일한 로직으로 단어 인덱스 맵 생성
- */
 function createWordIndexMap(text: string): string {
   const parts = text.split(/(\s+)/);
   let wordIndex = 0;
@@ -38,9 +32,6 @@ function createWordIndexMap(text: string): string {
   return map.join(", ");
 }
 
-/**
- * 1. 첫 인사말 생성
- */
 export async function generateTalkOpening(
   context: string,
   level: string
@@ -48,18 +39,29 @@ export async function generateTalkOpening(
   const levelInst = getLevelInstruction(level);
 
   const systemPrompt = `
-    You are a friendly AI conversation partner.
+    You are a roleplay partner in a specific situation for an English learner.
     ${levelInst}
+    
+    [CRITICAL LANGUAGE RULE]
+    - You MUST speak ONLY in ENGLISH.
+    
+    [CRITICAL CONTENT RULES]
+    1. Do NOT say "Welcome to our chat".
+    2. Start the roleplay IMMEDIATELY as the character defined in the context.
+    3. Speak exactly like a human in that situation.
+    
     Output ONLY valid JSON.
   `;
 
   const userPrompt = `
-    Context: "${context}"
-    Task: Generate a natural, friendly opening sentence to start the conversation.
+    [Scenario Context]
+    "${context}"
+
+    Task: Generate the FIRST opening sentence to start this conversation naturally in English.
     
     Response Format (JSON):
     {
-      "opening": "Hello! Welcome to..."
+      "opening": "Your opening line here"
     }
   `;
 
@@ -75,14 +77,14 @@ export async function generateTalkOpening(
 }
 
 /**
- * 2. 대화 응답 + 피드백 생성
+ * 2. 대화 응답 + 피드백 + [종료 감지]
  */
 export async function generateTalkResponse(
   context: string,
   history: { role: string; content: string }[],
   userMessage: string,
   level: string
-): Promise<{ reply: string; feedback: any }> {
+): Promise<{ reply: string; feedback: any; is_finished: boolean }> {
   const levelInst = getLevelInstruction(level);
 
   const historyText = history
@@ -92,34 +94,47 @@ export async function generateTalkResponse(
   const wordIndexMap = createWordIndexMap(userMessage);
 
   const systemPrompt = `
-    You are an AI English tutor and roleplay partner.
-    Context: "${context}"
-    Target User Level: ${level}
+    You are a roleplay partner in a specific situation for an English learner.
+    
+    [Current Scenario Context]
+    "${context}"
+    
+    [Target User Level]
+    ${level}
     
     [Instructions]
     1. ${levelInst}
-    2. Respond to the user's message naturally in character.
-    3. Analyze the user's message for grammar, spelling, and style errors.
+    2. ACT as the character in the context.
+    3. Speak naturally like a human.
+    
+    [CRITICAL LANGUAGE RULE]
+    - Response ('reply') MUST be in ENGLISH.
+    - Feedback ('explanation', 'message') MUST be in KOREAN.
 
-    [CRITICAL STYLE FEEDBACK RULES]
-    - IF the context is CASUAL: Do NOT flag informal language/slang as errors unless offensive.
-    - IF the context is FORMAL: Suggest polite forms.
+    [TERMINATION RULES - IMPORTANT]
+    - Analyze if the conversation has reached a natural conclusion.
+    - Set "is_finished": true IF:
+      1. The user says goodbye (e.g., "Bye", "See you", "Have a nice day").
+      2. The user indicates they want to stop (e.g., "I have to go", "Stop").
+      3. The scenario's goal is clearly achieved and there is nothing more to say.
+    - If "is_finished": true, give a final natural farewell message in 'reply'.
 
     [IMPORTANT RULE FOR ERROR INDEXING]
-    - For 'grammar' or 'spelling' or 'word' errors: Use [Word Index Map] to find the exact "index".
-    - For 'style' errors (tone, politeness, nuance): SET "index" TO null. (Style applies to the whole sentence).
+    - Use [Word Index Map] to find the exact "index".
+    - For 'style' errors, SET "index" TO null.
     
     IMPORTANT: Output ONLY valid JSON.
     
     JSON Structure:
     {
-      "reply": "Your response here",
+      "reply": "Your natural response here (ENGLISH)",
+      "is_finished": boolean, 
       "feedback": {
         "explanation": "Brief explanation in Korean",
         "suggestion": "Corrected natural version",
         "errors": [
           {
-            "index": number | null, 
+            "index": number | null,
             "word": "error_word",
             "type": "grammar" | "spelling" | "word" | "style",
             "message": "Error description in Korean"
@@ -145,5 +160,7 @@ export async function generateTalkResponse(
     model: "gpt-4o",
   });
 
-  return parseJSON<{ reply: string; feedback: any }>(res.text);
+  return parseJSON<{ reply: string; feedback: any; is_finished: boolean }>(
+    res.text
+  );
 }

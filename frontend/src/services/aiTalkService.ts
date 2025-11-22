@@ -53,11 +53,12 @@ export interface AIMessage {
   feedback?: AIFeedback | null;
 }
 
-// ✅ 응답에 오디오 데이터(Base64) 포함
+// ✅ 응답 타입 수정: ended 필드 추가
 export interface SendMessageResponse {
   userMessage: AIMessage;
   aiMessage: AIMessage;
   audioData?: string | null; // Base64 audio string
+  ended?: boolean; // ✅ 대화 종료 여부 (Backend에서 is_finished가 true면 true)
 }
 
 // --- 2. 개별 함수 Export ---
