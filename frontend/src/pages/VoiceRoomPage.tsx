@@ -85,7 +85,7 @@ export default function VoiceRoomPage() {
   }, []);
 
   const handleJoinRoom = (roomId: string) => {
-    navigate(`/voiceroom/room/${roomId}`);
+    navigate(`/voiceroom/${roomId}`);
   };
 
   const handleCreateRoom = () => {
